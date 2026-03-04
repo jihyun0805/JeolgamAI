@@ -1,0 +1,39 @@
+#!/bin/sh
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# merge/rebase 등 자동 생성 커밋은 건드리지 않음
+case "$COMMIT_SOURCE" in
+  merge|squash|commit|template|message)
+    exit 0
+    ;;
+esac
+
+BRANCH_NAME="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
+# 브랜치명에서 JIRA 스타일 키 추출 (예: ABC-123)
+ISSUE_KEY="$(echo "$BRANCH_NAME" | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1)"
+
+# 브랜치명에 키가 없으면 종료
+[ -z "$ISSUE_KEY" ] && exit 0
+
+# 이미 커밋 메시지에 키가 있으면 종료
+if grep -qE "(^|\s)\[?$ISSUE_KEY\]?(\\s|:|$)" "$COMMIT_MSG_FILE"; then
+  exit 0
+fi
+
+# 커밋 메시지가 비어있으면 그냥 키만 넣고 종료
+if [ ! -s "$COMMIT_MSG_FILE" ]; then
+  echo "[$ISSUE_KEY] " > "$COMMIT_MSG_FILE"
+  exit 0
+fi
+
+# 첫 줄(제목) 앞에 키 붙이기
+FIRST_LINE="$(head -n 1 "$COMMIT_MSG_FILE")"
+REST_LINES="$(tail -n +2 "$COMMIT_MSG_FILE")"
+
+{
+  echo "[$ISSUE_KEY] $FIRST_LINE"
+  [ -n "$REST_LINES" ] && echo "$REST_LINES"
+} > "$COMMIT_MSG_FILE"
