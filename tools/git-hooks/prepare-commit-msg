@@ -1,6 +1,6 @@
 #!/bin/sh
 
-COMMIT_MSG_FILE="$1"
+MSG_FILE="$1"
 COMMIT_SOURCE="$2"
 
 # merge/rebase 등 자동 생성 커밋은 건드리지 않음
@@ -10,30 +10,26 @@ case "$COMMIT_SOURCE" in
     ;;
 esac
 
-BRANCH_NAME="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
-# 브랜치명에서 JIRA 스타일 키 추출 (예: ABC-123)
-ISSUE_KEY="$(echo "$BRANCH_NAME" | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1)"
+# Jira 이슈 키 추출 (예: ABC-123)
+ISSUE_KEY="$(echo "$BRANCH" | grep -oE '[A-Z0-9]{2,}-[0-9]+' | head -n 1)"
 
-# 브랜치명에 키가 없으면 종료
+# 이슈키가 없으면 종료
 [ -z "$ISSUE_KEY" ] && exit 0
 
-# 이미 커밋 메시지에 키가 있으면 종료
-if grep -qE "(^|\s)\[?$ISSUE_KEY\]?(\\s|:|$)" "$COMMIT_MSG_FILE"; then
+# 커밋 메시지 파일이 비어있으면 "(KEY)"만 넣고 종료
+if [ ! -s "$MSG_FILE" ]; then
+  echo "($ISSUE_KEY)" > "$MSG_FILE"
   exit 0
 fi
 
-# 커밋 메시지가 비어있으면 그냥 키만 넣고 종료
-if [ ! -s "$COMMIT_MSG_FILE" ]; then
-  echo "[$ISSUE_KEY] " > "$COMMIT_MSG_FILE"
+# 이미 (KEY) 혹은 KEY가 있으면 종료 (중복 방지)
+if grep -qE "(^|\\s)\\(?$ISSUE_KEY\\)?(\\s|:|$)" "$MSG_FILE"; then
   exit 0
 fi
 
-# 첫 줄(제목) 앞에 키 붙이기
-FIRST_LINE="$(head -n 1 "$COMMIT_MSG_FILE")"
-REST_LINES="$(tail -n +2 "$COMMIT_MSG_FILE")"
-
-{
-  echo "[$ISSUE_KEY] $FIRST_LINE"
-  [ -n "$REST_LINES" ] && echo "$REST_LINES"
-} > "$COMMIT_MSG_FILE"
+# 첫 줄 끝에 (KEY) 추가
+# -i.bak: 편집 전 백업 파일 만들었다가 지움 (Git Bash에서도 안정적)
+sed -i.bak "1s|\$| ($ISSUE_KEY)|" "$MSG_FILE"
+rm -f "$MSG_FILE.bak"
