@@ -1,0 +1,35 @@
+{
+  "name": "jeolgamai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cost-explorer": "^3.997.0",
+    "@aws-sdk/client-ec2": "^3.997.0",
+    "@aws-sdk/client-rds": "^3.997.0",
+    "@aws-sdk/client-s3": "^3.997.0",
+    "@aws-sdk/client-sts": "^3.997.0",
+    "@types/dagre": "^0.7.54",
+    "@types/pg": "^8.16.0",
+    "dagre": "^0.8.5",
+    "next": "16.1.6",
+    "pg": "^8.18.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
