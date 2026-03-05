@@ -12,6 +12,9 @@ management:
     enabled: true
     sampling:
       probability: 1.0
+  metrics:
+    tags:
+      application: ${spring.application.name}
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://jaeger.observability.svc.cluster.local:4318/v1/traces}
