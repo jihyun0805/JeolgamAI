@@ -4,4 +4,4 @@ Git hook을 사용합니다.
 
 ### 최초 1회 실행
 ```bash
-sh tools/git-hooks/install.sh
+sh tools/git-hooks/install.sh 
