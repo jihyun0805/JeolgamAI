@@ -1,0 +1,113 @@
+stages:
+  - prepare
+  - build
+  - gitops
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - when: never
+
+variables:
+  GCP_PROJECT_ID: "project-4f97da53-2e5a-4ef8-b6b"
+  GAR_LOCATION: "asia-northeast3"
+  GAR_REPOSITORY: "jeolgamai"
+  GAR_HOST: "asia-northeast3-docker.pkg.dev"
+
+prepare_release:
+  stage: prepare
+  image: alpine:3.20
+  script:
+    - IMAGE_TIMESTAMP="$(date -u +%Y-%m-%d-%H-%M)"
+    - IMAGE_TAG="${IMAGE_TIMESTAMP}-${CI_COMMIT_SHORT_SHA}"
+    - echo "IMAGE_TIMESTAMP=${IMAGE_TIMESTAMP}" > release.env
+    - echo "IMAGE_TAG=${IMAGE_TAG}" >> release.env
+    - echo "Using IMAGE_TAG=${IMAGE_TAG}"
+  artifacts:
+    reports:
+      dotenv: release.env
+
+build_backend_image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  needs:
+    - job: prepare_release
+      artifacts: true
+  script:
+    - |
+      for v in GCP_SA_KEY IMAGE_TAG; do
+        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      done
+    - |
+      if [ -f "$GCP_SA_KEY" ]; then
+        cp "$GCP_SA_KEY" /kaniko/gcp-key.json
+      else
+        printf '%s' "$GCP_SA_KEY" > /kaniko/gcp-key.json
+      fi
+    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+    - BACKEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/backend"
+    - /kaniko/executor --context "${CI_PROJECT_DIR}/backend" --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile" --destination "${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${BACKEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
+    - echo "BACKEND_IMAGE=${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" > backend.env
+  artifacts:
+    reports:
+      dotenv: backend.env
+
+build_frontend_image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  needs:
+    - job: prepare_release
+      artifacts: true
+  script:
+    - |
+      for v in GCP_SA_KEY IMAGE_TAG; do
+        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      done
+    - |
+      if [ -f "$GCP_SA_KEY" ]; then
+        cp "$GCP_SA_KEY" /kaniko/gcp-key.json
+      else
+        printf '%s' "$GCP_SA_KEY" > /kaniko/gcp-key.json
+      fi
+    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+    - FRONTEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/frontend"
+    - /kaniko/executor --context "${CI_PROJECT_DIR}/frontend" --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" --destination "${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${FRONTEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
+    - echo "FRONTEND_IMAGE=${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" > frontend.env
+  artifacts:
+    reports:
+      dotenv: frontend.env
+
+update_gitops_manifests:
+  stage: gitops
+  image: alpine/git:2.47.2
+  needs:
+    - job: prepare_release
+      artifacts: true
+    - job: build_backend_image
+      artifacts: true
+    - job: build_frontend_image
+      artifacts: true
+  script:
+    - |
+      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_JOB_TOKEN CI_SERVER_HOST CI_PROJECT_PATH; do
+        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      done
+    - git config --global user.name "gitlab-ci-bot"
+    - git config --global user.email "gitlab-ci-bot@local"
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git fetch origin master
+    - git checkout -B master origin/master
+    - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${BACKEND_IMAGE}|" infra/k8s/backend/deployment.yaml
+    - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${FRONTEND_IMAGE}|" infra/k8s/frontend/deployment.yaml
+    - |
+      if git diff --quiet infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml; then
+        echo "No manifest changes detected."
+        exit 0
+      fi
+    - git add infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml
+    - 'git commit -m "chore(gitops): deploy ${IMAGE_TAG} [skip ci]"'
+    - git push origin HEAD:master
