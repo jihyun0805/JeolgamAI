@@ -109,5 +109,5 @@ update_gitops_manifests:
         exit 0
       fi
     - git add infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml
-    - git commit -m "chore(gitops): deploy ${IMAGE_TAG} [skip ci]"
+    - 'git commit -m "chore(gitops): deploy ${IMAGE_TAG} [skip ci]"'
     - git push origin HEAD:master
