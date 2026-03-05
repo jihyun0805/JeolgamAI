@@ -20,6 +20,14 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: backend-env
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: OTEL_SERVICE_NAME
+              value: backend
           readinessProbe:
             tcpSocket:
               port: 8080

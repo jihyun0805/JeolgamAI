@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: backend
+  profiles:
+    default: local
+
+management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://jaeger.observability.svc.cluster.local:4318/v1/traces}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true

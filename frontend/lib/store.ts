@@ -1,5 +1,6 @@
 import {
   AnalysisSnapshot,
+  AuthUser,
   AppNotification,
   ApprovalLog,
   AuditEvent,
@@ -12,6 +13,7 @@ import {
   UserSession,
 } from "@/lib/types";
 import { loadPersistedState, persistState } from "@/lib/state-persistence";
+import { TEST_ACCOUNT } from "@/lib/test-users";
 
 export interface AppState {
   workspaceId: string;
@@ -22,6 +24,7 @@ export interface AppState {
   reports: ReportArtifact[];
   chatSessions: ChatSession[];
   notifications: AppNotification[];
+  authUsers: AuthUser[];
   sessions: UserSession[];
   audits: AuditEvent[];
 }
@@ -38,9 +41,23 @@ function createInitialState(): AppState {
     reports: [],
     chatSessions: [],
     notifications: [],
+    authUsers: [],
     sessions: [],
     audits: [],
   };
+}
+
+function createDefaultAuthUsers(): AuthUser[] {
+  return [
+    {
+      userId: "user_test_account",
+      loginId: TEST_ACCOUNT.loginId,
+      password: TEST_ACCOUNT.password,
+      name: TEST_ACCOUNT.name,
+      role: TEST_ACCOUNT.role,
+      createdAt: nowIso(),
+    },
+  ];
 }
 
 function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
@@ -56,6 +73,10 @@ function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
     reports: raw.reports ?? base.reports,
     chatSessions: raw.chatSessions ?? base.chatSessions,
     notifications: raw.notifications ?? base.notifications,
+    authUsers:
+      raw.authUsers && raw.authUsers.length > 0
+        ? raw.authUsers
+        : createDefaultAuthUsers(),
     sessions: raw.sessions ?? base.sessions,
     audits: raw.audits ?? base.audits,
   };
@@ -231,6 +252,39 @@ export function removeSessionByToken(token: string): void {
   const store = getStore();
   store.sessions = store.sessions.filter((item) => item.token !== token);
   persistStore();
+}
+
+export function getAuthUserByLoginId(loginId: string): AuthUser | null {
+  const store = getStore();
+  return (
+    store.authUsers.find(
+      (user) => user.loginId.toLowerCase() === loginId.toLowerCase(),
+    ) ?? null
+  );
+}
+
+export function createAuthUser(params: {
+  loginId: string;
+  password: string;
+  name: string;
+  role: UserRole;
+}): AuthUser {
+  const store = getStore();
+  const existing = getAuthUserByLoginId(params.loginId);
+  if (existing) return existing;
+
+  const user: AuthUser = {
+    userId: createId("user"),
+    loginId: params.loginId,
+    password: params.password,
+    name: params.name,
+    role: params.role,
+    createdAt: nowIso(),
+  };
+
+  store.authUsers.unshift(user);
+  persistStore();
+  return user;
 }
 
 export function getChatSession(

@@ -29,12 +29,21 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	runtimeOnly 'io.opentelemetry:opentelemetry-exporter-otlp'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// OpenTelemetry
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+	runtimeOnly 'io.opentelemetry:opentelemetry-exporter-otlp'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
 }
 
 dependencyManagement {
