@@ -1,12 +1,11 @@
-# Reference: https://spring.io/guides/gs/spring-boot-docker/
+# Build stage
+FROM gradle:8.7-jdk17-alpine AS builder
+WORKDIR /workspace
+COPY . .
+RUN gradle bootJar --no-daemon
 
-FROM openjdk:17-jdk-alpine
-
-# 인자 설정 - Jar_File
-ARG JAR_FILE=build/libs/*.jar
-
-# jar 파일 복제
-COPY ${JAR_FILE} app.jar
-
-# 실행 명령어
-ENTRYPOINT ["java","-jar","-Duser.timezone=Asia/Seoul","/app.jar"]
+# Runtime stage
+FROM eclipse-temurin:17-jre
+WORKDIR /
+COPY --from=builder /workspace/build/libs/*.jar /app.jar
+ENTRYPOINT ["java","-Duser.timezone=Asia/Seoul","-jar","/app.jar"]
