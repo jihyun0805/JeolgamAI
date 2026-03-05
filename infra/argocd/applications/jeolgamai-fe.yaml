@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jeolgamai-fe
+  namespace: gitops
+spec:
+  project: default
+  source:
+    repoURL: https://lab.ssafy.com/s14-bigdata-recom-sub1/S14P21A502.git
+    targetRevision: master
+    path: infra/k8s/frontend
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
