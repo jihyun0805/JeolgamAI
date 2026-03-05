@@ -71,7 +71,9 @@ build_frontend_image:
 
 update_gitops_manifests:
   stage: gitops
-  image: alpine/git:2.47.2
+  image:
+    name: alpine/git:2.47.2
+    entrypoint: [""]
   needs:
     - job: prepare_release
       artifacts: true
