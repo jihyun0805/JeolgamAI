@@ -5,7 +5,7 @@ COMMIT_SOURCE="$2"
 
 # merge/rebase 등 자동 생성 커밋은 건드리지 않음
 case "$COMMIT_SOURCE" in
-  merge|squash|commit|template|message)
+  merge|squash|commit|template)
     exit 0
     ;;
 esac
