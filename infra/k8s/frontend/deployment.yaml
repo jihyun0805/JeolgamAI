@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/frontend:latest
+          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/frontend:2026-03-05-05-24-1e5e622f
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

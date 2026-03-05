@@ -37,16 +37,10 @@ build_backend_image:
       artifacts: true
   script:
     - |
-      for v in GCP_SA_KEY IMAGE_TAG; do
-        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      for v in IMAGE_TAG; do
+        eval "val=\${$v-}"
+        if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
-    - |
-      if [ -f "$GCP_SA_KEY" ]; then
-        cp "$GCP_SA_KEY" /kaniko/gcp-key.json
-      else
-        printf '%s' "$GCP_SA_KEY" > /kaniko/gcp-key.json
-      fi
-    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
     - BACKEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/backend"
     - /kaniko/executor --context "${CI_PROJECT_DIR}/backend" --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile" --destination "${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${BACKEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
     - echo "BACKEND_IMAGE=${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" > backend.env
@@ -64,16 +58,10 @@ build_frontend_image:
       artifacts: true
   script:
     - |
-      for v in GCP_SA_KEY IMAGE_TAG; do
-        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      for v in IMAGE_TAG; do
+        eval "val=\${$v-}"
+        if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
-    - |
-      if [ -f "$GCP_SA_KEY" ]; then
-        cp "$GCP_SA_KEY" /kaniko/gcp-key.json
-      else
-        printf '%s' "$GCP_SA_KEY" > /kaniko/gcp-key.json
-      fi
-    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
     - FRONTEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/frontend"
     - /kaniko/executor --context "${CI_PROJECT_DIR}/frontend" --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" --destination "${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${FRONTEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
     - echo "FRONTEND_IMAGE=${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" > frontend.env
@@ -83,7 +71,9 @@ build_frontend_image:
 
 update_gitops_manifests:
   stage: gitops
-  image: alpine/git:2.47.2
+  image:
+    name: alpine/git:2.47.2
+    entrypoint: [""]
   needs:
     - job: prepare_release
       artifacts: true
@@ -93,14 +83,24 @@ update_gitops_manifests:
       artifacts: true
   script:
     - |
-      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_JOB_TOKEN CI_SERVER_HOST CI_PROJECT_PATH; do
-        if [ -z "${!v}" ]; then echo "Missing required variable: $v"; exit 1; fi
+      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_SERVER_HOST CI_PROJECT_PATH; do
+        eval "val=\${$v-}"
+        if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
+    - |
+      if [ -n "${GITOPS_PUSH_USER:-}" ] && [ -n "${GITOPS_PUSH_TOKEN:-}" ]; then
+        PUSH_REMOTE_URL="https://${GITOPS_PUSH_USER}:${GITOPS_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      elif [ -n "${CI_JOB_TOKEN:-}" ]; then
+        PUSH_REMOTE_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      else
+        echo "Missing push credentials. Set GITOPS_PUSH_USER and GITOPS_PUSH_TOKEN."
+        exit 1
+      fi
     - git config --global user.name "gitlab-ci-bot"
     - git config --global user.email "gitlab-ci-bot@local"
-    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - git fetch origin master
     - git checkout -B master origin/master
+    - git remote set-url --push origin "${PUSH_REMOTE_URL}"
     - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${BACKEND_IMAGE}|" infra/k8s/backend/deployment.yaml
     - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${FRONTEND_IMAGE}|" infra/k8s/frontend/deployment.yaml
     - |
