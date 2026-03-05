@@ -207,6 +207,15 @@ export interface UserSession {
   expiresAt: string;
 }
 
+export interface AuthUser {
+  userId: string;
+  loginId: string;
+  password: string;
+  name: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 export interface AuditEvent {
   id: string;
   actor: string;

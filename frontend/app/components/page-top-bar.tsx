@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import Link from "next/link";
 import UserProfileChip from "@/app/components/user-profile-chip";
 
 function TopBarIcon({
@@ -84,6 +85,13 @@ export default function PageTopBar({
           </button>
 
           <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block dark:bg-slate-700" />
+
+          <Link
+            href="/api/auth/logout?redirect=/"
+            className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+          >
+            로그아웃
+          </Link>
 
           <UserProfileChip userName={userName} userRole={userRole} variant="topbar" />
         </div>
