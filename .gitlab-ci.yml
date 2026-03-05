@@ -83,13 +83,22 @@ update_gitops_manifests:
       artifacts: true
   script:
     - |
-      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_JOB_TOKEN CI_SERVER_HOST CI_PROJECT_PATH; do
+      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_SERVER_HOST CI_PROJECT_PATH; do
         eval "val=\${$v-}"
         if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
+    - |
+      if [ -n "${GITOPS_PUSH_USER:-}" ] && [ -n "${GITOPS_PUSH_TOKEN:-}" ]; then
+        PUSH_REMOTE_URL="https://${GITOPS_PUSH_USER}:${GITOPS_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      elif [ -n "${CI_JOB_TOKEN:-}" ]; then
+        PUSH_REMOTE_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      else
+        echo "Missing push credentials. Set GITOPS_PUSH_USER and GITOPS_PUSH_TOKEN."
+        exit 1
+      fi
     - git config --global user.name "gitlab-ci-bot"
     - git config --global user.email "gitlab-ci-bot@local"
-    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git remote set-url origin "${PUSH_REMOTE_URL}"
     - git fetch origin master
     - git checkout -B master origin/master
     - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${BACKEND_IMAGE}|" infra/k8s/backend/deployment.yaml
