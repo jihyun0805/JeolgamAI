@@ -150,35 +150,6 @@ update_gitops_manifests:
     - 'git commit -m "chore(gitops): deploy ${IMAGE_TAG} [skip ci]"'
     - git push origin HEAD:master
 
-sync_backend_secret:
-  stage: gitops
-  image:
-    name: bitnami/kubectl:1.30
-    entrypoint: [""]
-  needs:
-    - job: update_gitops_manifests
-  script:
-    - |
-      for v in KUBE_CONFIG_DATA SPRING_DATASOURCE_URL SPRING_DATASOURCE_USERNAME SPRING_DATASOURCE_PASSWORD OTEL_EXPORTER_OTLP_ENDPOINT; do
-        eval "val=\${$v-}"
-        if [ -z "$val" ]; then
-          echo "Missing required variable: $v"
-          exit 1
-        fi
-      done
-    - echo "$KUBE_CONFIG_DATA" | base64 -d > kubeconfig
-    - export KUBECONFIG="${PWD}/kubeconfig"
-    - |
-      kubectl -n app create secret generic backend-env \
-        --from-literal=SPRING_DATASOURCE_URL="${SPRING_DATASOURCE_URL}" \
-        --from-literal=SPRING_DATASOURCE_USERNAME="${SPRING_DATASOURCE_USERNAME}" \
-        --from-literal=SPRING_DATASOURCE_PASSWORD="${SPRING_DATASOURCE_PASSWORD}" \
-        --from-literal=SPRING_DATASOURCE_DRIVER_CLASS_NAME="com.mysql.cj.jdbc.Driver" \
-        --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT}" \
-        --dry-run=client -o yaml | kubectl apply -f -
-    - kubectl -n app rollout restart deploy/backend
-    - kubectl -n app rollout status deploy/backend --timeout=180s
-
 notify_pipeline_success:
   stage: notify_end
   image: curlimages/curl:8.12.1

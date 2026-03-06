@@ -23,6 +23,12 @@ spec:
           env:
             - name: NODE_ENV
               value: production
+            - name: OTEL_SERVICE_NAME
+              value: frontend
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger.observability.svc.cluster.local:4318
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
           readinessProbe:
             httpGet:
               path: /
