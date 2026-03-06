@@ -8,11 +8,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "costs")
 public class Cost {
@@ -33,39 +40,8 @@ public class Cost {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public Cost() {
-    }
-
     public Cost(Resource resource, double monthlyCost) {
         this.resource = resource;
         this.monthlyCost = monthlyCost;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Resource getResource() {
-        return resource;
-    }
-
-    public void setResource(Resource resource) {
-        this.resource = resource;
-    }
-
-    public double getMonthlyCost() {
-        return monthlyCost;
-    }
-
-    public void setMonthlyCost(double monthlyCost) {
-        this.monthlyCost = monthlyCost;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
     }
 }

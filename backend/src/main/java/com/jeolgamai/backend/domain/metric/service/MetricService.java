@@ -6,6 +6,7 @@ import com.jeolgamai.backend.domain.metric.entity.Metric;
 import com.jeolgamai.backend.domain.metric.repository.MetricRepository;
 import com.jeolgamai.backend.domain.resource.entity.Resource;
 import com.jeolgamai.backend.domain.resource.repository.ResourceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,19 +14,15 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class MetricService {
 
     private final MetricRepository metricRepository;
     private final ResourceRepository resourceRepository;
 
-    public MetricService(MetricRepository metricRepository, ResourceRepository resourceRepository) {
-        this.metricRepository = metricRepository;
-        this.resourceRepository = resourceRepository;
-    }
-
     public MetricResponse create(MetricRequest request) {
-        Resource resource = getResourceById(request.resourceId());
-        Metric saved = metricRepository.save(new Metric(resource, request.cpuAvg(), request.memoryAvg()));
+        Resource resource = getResourceById(request.getResourceId());
+        Metric saved = metricRepository.save(new Metric(resource, request.getCpuAvg(), request.getMemoryAvg()));
         return toResponse(saved);
     }
 
@@ -39,9 +36,9 @@ public class MetricService {
 
     public MetricResponse update(Long id, MetricRequest request) {
         Metric metric = getById(id);
-        metric.setResource(getResourceById(request.resourceId()));
-        metric.setCpuAvg(request.cpuAvg());
-        metric.setMemoryAvg(request.memoryAvg());
+        metric.setResource(getResourceById(request.getResourceId()));
+        metric.setCpuAvg(request.getCpuAvg());
+        metric.setMemoryAvg(request.getMemoryAvg());
         return toResponse(metricRepository.save(metric));
     }
 

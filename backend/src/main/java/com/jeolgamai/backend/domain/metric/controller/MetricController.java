@@ -3,54 +3,67 @@ package com.jeolgamai.backend.domain.metric.controller;
 import com.jeolgamai.backend.domain.metric.dto.MetricRequest;
 import com.jeolgamai.backend.domain.metric.dto.MetricResponse;
 import com.jeolgamai.backend.domain.metric.service.MetricService;
+import com.jeolgamai.backend.global.response.BaseResponse;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/metrics")
+@RequiredArgsConstructor
 public class MetricController {
 
     private final MetricService metricService;
 
-    public MetricController(MetricService metricService) {
-        this.metricService = metricService;
-    }
-
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public MetricResponse create(@Valid @RequestBody MetricRequest request) {
-        return metricService.create(request);
+    public ResponseEntity<BaseResponse<MetricResponse>> create(
+            @Valid @RequestBody MetricRequest request
+    ) {
+        MetricResponse response = metricService.create(request);
+        return ResponseEntity
+                .status(201)
+                .body(BaseResponse.onSuccess("지표 생성 성공", response));
     }
 
     @GetMapping
-    public List<MetricResponse> findAll() {
-        return metricService.findAll();
+    public ResponseEntity<BaseResponse<List<MetricResponse>>> findAll() {
+        List<MetricResponse> response = metricService.findAll();
+        return ResponseEntity.ok(
+                BaseResponse.onSuccess(response)
+        );
     }
 
     @GetMapping("/{id}")
-    public MetricResponse findById(@PathVariable Long id) {
-        return metricService.findById(id);
+    public ResponseEntity<BaseResponse<MetricResponse>> findById(
+            @PathVariable Long id
+    ) {
+        MetricResponse response = metricService.findById(id);
+        return ResponseEntity.ok(
+                BaseResponse.onSuccess(response)
+        );
     }
 
     @PutMapping("/{id}")
-    public MetricResponse update(@PathVariable Long id, @Valid @RequestBody MetricRequest request) {
-        return metricService.update(id, request);
+    public ResponseEntity<BaseResponse<MetricResponse>> update(
+            @PathVariable Long id,
+            @Valid @RequestBody MetricRequest request
+    ) {
+        MetricResponse response = metricService.update(id, request);
+        return ResponseEntity.ok(
+                BaseResponse.onSuccess("지표 수정 성공", response)
+        );
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public ResponseEntity<BaseResponse<Void>> delete(
+            @PathVariable Long id
+    ) {
         metricService.delete(id);
+        return ResponseEntity.ok(
+                BaseResponse.onSuccess("지표 삭제 성공", null)
+        );
     }
 }

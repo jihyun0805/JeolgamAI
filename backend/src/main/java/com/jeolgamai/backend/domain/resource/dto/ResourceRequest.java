@@ -1,10 +1,23 @@
 package com.jeolgamai.backend.domain.resource.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-public record ResourceRequest(
-        @NotBlank String team,
-        @NotBlank String service,
-        @NotBlank String region
-) {
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class ResourceRequest {
+
+    @NotBlank
+    private String team;
+
+    @NotBlank
+    private String service;
+
+    @NotBlank
+    private String region;
 }

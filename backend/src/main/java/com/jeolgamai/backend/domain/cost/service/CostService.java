@@ -6,6 +6,7 @@ import com.jeolgamai.backend.domain.cost.entity.Cost;
 import com.jeolgamai.backend.domain.cost.repository.CostRepository;
 import com.jeolgamai.backend.domain.resource.entity.Resource;
 import com.jeolgamai.backend.domain.resource.repository.ResourceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,19 +14,15 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class CostService {
 
     private final CostRepository costRepository;
     private final ResourceRepository resourceRepository;
 
-    public CostService(CostRepository costRepository, ResourceRepository resourceRepository) {
-        this.costRepository = costRepository;
-        this.resourceRepository = resourceRepository;
-    }
-
     public CostResponse create(CostRequest request) {
-        Resource resource = getResourceById(request.resourceId());
-        Cost saved = costRepository.save(new Cost(resource, request.monthlyCost()));
+        Resource resource = getResourceById(request.getResourceId());
+        Cost saved = costRepository.save(new Cost(resource, request.getMonthlyCost()));
         return toResponse(saved);
     }
 
@@ -39,8 +36,8 @@ public class CostService {
 
     public CostResponse update(Long id, CostRequest request) {
         Cost cost = getById(id);
-        cost.setResource(getResourceById(request.resourceId()));
-        cost.setMonthlyCost(request.monthlyCost());
+        cost.setResource(getResourceById(request.getResourceId()));
+        cost.setMonthlyCost(request.getMonthlyCost());
         return toResponse(costRepository.save(cost));
     }
 

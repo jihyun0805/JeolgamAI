@@ -4,6 +4,7 @@ import com.jeolgamai.backend.domain.resource.dto.ResourceRequest;
 import com.jeolgamai.backend.domain.resource.dto.ResourceResponse;
 import com.jeolgamai.backend.domain.resource.entity.Resource;
 import com.jeolgamai.backend.domain.resource.repository.ResourceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -11,16 +12,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class ResourceService {
 
     private final ResourceRepository resourceRepository;
 
-    public ResourceService(ResourceRepository resourceRepository) {
-        this.resourceRepository = resourceRepository;
-    }
-
     public ResourceResponse create(ResourceRequest request) {
-        Resource saved = resourceRepository.save(new Resource(request.team(), request.service(), request.region()));
+        Resource saved = resourceRepository.save(new Resource(request.getTeam(), request.getService(), request.getRegion()));
         return toResponse(saved);
     }
 
@@ -34,9 +32,9 @@ public class ResourceService {
 
     public ResourceResponse update(Long id, ResourceRequest request) {
         Resource resource = getById(id);
-        resource.setTeam(request.team());
-        resource.setService(request.service());
-        resource.setRegion(request.region());
+        resource.setTeam(request.getTeam());
+        resource.setService(request.getService());
+        resource.setRegion(request.getRegion());
         return toResponse(resourceRepository.save(resource));
     }
 

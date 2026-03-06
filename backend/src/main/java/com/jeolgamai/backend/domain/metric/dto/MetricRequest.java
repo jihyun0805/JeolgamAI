@@ -3,10 +3,25 @@ package com.jeolgamai.backend.domain.metric.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-public record MetricRequest(
-        @NotNull Long resourceId,
-        @Min(0) @Max(100) double cpuAvg,
-        @Min(0) @Max(100) double memoryAvg
-) {
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class MetricRequest {
+
+    @NotNull
+    private Long resourceId;
+
+    @Min(0)
+    @Max(100)
+    private double cpuAvg;
+
+    @Min(0)
+    @Max(100)
+    private double memoryAvg;
 }

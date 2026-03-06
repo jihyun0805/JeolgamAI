@@ -8,11 +8,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "metrics")
 public class Metric {
@@ -34,48 +41,9 @@ public class Metric {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public Metric() {
-    }
-
     public Metric(Resource resource, double cpuAvg, double memoryAvg) {
         this.resource = resource;
         this.cpuAvg = cpuAvg;
         this.memoryAvg = memoryAvg;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Resource getResource() {
-        return resource;
-    }
-
-    public void setResource(Resource resource) {
-        this.resource = resource;
-    }
-
-    public double getCpuAvg() {
-        return cpuAvg;
-    }
-
-    public void setCpuAvg(double cpuAvg) {
-        this.cpuAvg = cpuAvg;
-    }
-
-    public double getMemoryAvg() {
-        return memoryAvg;
-    }
-
-    public void setMemoryAvg(double memoryAvg) {
-        this.memoryAvg = memoryAvg;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
     }
 }

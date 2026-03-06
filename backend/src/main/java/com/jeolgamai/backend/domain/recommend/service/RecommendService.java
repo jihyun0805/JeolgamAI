@@ -6,6 +6,7 @@ import com.jeolgamai.backend.domain.recommend.entity.Recommend;
 import com.jeolgamai.backend.domain.recommend.repository.RecommendRepository;
 import com.jeolgamai.backend.domain.resource.entity.Resource;
 import com.jeolgamai.backend.domain.resource.repository.ResourceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,25 +14,21 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class RecommendService {
 
     private final RecommendRepository recommendRepository;
     private final ResourceRepository resourceRepository;
 
-    public RecommendService(RecommendRepository recommendRepository, ResourceRepository resourceRepository) {
-        this.recommendRepository = recommendRepository;
-        this.resourceRepository = resourceRepository;
-    }
-
     public RecommendResponse create(RecommendRequest request) {
-        Resource resource = getResourceById(request.resourceId());
+        Resource resource = getResourceById(request.getResourceId());
         Recommend saved = recommendRepository.save(new Recommend(
                 resource,
-                request.estimatedSavings(),
-                request.riskScore(),
-                request.feasibilityScore(),
-                request.priorityScore(),
-                request.status()
+                request.getEstimatedSavings(),
+                request.getRiskScore(),
+                request.getFeasibilityScore(),
+                request.getPriorityScore(),
+                request.getStatus()
         ));
         return toResponse(saved);
     }
@@ -46,12 +43,12 @@ public class RecommendService {
 
     public RecommendResponse update(Long id, RecommendRequest request) {
         Recommend recommend = getById(id);
-        recommend.setResource(getResourceById(request.resourceId()));
-        recommend.setEstimatedSavings(request.estimatedSavings());
-        recommend.setRiskScore(request.riskScore());
-        recommend.setFeasibilityScore(request.feasibilityScore());
-        recommend.setPriorityScore(request.priorityScore());
-        recommend.setStatus(request.status());
+        recommend.setResource(getResourceById(request.getResourceId()));
+        recommend.setEstimatedSavings(request.getEstimatedSavings());
+        recommend.setRiskScore(request.getRiskScore());
+        recommend.setFeasibilityScore(request.getFeasibilityScore());
+        recommend.setPriorityScore(request.getPriorityScore());
+        recommend.setStatus(request.getStatus());
         return toResponse(recommendRepository.save(recommend));
     }
 

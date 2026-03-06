@@ -4,6 +4,7 @@ import com.jeolgamai.backend.domain.cost.dto.CostRequest;
 import com.jeolgamai.backend.domain.cost.dto.CostResponse;
 import com.jeolgamai.backend.domain.cost.service.CostService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,13 +20,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/costs")
+@RequiredArgsConstructor
 public class CostController {
 
     private final CostService costService;
-
-    public CostController(CostService costService) {
-        this.costService = costService;
-    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
