@@ -14,6 +14,7 @@ spec:
       labels:
         app: frontend
     spec:
+      serviceAccountName: frontend-observer
       containers:
         - name: frontend
           image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/frontend:2026-03-06-02-26-b5dc399e
@@ -23,6 +24,10 @@ spec:
           env:
             - name: NODE_ENV
               value: production
+            - name: MOCK_DATA_MODE
+              value: "false"
+            - name: LIVE_CONNECTOR_VALIDATION
+              value: "true"
             - name: OTEL_SERVICE_NAME
               value: frontend
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
