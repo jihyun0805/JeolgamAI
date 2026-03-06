@@ -3,7 +3,7 @@ package com.jeolgamai.backend.domain.metric.controller;
 import com.jeolgamai.backend.domain.metric.dto.MetricRequest;
 import com.jeolgamai.backend.domain.metric.dto.MetricResponse;
 import com.jeolgamai.backend.domain.metric.service.MetricService;
-import com.jeolgamai.backend.global.response.BaseResponse;
+import com.jeolgamai.backend.common.dto.BaseResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +32,10 @@ public class MetricController {
     public ResponseEntity<BaseResponse<List<MetricResponse>>> findAll() {
         List<MetricResponse> response = metricService.findAll();
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 
@@ -42,7 +45,10 @@ public class MetricController {
     ) {
         MetricResponse response = metricService.findById(id);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 
