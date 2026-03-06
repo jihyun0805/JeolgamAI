@@ -16,6 +16,7 @@
     "@aws-sdk/client-sts": "^3.997.0",
     "@types/dagre": "^0.7.54",
     "@types/pg": "^8.16.0",
+    "@vercel/otel": "^2.1.1",
     "dagre": "^0.8.5",
     "framer-motion": "^12.35.0",
     "next": "16.1.6",
