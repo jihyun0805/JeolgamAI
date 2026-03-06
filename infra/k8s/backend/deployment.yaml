@@ -5,8 +5,10 @@ metadata:
   labels:
     app: backend
 spec:
+  # 항상 유지할 백엔드 파드 개수입니다.
   replicas: 2
   selector:
+    # Deployment가 관리할 파드를 찾는 라벨 조건입니다.
     matchLabels:
       app: backend
   template:
@@ -20,14 +22,21 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
-          envFrom:
-            - secretRef:
-                name: backend-env
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: prod
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://ssafy-mysql-db.mysql.database.azure.com:3306/S14P21A502?serverTimezone=UTC&useUnicode=true&characterEncoding=utf8
+            - name: SPRING_DATASOURCE_USERNAME
+              value: S14P21A502
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: rt1hEOPWKh
+            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+              value: com.mysql.cj.jdbc.Driver
             - name: OTEL_SERVICE_NAME
               value: backend
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger.observability.svc.cluster.local:4318/v1/traces
           readinessProbe:
             tcpSocket:
               port: 8080
