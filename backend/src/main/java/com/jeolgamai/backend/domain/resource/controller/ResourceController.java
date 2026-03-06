@@ -3,7 +3,7 @@ package com.jeolgamai.backend.domain.resource.controller;
 import com.jeolgamai.backend.domain.resource.dto.ResourceRequest;
 import com.jeolgamai.backend.domain.resource.dto.ResourceResponse;
 import com.jeolgamai.backend.domain.resource.service.ResourceService;
-import com.jeolgamai.backend.global.response.BaseResponse;
+import com.jeolgamai.backend.common.dto.BaseResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +32,10 @@ public class ResourceController {
     public ResponseEntity<BaseResponse<List<ResourceResponse>>> findAll() {
         List<ResourceResponse> response = resourceService.findAll();
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 
@@ -42,7 +45,10 @@ public class ResourceController {
     ) {
         ResourceResponse response = resourceService.findById(id);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 

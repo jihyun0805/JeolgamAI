@@ -3,7 +3,7 @@ package com.jeolgamai.backend.domain.recommend.controller;
 import com.jeolgamai.backend.domain.recommend.dto.RecommendRequest;
 import com.jeolgamai.backend.domain.recommend.dto.RecommendResponse;
 import com.jeolgamai.backend.domain.recommend.service.RecommendService;
-import com.jeolgamai.backend.global.response.BaseResponse;
+import com.jeolgamai.backend.common.dto.BaseResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +32,10 @@ public class RecommendController {
     public ResponseEntity<BaseResponse<List<RecommendResponse>>> findAll() {
         List<RecommendResponse> response = recommendService.findAll();
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 
@@ -42,7 +45,10 @@ public class RecommendController {
     ) {
         RecommendResponse response = recommendService.findById(id);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(response)
+                BaseResponse.onSuccess(
+                        "추후 수정될 메시지입니다.",
+                        response
+                )
         );
     }
 
