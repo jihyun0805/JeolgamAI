@@ -16,14 +16,39 @@ variables:
   GAR_REPOSITORY: "jeolgamai"
   GAR_HOST: "asia-northeast3-docker.pkg.dev"
   NOTIFY_WEBHOOK_URL: "https://meeting.ssafy.com/hooks/9surx989wprdtrrzhgncq9t9qw"
+  NOTIFY_BOT_NAME: "jeolgamai-cicd"
 
 notify_pipeline_start:
   stage: notify_start
   image: curlimages/curl:8.12.1
   script:
     - |
-      MSG="[CI/CD 시작] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 시작합니다."
-      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      NOW_TS="$(date +%s)"
+      PAYLOAD="$(cat <<EOF
+      {
+        "username": "${NOTIFY_BOT_NAME}",
+        "icon_emoji": ":rocket:",
+        "attachments": [
+          {
+            "color": "#3B82F6",
+            "title": "CI/CD 시작",
+            "title_link": "${CI_PIPELINE_URL}",
+            "text": "파이프라인 실행을 시작했습니다.",
+            "fields": [
+              {"title": "프로젝트", "value": "${CI_PROJECT_PATH}", "short": true},
+              {"title": "브랜치", "value": "${CI_COMMIT_REF_NAME}", "short": true},
+              {"title": "커밋", "value": "${CI_COMMIT_SHORT_SHA}", "short": true},
+              {"title": "파이프라인", "value": "#${CI_PIPELINE_ID}", "short": true},
+              {"title": "실행자", "value": "${GITLAB_USER_NAME:-system}", "short": true},
+              {"title": "트리거", "value": "${CI_PIPELINE_SOURCE}", "short": true}
+            ],
+            "footer": "GitLab CI",
+            "ts": ${NOW_TS}
+          }
+        ]
+      }
+      EOF
+      )"
       curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
   allow_failure: true
 
@@ -159,8 +184,30 @@ notify_pipeline_success:
   image: curlimages/curl:8.12.1
   script:
     - |
-      MSG="[CI/CD 완료] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 정상 종료되었습니다."
-      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      NOW_TS="$(date +%s)"
+      PAYLOAD="$(cat <<EOF
+      {
+        "username": "${NOTIFY_BOT_NAME}",
+        "icon_emoji": ":white_check_mark:",
+        "attachments": [
+          {
+            "color": "#22C55E",
+            "title": "CI/CD 완료",
+            "title_link": "${CI_PIPELINE_URL}",
+            "text": "파이프라인이 정상 종료되었습니다.",
+            "fields": [
+              {"title": "프로젝트", "value": "${CI_PROJECT_PATH}", "short": true},
+              {"title": "브랜치", "value": "${CI_COMMIT_REF_NAME}", "short": true},
+              {"title": "커밋", "value": "${CI_COMMIT_SHORT_SHA}", "short": true},
+              {"title": "파이프라인", "value": "#${CI_PIPELINE_ID}", "short": true}
+            ],
+            "footer": "GitLab CI",
+            "ts": ${NOW_TS}
+          }
+        ]
+      }
+      EOF
+      )"
       curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
   when: on_success
   allow_failure: true
@@ -170,8 +217,32 @@ notify_pipeline_failure:
   image: curlimages/curl:8.12.1
   script:
     - |
-      MSG="[CI/CD 실패] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 오류가 발생했습니다. ${CI_PIPELINE_URL}"
-      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      NOW_TS="$(date +%s)"
+      PAYLOAD="$(cat <<EOF
+      {
+        "username": "${NOTIFY_BOT_NAME}",
+        "icon_emoji": ":x:",
+        "attachments": [
+          {
+            "color": "#EF4444",
+            "title": "CI/CD 실패",
+            "title_link": "${CI_PIPELINE_URL}",
+            "text": "파이프라인 실행 중 오류가 발생했습니다.",
+            "fields": [
+              {"title": "프로젝트", "value": "${CI_PROJECT_PATH}", "short": true},
+              {"title": "브랜치", "value": "${CI_COMMIT_REF_NAME}", "short": true},
+              {"title": "커밋", "value": "${CI_COMMIT_SHORT_SHA}", "short": true},
+              {"title": "파이프라인", "value": "#${CI_PIPELINE_ID}", "short": true},
+              {"title": "실행자", "value": "${GITLAB_USER_NAME:-system}", "short": true},
+              {"title": "확인 링크", "value": "${CI_PIPELINE_URL}", "short": true}
+            ],
+            "footer": "GitLab CI",
+            "ts": ${NOW_TS}
+          }
+        ]
+      }
+      EOF
+      )"
       curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
   when: on_failure
   allow_failure: true
