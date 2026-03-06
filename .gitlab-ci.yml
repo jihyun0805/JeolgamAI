@@ -1,7 +1,9 @@
 stages:
+  - notify_start
   - prepare
   - build
   - gitops
+  - notify_end
 
 workflow:
   rules:
@@ -13,6 +15,17 @@ variables:
   GAR_LOCATION: "asia-northeast3"
   GAR_REPOSITORY: "jeolgamai"
   GAR_HOST: "asia-northeast3-docker.pkg.dev"
+  NOTIFY_WEBHOOK_URL: "https://meeting.ssafy.com/hooks/9surx989wprdtrrzhgncq9t9qw"
+
+notify_pipeline_start:
+  stage: notify_start
+  image: curlimages/curl:8.12.1
+  script:
+    - |
+      MSG="[CI/CD 시작] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 시작합니다."
+      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
+  allow_failure: true
 
 prepare_release:
   stage: prepare
@@ -140,3 +153,25 @@ sync_backend_secret:
         --dry-run=client -o yaml | kubectl apply -f -
     - kubectl -n app rollout restart deploy/backend
     - kubectl -n app rollout status deploy/backend --timeout=180s
+
+notify_pipeline_success:
+  stage: notify_end
+  image: curlimages/curl:8.12.1
+  script:
+    - |
+      MSG="[CI/CD 완료] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 정상 종료되었습니다."
+      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
+  when: on_success
+  allow_failure: true
+
+notify_pipeline_failure:
+  stage: notify_end
+  image: curlimages/curl:8.12.1
+  script:
+    - |
+      MSG="[CI/CD 실패] ${CI_PROJECT_PATH} / ${CI_COMMIT_REF_NAME} / ${CI_COMMIT_SHORT_SHA} / pipeline #${CI_PIPELINE_ID} 오류가 발생했습니다. ${CI_PIPELINE_URL}"
+      PAYLOAD=$(printf '{"text":"%s"}' "$MSG")
+      curl -sS -X POST -H "Content-Type: application/json" --data "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
+  when: on_failure
+  allow_failure: true
