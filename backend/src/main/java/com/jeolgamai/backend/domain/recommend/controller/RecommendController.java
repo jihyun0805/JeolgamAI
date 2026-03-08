@@ -1,9 +1,9 @@
 package com.jeolgamai.backend.domain.recommend.controller;
 
+import com.jeolgamai.backend.common.dto.BaseResponse;
 import com.jeolgamai.backend.domain.recommend.dto.RecommendRequest;
 import com.jeolgamai.backend.domain.recommend.dto.RecommendResponse;
 import com.jeolgamai.backend.domain.recommend.service.RecommendService;
-import com.jeolgamai.backend.common.dto.BaseResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,17 +25,24 @@ public class RecommendController {
         RecommendResponse response = recommendService.create(request);
         return ResponseEntity
                 .status(201)
-                .body(BaseResponse.onSuccess("추천 생성 성공", response));
+                .body(BaseResponse.onSuccess("Recommendation created", response));
+    }
+
+    @PostMapping("/generate/{resourceId}")
+    public ResponseEntity<BaseResponse<RecommendResponse>> generateByResource(
+            @PathVariable Long resourceId
+    ) {
+        RecommendResponse response = recommendService.generateFromResource(resourceId);
+        return ResponseEntity
+                .status(201)
+                .body(BaseResponse.onSuccess("Recommendation generated", response));
     }
 
     @GetMapping
     public ResponseEntity<BaseResponse<List<RecommendResponse>>> findAll() {
         List<RecommendResponse> response = recommendService.findAll();
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(
-                        "추후 수정될 메시지입니다.",
-                        response
-                )
+                BaseResponse.onSuccess("Recommendations fetched", response)
         );
     }
 
@@ -45,10 +52,7 @@ public class RecommendController {
     ) {
         RecommendResponse response = recommendService.findById(id);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess(
-                        "추후 수정될 메시지입니다.",
-                        response
-                )
+                BaseResponse.onSuccess("Recommendation fetched", response)
         );
     }
 
@@ -59,7 +63,7 @@ public class RecommendController {
     ) {
         RecommendResponse response = recommendService.update(id, request);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess("추천 수정 성공", response)
+                BaseResponse.onSuccess("Recommendation updated", response)
         );
     }
 
@@ -69,7 +73,7 @@ public class RecommendController {
     ) {
         recommendService.delete(id);
         return ResponseEntity.ok(
-                BaseResponse.onSuccess("추천 삭제 성공", null)
+                BaseResponse.onSuccess("Recommendation deleted", null)
         );
     }
 }
