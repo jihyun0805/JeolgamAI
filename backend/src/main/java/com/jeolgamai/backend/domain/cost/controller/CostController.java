@@ -21,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/costs")
 @RequiredArgsConstructor
+@Tag(name = "Cost", description = "리소스 비용 관리 API")
 public class CostController {
 
     private final CostService costService;
