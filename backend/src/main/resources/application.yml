@@ -29,10 +29,7 @@ management:
     readinessstate:
       enabled: true
 
-springdoc:
-  api-docs:
-    path: /api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-  paths-to-match:
-    - /api/**
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:change-this-secret-key-at-least-32-characters}
+    expiration-seconds: ${APP_JWT_EXPIRATION_SECONDS:3600}
