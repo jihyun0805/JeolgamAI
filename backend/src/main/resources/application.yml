@@ -28,3 +28,8 @@ management:
       enabled: true
     readinessstate:
       enabled: true
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:change-this-secret-key-at-least-32-characters}
+    expiration-seconds: ${APP_JWT_EXPIRATION_SECONDS:3600}

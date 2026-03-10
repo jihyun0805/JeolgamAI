@@ -1,11 +1,15 @@
 package com.jeolgamai.backend.domain.cost.controller;
 
+import com.jeolgamai.backend.common.dto.BaseResponse;
 import com.jeolgamai.backend.domain.cost.dto.CostRequest;
 import com.jeolgamai.backend.domain.cost.dto.CostResponse;
+import com.jeolgamai.backend.domain.cost.dto.MonthlyCostSummaryRequest;
+import com.jeolgamai.backend.domain.cost.dto.MonthlyCostSummaryResponse;
 import com.jeolgamai.backend.domain.cost.service.CostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,5 +54,15 @@ public class CostController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         costService.delete(id);
+    }
+
+    @PostMapping("/monthly-total")
+    public ResponseEntity<BaseResponse<MonthlyCostSummaryResponse>> getMonthlyTotal(
+            @Valid @RequestBody MonthlyCostSummaryRequest request
+    ) {
+        MonthlyCostSummaryResponse response = costService.getMonthlyTotal(request);
+        return ResponseEntity.ok(
+                BaseResponse.onSuccess("Monthly total cost fetched", response)
+        );
     }
 }
