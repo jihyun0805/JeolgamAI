@@ -6,10 +6,9 @@ import com.jeolgamai.backend.domain.cost.dto.CostResponse;
 import com.jeolgamai.backend.domain.cost.dto.MonthlyCostSummaryRequest;
 import com.jeolgamai.backend.domain.cost.dto.MonthlyCostSummaryResponse;
 import com.jeolgamai.backend.domain.cost.service.CostService;
-import com.jeolgamai.backend.common.dto.BaseResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/costs")
 @RequiredArgsConstructor
-@Tag(name = "Cost", description = "리소스 비용 관리 API")
+@Tag(name = "Cost", description = "Cost management API")
 public class CostController {
 
     private final CostService costService;
