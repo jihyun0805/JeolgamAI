@@ -25,7 +25,7 @@ public class RecommendController {
         RecommendResponse response = recommendService.create(request);
         return ResponseEntity
                 .status(201)
-                .body(BaseResponse.onSuccess("Recommendation created", response));
+                .body(BaseResponse.onSuccess("추천 생성 성공", response));
     }
 
     @PostMapping("/generate/{resourceId}")
