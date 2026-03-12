@@ -23,14 +23,21 @@ public class AwsIntegrationCreateRequest {
     private String region;
 
     @NotBlank
-    @Size(max = 50)
+    @Pattern(
+            regexp = "^(Cross-account IAM Role|Access Key \\(fallback\\))$",
+            message = "authMethod must be either 'Cross-account IAM Role' or 'Access Key (fallback)'"
+    )
     private String authMethod;
 
-    @NotBlank
     @Pattern(regexp = "^arn:aws:iam::\\d{12}:role/.+$", message = "Invalid IAM Role ARN format")
     private String roleArn;
 
-    @NotBlank
     @Size(max = 255)
     private String externalId;
+
+    @Size(max = 128)
+    private String accessKeyId;
+
+    @Size(max = 255)
+    private String secretAccessKey;
 }
