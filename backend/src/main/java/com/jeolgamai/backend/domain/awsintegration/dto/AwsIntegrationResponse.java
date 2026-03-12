@@ -19,5 +19,6 @@ public class AwsIntegrationResponse {
     private String authMethod;
     private String roleArn;
     private String externalId;
+    private String accessKeyId;
     private LocalDateTime createdAt;
 }

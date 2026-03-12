@@ -35,11 +35,17 @@ public class AwsIntegration {
     @Column(nullable = false, length = 50)
     private String authMethod;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String roleArn;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String externalId;
+
+    @Column(length = 128)
+    private String accessKeyId;
+
+    @Column(length = 255)
+    private String secretAccessKey;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -52,12 +58,16 @@ public class AwsIntegration {
             String region,
             String authMethod,
             String roleArn,
-            String externalId
+            String externalId,
+            String accessKeyId,
+            String secretAccessKey
     ) {
         this.integrationName = integrationName;
         this.region = region;
         this.authMethod = authMethod;
         this.roleArn = roleArn;
         this.externalId = externalId;
+        this.accessKeyId = accessKeyId;
+        this.secretAccessKey = secretAccessKey;
     }
 }

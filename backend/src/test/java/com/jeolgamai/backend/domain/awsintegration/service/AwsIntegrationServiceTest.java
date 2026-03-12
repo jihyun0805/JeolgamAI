@@ -32,21 +32,25 @@ class AwsIntegrationServiceTest {
     }
 
     @Test
-    void createSavesAwsIntegration() {
+    void createSavesAwsIntegrationWithCrossAccountIamRole() {
         AwsIntegrationCreateRequest request = new AwsIntegrationCreateRequest(
                 "prod-account",
                 "ap-northeast-2",
-                "assume-role",
+                "Cross-account IAM Role",
                 "arn:aws:iam::123456789012:role/CostReader",
-                "external-id-001"
+                "external-id-001",
+                null,
+                null
         );
 
         AwsIntegration saved = new AwsIntegration(
                 "prod-account",
                 "ap-northeast-2",
-                "assume-role",
+                "Cross-account IAM Role",
                 "arn:aws:iam::123456789012:role/CostReader",
-                "external-id-001"
+                "external-id-001",
+                null,
+                null
         );
         saved.setId(1L);
 
@@ -62,13 +66,49 @@ class AwsIntegrationServiceTest {
     }
 
     @Test
+    void createSavesAwsIntegrationWithAccessKeyFallback() {
+        AwsIntegrationCreateRequest request = new AwsIntegrationCreateRequest(
+                "fallback-account",
+                "us-east-1",
+                "Access Key (fallback)",
+                null,
+                null,
+                "AKIAIOSFODNN7EXAMPLE",
+                "secret-access-key"
+        );
+
+        AwsIntegration saved = new AwsIntegration(
+                "fallback-account",
+                "us-east-1",
+                "Access Key (fallback)",
+                null,
+                null,
+                "AKIAIOSFODNN7EXAMPLE",
+                "secret-access-key"
+        );
+        saved.setId(2L);
+
+        when(awsIntegrationRepository.existsByIntegrationName("fallback-account")).thenReturn(false);
+        when(awsIntegrationRepository.save(any(AwsIntegration.class))).thenReturn(saved);
+
+        AwsIntegrationResponse response = awsIntegrationService.create(request);
+
+        assertEquals(2L, response.getId());
+        assertEquals("Access Key (fallback)", response.getAuthMethod());
+        assertEquals("AKIAIOSFODNN7EXAMPLE", response.getAccessKeyId());
+        verify(awsIntegrationRepository).save(any(AwsIntegration.class));
+    }
+
+    @Test
     void createThrowsWhenIntegrationNameExists() {
         AwsIntegrationCreateRequest request = new AwsIntegrationCreateRequest(
                 "prod-account",
                 "ap-northeast-2",
-                "assume-role",
+                "Cross-account IAM Role",
                 "arn:aws:iam::123456789012:role/CostReader",
-                "external-id-001"
+                "external-id-001",
+                null,
+                null
         );
         when(awsIntegrationRepository.existsByIntegrationName("prod-account")).thenReturn(true);
 
@@ -78,6 +118,28 @@ class AwsIntegrationServiceTest {
         } catch (ResponseStatusException e) {
             assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
             assertEquals("Integration name already exists", e.getReason());
+        }
+    }
+
+    @Test
+    void createThrowsWhenAccessKeyFallbackCredentialsMissing() {
+        AwsIntegrationCreateRequest request = new AwsIntegrationCreateRequest(
+                "fallback-account",
+                "us-east-1",
+                "Access Key (fallback)",
+                null,
+                null,
+                "AKIAIOSFODNN7EXAMPLE",
+                null
+        );
+        when(awsIntegrationRepository.existsByIntegrationName("fallback-account")).thenReturn(false);
+
+        try {
+            awsIntegrationService.create(request);
+            fail("Expected ResponseStatusException");
+        } catch (ResponseStatusException e) {
+            assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+            assertEquals("Access Key ID and Secret Access Key are required for Access Key (fallback)", e.getReason());
         }
     }
 }
