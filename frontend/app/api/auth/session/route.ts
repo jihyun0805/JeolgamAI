@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { getSessionFromRequest } from "@/lib/auth";
+import { getProjectById, getProjectsForUser } from "@/lib/store";
 
 export async function GET(request: Request) {
   const session = getSessionFromRequest(request);
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
     name: session.name,
     role: session.role,
     workspaceId: session.workspaceId,
+    activeProject: getProjectById(session.workspaceId),
+    projects: getProjectsForUser(session.userId),
     expiresAt: session.expiresAt,
   });
 }

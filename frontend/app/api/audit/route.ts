@@ -1,14 +1,14 @@
 import { ok } from "@/lib/api-response";
 import { requireRole } from "@/lib/auth";
-import { getStore } from "@/lib/store";
+import { getAudits } from "@/lib/store";
 
 export async function GET(request: Request) {
   const auth = requireRole(request, ["system_admin", "company_admin"]);
   if (!auth.ok) return auth.response;
 
-  const store = getStore();
+  const audits = getAudits(auth.session.workspaceId);
   return ok({
-    count: store.audits.length,
-    events: store.audits.slice(0, 200),
+    count: audits.length,
+    events: audits.slice(0, 200),
   });
 }

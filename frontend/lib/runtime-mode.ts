@@ -12,6 +12,10 @@ export function isMockDataMode(): boolean {
   return parsed ?? true;
 }
 
+export function isDemoAuthEnabled(): boolean {
+  return normalizeBoolean(process.env.DEMO_AUTH_ENABLED) ?? false;
+}
+
 export function isLiveConnectorValidationEnabled(): boolean {
   const live = normalizeBoolean(process.env.LIVE_CONNECTOR_VALIDATION) ?? false;
   return live && !isMockDataMode();

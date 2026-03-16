@@ -15,17 +15,29 @@ interface IntegrationConfig {
   name: string;
   status: IntegrationStatus;
   validatedAt: string;
+  backendRegistered?: boolean;
   meta: Record<string, string>;
 }
 
 interface IntegrationsResponse {
   workspaceId: string;
   integrations: IntegrationConfig[];
+  localCoverage: {
+    aws: boolean;
+    k8s: boolean;
+    prometheus: boolean;
+  };
+  backendCoverage: {
+    aws: boolean;
+    k8s: boolean;
+    prometheus: boolean;
+  };
   coverage: {
     aws: boolean;
     k8s: boolean;
     prometheus: boolean;
   };
+  warnings?: string[];
 }
 
 interface ApiEnvelope<T> {
@@ -46,17 +58,25 @@ const statusClassMap: Record<IntegrationStatus, string> = {
 function IntegrationCard({
   title,
   status,
+  backendRegistered,
   subtitle,
 }: {
   title: string;
   status?: IntegrationStatus;
+  backendRegistered?: boolean;
   subtitle: string;
 }) {
+  const isBackendMissing = backendRegistered === false;
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-bold">{title}</h3>
-        {status ? (
+        {isBackendMissing ? (
+          <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+            backend missing
+          </span>
+        ) : status ? (
           <span
             className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusClassMap[status]}`}
           >
@@ -68,7 +88,9 @@ function IntegrationCard({
           </span>
         )}
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        {isBackendMissing ? `${subtitle} · backend connector 재등록 필요` : subtitle}
+      </p>
     </div>
   );
 }
@@ -96,13 +118,16 @@ export default function IntegrationsPage() {
     clusterName: "prod-cluster",
     apiServerUrl: "",
     token: "",
+    caCertPem: "",
   });
 
   const [promForm, setPromForm] = useState({
     name: "Prometheus",
     baseUrl: "",
+    authMode: "basic",
+    username: "",
+    password: "",
     token: "",
-    includeLatency: true,
   });
 
   const integrationsByType = useMemo(() => {
@@ -188,6 +213,7 @@ export default function IntegrationsPage() {
         clusterName: k8sForm.clusterName,
         apiServerUrl: k8sForm.apiServerUrl,
         token: k8sForm.token,
+        caCertPem: k8sForm.caCertPem,
       },
       "Kubernetes 연동이 저장되었습니다.",
     );
@@ -196,17 +222,15 @@ export default function IntegrationsPage() {
   async function onSubmitPrometheus(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const enabledQueries = promForm.includeLatency
-      ? ["cpu_usage", "memory_usage", "error_rate", "latency"]
-      : ["cpu_usage", "memory_usage", "error_rate"];
-
     await submitForm(
       "/api/integrations/prometheus",
       {
         name: promForm.name,
         baseUrl: promForm.baseUrl,
+        authMode: promForm.authMode,
+        username: promForm.username,
+        password: promForm.password,
         token: promForm.token,
-        enabledQueries,
       },
       "Prometheus 연동이 저장되었습니다.",
     );
@@ -487,30 +511,90 @@ export default function IntegrationsPage() {
                 />
               </label>
 
+              <label className="text-sm font-medium">
+                인증 방식
+                <select
+                  value={promForm.authMode}
+                  onChange={(event) =>
+                    setPromForm((prev) => ({
+                      ...prev,
+                      authMode: event.target.value as "basic" | "bearer",
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <option value="basic">Basic</option>
+                  <option value="bearer">Bearer</option>
+                </select>
+              </label>
+
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                nginx/basic auth 앞단이면 `basic`, 토큰 기반 ingress나 gateway면 `bearer`를 사용합니다.
+              </div>
+
+              {promForm.authMode === "basic" ? (
+                <>
+                  <label className="text-sm font-medium">
+                    Username
+                    <input
+                      value={promForm.username}
+                      onChange={(event) =>
+                        setPromForm((prev) => ({
+                          ...prev,
+                          username: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium">
+                    Password
+                    <input
+                      value={promForm.password}
+                      onChange={(event) =>
+                        setPromForm((prev) => ({
+                          ...prev,
+                          password: event.target.value,
+                        }))
+                      }
+                      type="password"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </label>
+                </>
+              ) : null}
+
               <label className="text-sm font-medium md:col-span-2">
-                API Token
+                Bearer Token
                 <input
                   value={promForm.token}
                   onChange={(event) =>
                     setPromForm((prev) => ({ ...prev, token: event.target.value }))
                   }
                   type="password"
+                  placeholder={
+                    promForm.authMode === "bearer"
+                      ? "Prometheus access token"
+                      : "basic 모드에서는 비워둬도 됩니다"
+                  }
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
               </label>
 
-              <label className="flex items-center gap-2 text-sm font-medium md:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={promForm.includeLatency}
+              <label className="text-sm font-medium md:col-span-2">
+                CA Certificate PEM
+                <textarea
+                  value={k8sForm.caCertPem}
                   onChange={(event) =>
-                    setPromForm((prev) => ({
-                      ...prev,
-                      includeLatency: event.target.checked,
-                    }))
+                    setK8sForm((prev) => ({ ...prev, caCertPem: event.target.value }))
                   }
+                  placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
+                  className="mt-1 h-32 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
-                latency 쿼리 포함 (해제 시 partial 상태 검증)
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                  온프레미스나 사설 CA 클러스터일 때만 입력합니다. 토큰에 `Bearer ` 접두어가 있어도 backend에서 자동 정리합니다.
+                </span>
               </label>
             </div>
 
@@ -536,16 +620,19 @@ export default function IntegrationsPage() {
                 title="AWS"
                 subtitle="Cost Explorer / EC2 / RDS / S3"
                 status={integrationsByType.get("aws")?.status}
+                backendRegistered={integrationsByType.get("aws")?.backendRegistered}
               />
               <IntegrationCard
                 title="Kubernetes"
                 subtitle="nodes / pods / requests / limits"
                 status={integrationsByType.get("k8s")?.status}
+                backendRegistered={integrationsByType.get("k8s")?.backendRegistered}
               />
               <IntegrationCard
                 title="Prometheus"
                 subtitle="CPU / Memory / Error / Latency"
                 status={integrationsByType.get("prometheus")?.status}
+                backendRegistered={integrationsByType.get("prometheus")?.backendRegistered}
               />
             </div>
           </div>
@@ -591,6 +678,11 @@ export default function IntegrationsPage() {
           {error ? (
             <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-400">
               {error}
+            </div>
+          ) : null}
+          {data?.warnings?.length ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-400">
+              {data.warnings.join(" / ")}
             </div>
           ) : null}
             </aside>

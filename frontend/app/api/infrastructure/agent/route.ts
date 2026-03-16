@@ -3,6 +3,8 @@ import { execFile } from "node:child_process";
 import { fail, ok } from "@/lib/api-response";
 import { requireRole, requireSession } from "@/lib/auth";
 import { isMockDataMode } from "@/lib/runtime-mode";
+import { getProjectById } from "@/lib/store";
+import { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -214,6 +216,189 @@ interface DockerVolumeInspectItem {
 }
 
 const K8S_RESOURCE_NAME = /^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$/;
+
+interface ProjectScope {
+  workspaceId: string;
+  displayName: string;
+  tokens: string[];
+}
+
+function normalizeScopeToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function buildProjectScope(project: Project | null, workspaceId: string): ProjectScope {
+  const tokens = new Set<string>();
+
+  for (const candidate of [workspaceId, project?.id, project?.name, project?.ownerUserId]) {
+    if (!candidate) continue;
+    const normalized = normalizeScopeToken(candidate);
+    if (normalized.length >= 3) {
+      tokens.add(normalized);
+    }
+  }
+
+  return {
+    workspaceId,
+    displayName: project?.name ?? workspaceId,
+    tokens: [...tokens],
+  };
+}
+
+function matchesProjectScope(value: string | undefined, scope: ProjectScope): boolean {
+  if (!value) return false;
+  const normalized = normalizeScopeToken(value);
+  if (!normalized) return false;
+
+  return scope.tokens.some(
+    (token) =>
+      normalized === token ||
+      normalized.startsWith(`${token}-`) ||
+      normalized.endsWith(`-${token}`) ||
+      normalized.includes(`-${token}-`),
+  );
+}
+
+function recordMatchesProjectScope(
+  record: Record<string, string> | undefined,
+  scope: ProjectScope,
+): boolean {
+  if (!record) return false;
+  return Object.entries(record).some(
+    ([key, value]) => matchesProjectScope(key, scope) || matchesProjectScope(value, scope),
+  );
+}
+
+function sanitizeK8sContext(context: string): string {
+  return context.replace(/:(\d{12}):/g, ":************:");
+}
+
+function summarizeNamespaces(
+  pods: K8sPodSnapshot[],
+  services: K8sServiceSnapshot[],
+  deployments: K8sDeploymentSnapshot[],
+): K8sNamespaceSummary[] {
+  const namespaceMap = new Map<string, K8sNamespaceSummary>();
+
+  for (const pod of pods) {
+    const current = namespaceMap.get(pod.namespace) || {
+      name: pod.namespace,
+      podCount: 0,
+      serviceCount: 0,
+      deploymentCount: 0,
+    };
+    current.podCount += 1;
+    namespaceMap.set(pod.namespace, current);
+  }
+
+  for (const service of services) {
+    const current = namespaceMap.get(service.namespace) || {
+      name: service.namespace,
+      podCount: 0,
+      serviceCount: 0,
+      deploymentCount: 0,
+    };
+    current.serviceCount += 1;
+    namespaceMap.set(service.namespace, current);
+  }
+
+  for (const deployment of deployments) {
+    const current = namespaceMap.get(deployment.namespace) || {
+      name: deployment.namespace,
+      podCount: 0,
+      serviceCount: 0,
+      deploymentCount: 0,
+    };
+    current.deploymentCount += 1;
+    namespaceMap.set(deployment.namespace, current);
+  }
+
+  return [...namespaceMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function filterInfraSnapshot(snapshot: InfraSnapshot, scope: ProjectScope): InfraSnapshot {
+  if (snapshot.mode !== "live") {
+    return snapshot;
+  }
+
+  const containers = snapshot.deploymentSignals.docker.containers.filter(
+    (container) =>
+      matchesProjectScope(container.name, scope) || matchesProjectScope(container.image, scope),
+  );
+  const networks = snapshot.deploymentSignals.docker.networks.filter((network) =>
+    matchesProjectScope(network.name, scope),
+  );
+  const volumes = snapshot.deploymentSignals.docker.volumes.filter(
+    (volume) =>
+      matchesProjectScope(volume.name, scope) || matchesProjectScope(volume.mountpoint, scope),
+  );
+  const processes = snapshot.deploymentSignals.process.processes.filter(
+    (process) =>
+      matchesProjectScope(process.command, scope) || matchesProjectScope(process.args, scope),
+  );
+  const pods = snapshot.deploymentSignals.kubernetes.pods.filter(
+    (pod) =>
+      matchesProjectScope(pod.namespace, scope) ||
+      matchesProjectScope(pod.name, scope) ||
+      recordMatchesProjectScope(pod.labels, scope) ||
+      pod.images.some((image) => matchesProjectScope(image, scope)),
+  );
+  const services = snapshot.deploymentSignals.kubernetes.services.filter(
+    (service) =>
+      matchesProjectScope(service.namespace, scope) ||
+      matchesProjectScope(service.name, scope) ||
+      recordMatchesProjectScope(service.selector, scope),
+  );
+  const deployments = snapshot.deploymentSignals.kubernetes.deployments.filter(
+    (deployment) =>
+      matchesProjectScope(deployment.namespace, scope) ||
+      matchesProjectScope(deployment.name, scope) ||
+      recordMatchesProjectScope(deployment.selector, scope) ||
+      deployment.images.some((image) => matchesProjectScope(image, scope)),
+  );
+  const nodeNames = new Set(pods.map((pod) => pod.node).filter(Boolean));
+  const nodes = snapshot.deploymentSignals.kubernetes.nodes.filter((node) =>
+    nodeNames.has(node.name),
+  );
+  const namespaces = summarizeNamespaces(pods, services, deployments);
+
+  return {
+    ...snapshot,
+    host: {
+      ...snapshot.host,
+      hostname: `${normalizeScopeToken(scope.displayName) || scope.workspaceId}.scoped`,
+    },
+    deploymentSignals: {
+      docker: {
+        ...snapshot.deploymentSignals.docker,
+        containers,
+        networks,
+        volumes,
+      },
+      process: {
+        ...snapshot.deploymentSignals.process,
+        processes,
+      },
+      kubernetes: {
+        ...snapshot.deploymentSignals.kubernetes,
+        context: sanitizeK8sContext(snapshot.deploymentSignals.kubernetes.context),
+        nodes,
+        namespaces,
+        pods,
+        services,
+        deployments,
+      },
+    },
+    warnings: [
+      ...snapshot.warnings,
+      `${scope.displayName} 프로젝트에 매칭되는 리소스만 노출됩니다.`,
+    ],
+  };
+}
 
 function runBinary(binary: string, args: string[], timeoutMs = 7000): Promise<CommandResult> {
   const startedAt = Date.now();
@@ -658,12 +843,13 @@ async function collectKubernetesSignals(): Promise<InfraSnapshot["deploymentSign
   };
 }
 
-function createMockSnapshot(): InfraSnapshot {
+function createMockSnapshot(projectName: string): InfraSnapshot {
+  const normalized = projectName.replace(/\s+/g, "-").toLowerCase();
   return {
     collectedAt: new Date().toISOString(),
     mode: "mock",
     host: {
-      hostname: "mock-ec2-node",
+      hostname: `${normalized}.ap-northeast-2.internal`,
       platform: "linux",
       arch: "x64",
       uptimeSec: 86400,
@@ -680,7 +866,7 @@ function createMockSnapshot(): InfraSnapshot {
         containers: [
           {
             id: "f3ae2cc0d3a1",
-            name: "nginx-edge",
+            name: `${normalized}-nginx-edge`,
             image: "nginx:1.27",
             status: "Up 12 hours",
             ports: "0.0.0.0:80->80/tcp",
@@ -695,21 +881,21 @@ function createMockSnapshot(): InfraSnapshot {
           },
           {
             id: "f6e5d4c3b2a1",
-            name: "infra-backbone",
+            name: `${normalized}-infra-backbone`,
             driver: "bridge",
             scope: "local",
           },
         ],
         volumes: [
           {
-            name: "postgres-data",
+            name: `${normalized}-postgres-data`,
             driver: "local",
-            mountpoint: "/var/lib/docker/volumes/postgres-data/_data",
+            mountpoint: `/var/lib/docker/volumes/${normalized}-postgres-data/_data`,
           },
           {
-            name: "grafana-storage",
+            name: `${normalized}-grafana-storage`,
             driver: "local",
-            mountpoint: "/var/lib/docker/volumes/grafana-storage/_data",
+            mountpoint: `/var/lib/docker/volumes/${normalized}-grafana-storage/_data`,
           },
         ],
       },
@@ -719,7 +905,7 @@ function createMockSnapshot(): InfraSnapshot {
           {
             pid: 24011,
             command: "java",
-            args: "-jar /opt/apps/order-service.jar --spring.profiles.active=prod",
+            args: `-jar /opt/apps/${normalized}-order-service.jar --spring.profiles.active=prod`,
             processType: "java",
           },
           {
@@ -741,13 +927,23 @@ function createMockSnapshot(): InfraSnapshot {
           },
         ],
         namespaces: [
-          { name: "app", podCount: 3, serviceCount: 2, deploymentCount: 2 },
-          { name: "observability", podCount: 4, serviceCount: 3, deploymentCount: 3 },
+          {
+            name: `${normalized}-app`,
+            podCount: 3,
+            serviceCount: 2,
+            deploymentCount: 2,
+          },
+          {
+            name: `${normalized}-observability`,
+            podCount: 4,
+            serviceCount: 3,
+            deploymentCount: 3,
+          },
         ],
         pods: [
           {
-            namespace: "app",
-            name: "was-67d4f7d6d7-r8x2w",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-was-67d4f7d6d7-r8x2w`,
             phase: "Running",
             node: "ip-10-0-0-110.ap-northeast-2.compute.internal",
             ready: "1/1",
@@ -759,8 +955,8 @@ function createMockSnapshot(): InfraSnapshot {
             },
           },
           {
-            namespace: "app",
-            name: "ws-6f94f5dbf8-lh5q8",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-ws-6f94f5dbf8-lh5q8`,
             phase: "Running",
             node: "ip-10-0-0-110.ap-northeast-2.compute.internal",
             ready: "1/1",
@@ -774,8 +970,8 @@ function createMockSnapshot(): InfraSnapshot {
         ],
         services: [
           {
-            namespace: "app",
-            name: "was-svc",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-was-svc`,
             type: "ClusterIP",
             clusterIP: "10.43.18.102",
             ports: ["TCP:8080->8080"],
@@ -784,8 +980,8 @@ function createMockSnapshot(): InfraSnapshot {
             },
           },
           {
-            namespace: "app",
-            name: "ws-svc",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-ws-svc`,
             type: "ClusterIP",
             clusterIP: "10.43.72.15",
             ports: ["TCP:80->3000"],
@@ -796,8 +992,8 @@ function createMockSnapshot(): InfraSnapshot {
         ],
         deployments: [
           {
-            namespace: "app",
-            name: "was",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-was`,
             replicas: 1,
             readyReplicas: 1,
             images: ["ghcr.io/demo/was:v1.3.2"],
@@ -806,8 +1002,8 @@ function createMockSnapshot(): InfraSnapshot {
             },
           },
           {
-            namespace: "app",
-            name: "ws",
+            namespace: `${normalized}-app`,
+            name: `${normalized}-ws`,
             replicas: 1,
             readyReplicas: 1,
             images: ["ghcr.io/demo/ws:v1.3.2"],
@@ -818,11 +1014,18 @@ function createMockSnapshot(): InfraSnapshot {
         ],
       },
     },
-    warnings: ["mock 데이터가 표시됩니다. LIVE_CONNECTOR_VALIDATION=true 설정 시 실데이터 수집을 시도합니다."],
+    warnings: [
+      `${projectName} 기준 mock 인프라 데이터가 표시됩니다.`,
+      "실데이터 수집은 MOCK_DATA_MODE=false 설정 후 사용하세요.",
+    ],
   };
 }
 
-async function collectInfraSnapshot(): Promise<InfraSnapshot> {
+async function collectInfraSnapshot(projectName: string): Promise<InfraSnapshot> {
+  if (isMockDataMode()) {
+    return createMockSnapshot(projectName);
+  }
+
   const [docker, process, kubernetes] = await Promise.all([
     collectDockerSignals(),
     collectProcessSignals(),
@@ -851,10 +1054,6 @@ async function collectInfraSnapshot(): Promise<InfraSnapshot> {
     process.processes.length > 0 ||
     kubernetes.pods.length > 0;
 
-  if (!hasLiveSignals && isMockDataMode()) {
-    return createMockSnapshot();
-  }
-
   return {
     collectedAt: new Date().toISOString(),
     mode: "live",
@@ -869,7 +1068,10 @@ async function collectInfraSnapshot(): Promise<InfraSnapshot> {
       process,
       kubernetes,
     },
-    warnings,
+    warnings:
+      hasLiveSignals
+        ? warnings
+        : [...warnings, "프로젝트에 매핑되는 live 인프라 신호를 찾지 못했습니다."],
   };
 }
 
@@ -877,7 +1079,7 @@ function isSafeK8sIdentifier(value: string): boolean {
   return K8S_RESOURCE_NAME.test(value);
 }
 
-async function executeK8sAction(body: ActionBody) {
+async function executeK8sAction(body: ActionBody, scope: ProjectScope) {
   const action = body.action;
   const name = body.name || "";
   const namespace = body.namespace || "";
@@ -890,6 +1092,14 @@ async function executeK8sAction(body: ActionBody) {
     return fail("VALIDATION_ERROR", "name 또는 namespace 형식이 올바르지 않습니다.", 400);
   }
 
+  if (!matchesProjectScope(name, scope) && !matchesProjectScope(namespace, scope)) {
+    return fail(
+      "FORBIDDEN",
+      "현재 프로젝트 범위에 속한 리소스만 조회하거나 변경할 수 있습니다.",
+      403,
+    );
+  }
+
   if (isMockDataMode()) {
     return ok({
       executed: false,
@@ -899,6 +1109,14 @@ async function executeK8sAction(body: ActionBody) {
       name,
       message: "mock 모드에서는 작업이 실제 실행되지 않습니다.",
     });
+  }
+
+  if (process.env.ALLOW_INFRA_ACTIONS !== "true") {
+    return fail(
+      "ACTION_DISABLED",
+      "실제 인프라 변경은 기본 비활성화되어 있습니다. ALLOW_INFRA_ACTIONS=true 설정이 필요합니다.",
+      403,
+    );
   }
 
   const kubectlAvailable = await isBinaryAvailable("kubectl");
@@ -940,10 +1158,18 @@ async function executeK8sAction(body: ActionBody) {
 
 export async function GET(request: Request) {
   const auth = requireSession(request);
-  if (!auth.ok && !isMockDataMode()) return auth.response;
+  if (!auth.ok) return auth.response;
 
-  const snapshot = await collectInfraSnapshot();
-  return ok(snapshot);
+  const project = getProjectById(auth.session.workspaceId);
+  const snapshot = filterInfraSnapshot(
+    await collectInfraSnapshot(project?.name ?? auth.session.workspaceId),
+    buildProjectScope(project, auth.session.workspaceId),
+  );
+  return ok({
+    workspaceId: auth.session.workspaceId,
+    project,
+    ...snapshot,
+  });
 }
 
 export async function POST(request: Request) {
@@ -951,5 +1177,8 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as ActionBody;
-  return executeK8sAction(body);
+  return executeK8sAction(
+    body,
+    buildProjectScope(getProjectById(auth.session.workspaceId), auth.session.workspaceId),
+  );
 }

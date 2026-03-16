@@ -1,0 +1,1726 @@
+package com.jeolgamai.backend.domain.optimization.service;
+
+import com.jeolgamai.backend.domain.integration.dto.AwsInfrastructureResponse;
+import com.jeolgamai.backend.domain.integration.dto.K8sInfrastructureResponse;
+import com.jeolgamai.backend.domain.integration.dto.PrometheusCapacitySnapshot;
+import com.jeolgamai.backend.domain.integration.dto.PrometheusOverviewResponse;
+import com.jeolgamai.backend.domain.integration.service.AwsInfrastructureService;
+import com.jeolgamai.backend.domain.integration.service.ConnectorRegistryService;
+import com.jeolgamai.backend.domain.integration.service.K8sInfrastructureService;
+import com.jeolgamai.backend.domain.integration.service.PrometheusIntegrationService;
+import com.jeolgamai.backend.domain.optimization.dto.OptimizationModels;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+
+@Service
+public class OptimizationService {
+
+    private static final String AWS_SEOUL_REGION = "ap-northeast-2";
+    private static final String TEMPLATE_EXECUTIVE = "executive";
+    private static final String DEFAULT_OWNER = "system";
+    private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+    private static final long ESTIMATED_EKS_CONTROL_PLANE_MONTHLY_KRW = 99_000L;
+    private static final long ESTIMATED_EC2_VCPU_MONTHLY_KRW = 18_000L;
+    private static final long ESTIMATED_EC2_MEMORY_GIB_MONTHLY_KRW = 3_000L;
+    private static final long ESTIMATED_EBS_GIB_MONTHLY_KRW = 150L;
+
+    private static final List<PillarTemplate> PILLAR_TEMPLATES = List.of(
+            new PillarTemplate("operational_excellence", "Operational Excellence", 12),
+            new PillarTemplate("security", "Security", 12),
+            new PillarTemplate("reliability", "Reliability", 12),
+            new PillarTemplate("performance_efficiency", "Performance Efficiency", 12),
+            new PillarTemplate("cost_optimization", "Cost Optimization", 16),
+            new PillarTemplate("sustainability", "Sustainability", 16),
+            new PillarTemplate("finops", "FinOps", 20)
+    );
+
+    private final ConnectorRegistryService connectorRegistryService;
+    private final AwsInfrastructureService awsInfrastructureService;
+    private final K8sInfrastructureService k8sInfrastructureService;
+    private final PrometheusIntegrationService prometheusIntegrationService;
+    private final OptimizationLlmService optimizationLlmService;
+
+    private final ConcurrentMap<String, OptimizationModels.ProjectSummary> projects = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ConcurrentLinkedDeque<OptimizationModels.AnalysisSnapshot>> analysesByWorkspace =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, OptimizationModels.AnalysisSnapshot> analysisById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<OptimizationModels.Recommendation>> recommendationsByAnalysis =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, OptimizationModels.Recommendation> recommendationById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<OptimizationModels.ApprovalLog>> approvalsByWorkspace =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, MutableChatSession> chatSessions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<OptimizationModels.ReportArtifact>> reportsByWorkspace =
+            new ConcurrentHashMap<>();
+
+    public OptimizationService(
+            ConnectorRegistryService connectorRegistryService,
+            AwsInfrastructureService awsInfrastructureService,
+            K8sInfrastructureService k8sInfrastructureService,
+            PrometheusIntegrationService prometheusIntegrationService,
+            OptimizationLlmService optimizationLlmService
+    ) {
+        this.connectorRegistryService = connectorRegistryService;
+        this.awsInfrastructureService = awsInfrastructureService;
+        this.k8sInfrastructureService = k8sInfrastructureService;
+        this.prometheusIntegrationService = prometheusIntegrationService;
+        this.optimizationLlmService = optimizationLlmService;
+    }
+
+    public OptimizationModels.AnalysisBundle runAnalysis(OptimizationModels.RunAnalysisRequest request) {
+        String workspaceId = requireWorkspaceId(request.workspaceId());
+        int lookbackDays = normalizeLookbackDays(request.lookbackDays());
+        String triggeredBy = normalizeTriggeredBy(request.triggeredBy());
+        OptimizationModels.ProjectSummary project = ensureProject(
+                workspaceId,
+                request.projectName(),
+                request.awsRegion()
+        );
+
+        SourceSnapshot sources = loadSources(workspaceId, project);
+        OptimizationModels.AnalysisBundle bundle = buildAnalysisBundle(
+                workspaceId,
+                project,
+                lookbackDays,
+                triggeredBy,
+                sources
+        );
+        saveAnalysisBundle(bundle);
+        return bundle;
+    }
+
+    public OptimizationModels.AnalysisBundle getLatestAnalysis(
+            String workspaceId,
+            String projectName,
+            String awsRegion
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
+        OptimizationModels.AnalysisSnapshot latest = analysesByWorkspace
+                .getOrDefault(normalizedWorkspaceId, new ConcurrentLinkedDeque<>())
+                .peekFirst();
+
+        if (latest == null) {
+            return runAnalysis(new OptimizationModels.RunAnalysisRequest(
+                    normalizedWorkspaceId,
+                    project.name(),
+                    project.awsRegion(),
+                    30,
+                    "manual"
+            ));
+        }
+
+        return new OptimizationModels.AnalysisBundle(
+                normalizedWorkspaceId,
+                project,
+                latest,
+                recommendationsByAnalysis.getOrDefault(latest.id(), List.of())
+        );
+    }
+
+    public OptimizationModels.AnalysisBundle getAnalysis(
+            String workspaceId,
+            String analysisId,
+            String projectName,
+            String awsRegion
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
+        if (analysis == null || !normalizedWorkspaceId.equals(analysis.workspaceId())) {
+            throw new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다.");
+        }
+
+        OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
+        return new OptimizationModels.AnalysisBundle(
+                normalizedWorkspaceId,
+                project,
+                analysis,
+                recommendationsByAnalysis.getOrDefault(analysis.id(), List.of())
+        );
+    }
+
+    public OptimizationModels.RecommendationList getRecommendations(String workspaceId) {
+        OptimizationModels.AnalysisBundle latest = getLatestAnalysis(workspaceId, null, null);
+        return new OptimizationModels.RecommendationList(
+                latest.analysis() == null ? null : latest.analysis().id(),
+                latest.recommendations()
+        );
+    }
+
+    public OptimizationModels.Recommendation getRecommendation(String workspaceId, String recommendationId) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.Recommendation recommendation = recommendationById.get(recommendationId);
+        if (recommendation == null || !normalizedWorkspaceId.equals(recommendation.workspaceId())) {
+            throw new IllegalArgumentException("recommendationId=" + recommendationId + "를 찾을 수 없습니다.");
+        }
+        return recommendation;
+    }
+
+    public OptimizationModels.ApprovalResult approveRecommendation(
+            String workspaceId,
+            String recommendationId,
+            OptimizationModels.ApproveRecommendationRequest request
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        String action = normalizeApprovalAction(request.action());
+        OptimizationModels.Recommendation current = getRecommendation(normalizedWorkspaceId, recommendationId);
+        String now = nowIso();
+
+        OptimizationModels.Recommendation updated = new OptimizationModels.Recommendation(
+                current.id(),
+                current.analysisId(),
+                current.workspaceId(),
+                current.domain(),
+                current.title(),
+                current.description(),
+                current.targetResource(),
+                "approved".equals(action) ? "approved" : "rejected",
+                current.confidenceScore(),
+                current.riskLevel(),
+                current.estMonthlySaving(),
+                current.estAnnualSaving(),
+                current.commandSnippet(),
+                current.rollbackSnippet(),
+                current.evidence(),
+                current.ruleTrace(),
+                current.createdAt(),
+                now
+        );
+
+        recommendationById.put(updated.id(), updated);
+        replaceRecommendationInAnalysis(updated);
+
+        OptimizationModels.ApprovalLog log = new OptimizationModels.ApprovalLog(
+                createId("approval"),
+                normalizedWorkspaceId,
+                updated.id(),
+                trimToNull(request.actor()) == null ? "company_admin" : request.actor().trim(),
+                action,
+                trimToNull(request.note()) == null ? "" : request.note().trim(),
+                now
+        );
+        approvalsByWorkspace.computeIfAbsent(normalizedWorkspaceId, key -> new ArrayList<>()).add(0, log);
+
+        return new OptimizationModels.ApprovalResult(updated, log);
+    }
+
+    public OptimizationModels.ChatSession getChatSession(
+            String workspaceId,
+            String analysisId,
+            String pinnedRecommendationId
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        ensureAnalysisExists(normalizedWorkspaceId, analysisId);
+        MutableChatSession session = chatSessions.computeIfAbsent(
+                buildChatKey(normalizedWorkspaceId, analysisId, pinnedRecommendationId),
+                key -> new MutableChatSession(
+                        createId("chat"),
+                        normalizedWorkspaceId,
+                        analysisId,
+                        pinnedRecommendationId,
+                        new ArrayList<>(),
+                        nowIso()
+                )
+        );
+
+        return session.toResponse();
+    }
+
+    public OptimizationModels.ChatEnvelope appendChat(OptimizationModels.ChatRequest request) {
+        String normalizedWorkspaceId = requireWorkspaceId(request.workspaceId());
+        ensureAnalysisExists(normalizedWorkspaceId, request.analysisId());
+
+        String content = trimToNull(request.content());
+        if (content == null) {
+            throw new IllegalArgumentException("content는 필수입니다.");
+        }
+
+        MutableChatSession session = chatSessions.computeIfAbsent(
+                buildChatKey(normalizedWorkspaceId, request.analysisId(), request.pinnedRecommendationId()),
+                key -> new MutableChatSession(
+                        createId("chat"),
+                        normalizedWorkspaceId,
+                        request.analysisId(),
+                        request.pinnedRecommendationId(),
+                        new ArrayList<>(),
+                        nowIso()
+                )
+        );
+
+        OptimizationModels.ChatMessage userMessage = new OptimizationModels.ChatMessage(
+                createId("chat_msg_user"),
+                "user",
+                content,
+                nowIso()
+        );
+        OptimizationModels.ChatMessage assistantMessage = new OptimizationModels.ChatMessage(
+                createId("chat_msg_assistant"),
+                "assistant",
+                buildAssistantResponse(
+                        normalizedWorkspaceId,
+                        request.analysisId(),
+                        content,
+                        request.pinnedRecommendationId(),
+                        session.messages()
+                ),
+                nowIso()
+        );
+
+        session.messages().add(userMessage);
+        session.messages().add(assistantMessage);
+        session.updatedAt = nowIso();
+
+        return new OptimizationModels.ChatEnvelope(session.toResponse(), assistantMessage);
+    }
+
+    public OptimizationModels.ReportArtifact generateReport(OptimizationModels.GenerateReportRequest request) {
+        String workspaceId = requireWorkspaceId(request.workspaceId());
+        OptimizationModels.AnalysisBundle analysisBundle = getAnalysis(
+                workspaceId,
+                request.analysisId(),
+                request.projectName(),
+                request.awsRegion()
+        );
+
+        List<OptimizationModels.Recommendation> recommendations = analysisBundle.recommendations();
+        String templateType = trimToNull(request.templateType()) == null
+                ? TEMPLATE_EXECUTIVE
+                : request.templateType().trim();
+        OptimizationModels.ReportArtifact report = new OptimizationModels.ReportArtifact(
+                createId("report"),
+                workspaceId,
+                analysisBundle.analysis().id(),
+                templateType,
+                trimToNull(request.createdBy()) == null ? "company_admin" : request.createdBy().trim(),
+                nowIso(),
+                "/reports/new?analysisId=" + analysisBundle.analysis().id() + "&reportId=preview-" + analysisBundle.analysis().id(),
+                "/api/reports/generate?analysisId=" + analysisBundle.analysis().id() + "&format=pdf",
+                new OptimizationModels.ReportPayload(
+                        analysisBundle.analysis().score().totalScore(),
+                        analysisBundle.analysis().score().grade(),
+                        analysisBundle.analysis().potentialMonthlySaving(),
+                        analysisBundle.analysis().potentialAnnualSaving(),
+                        recommendations.stream()
+                                .limit(3)
+                                .map(OptimizationModels.Recommendation::title)
+                                .toList()
+                )
+        );
+
+        reportsByWorkspace.computeIfAbsent(workspaceId, key -> new ArrayList<>()).add(0, report);
+        return report;
+    }
+
+    public OptimizationModels.ReportListResponse listReports(
+            String workspaceId,
+            String analysisId,
+            String projectName,
+            String awsRegion
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
+        List<OptimizationModels.ReportArtifact> reports = new ArrayList<>(
+                reportsByWorkspace.getOrDefault(normalizedWorkspaceId, List.of())
+        );
+        if (trimToNull(analysisId) != null) {
+            reports = reports.stream()
+                    .filter(report -> analysisId.equals(report.analysisId()))
+                    .toList();
+        }
+
+        return new OptimizationModels.ReportListResponse(project, reports, reports.size());
+    }
+
+    public OptimizationModels.ReportExportPayload getReportExport(
+            String workspaceId,
+            String analysisId
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        if (trimToNull(analysisId) == null) {
+            throw new IllegalArgumentException("format=pdf 요청에는 analysisId가 필요합니다.");
+        }
+
+        List<OptimizationModels.ReportArtifact> reports = reportsByWorkspace
+                .getOrDefault(normalizedWorkspaceId, List.of())
+                .stream()
+                .filter(report -> analysisId.equals(report.analysisId()))
+                .toList();
+
+        if (reports.isEmpty()) {
+            throw new IllegalArgumentException("analysisId=" + analysisId + " 리포트를 찾을 수 없습니다.");
+        }
+
+        OptimizationModels.ReportArtifact latest = reports.get(0);
+        return new OptimizationModels.ReportExportPayload(
+                latest.id(),
+                "application/pdf",
+                true,
+                "데모 환경에서는 PDF 바이너리 대신 리포트 메타데이터를 반환합니다.",
+                latest.payload()
+        );
+    }
+
+    private void ensureAnalysisExists(String workspaceId, String analysisId) {
+        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
+        if (analysis == null || !workspaceId.equals(analysis.workspaceId())) {
+            throw new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다.");
+        }
+    }
+
+    private OptimizationModels.ProjectSummary ensureProject(
+            String workspaceId,
+            String projectName,
+            String awsRegion
+    ) {
+        String now = nowIso();
+        return projects.compute(workspaceId, (key, existing) -> {
+            String resolvedName = trimToNull(projectName);
+            String resolvedRegion = trimToNull(awsRegion);
+            if (existing == null) {
+                return new OptimizationModels.ProjectSummary(
+                        workspaceId,
+                        resolvedName == null ? workspaceId : resolvedName,
+                        DEFAULT_OWNER,
+                        resolvedRegion == null ? AWS_SEOUL_REGION : resolvedRegion,
+                        now
+                );
+            }
+
+            return new OptimizationModels.ProjectSummary(
+                    existing.id(),
+                    resolvedName == null ? existing.name() : resolvedName,
+                    existing.ownerUserId(),
+                    resolvedRegion == null ? existing.awsRegion() : resolvedRegion,
+                    existing.createdAt()
+            );
+        });
+    }
+
+    private SourceSnapshot loadSources(String workspaceId, OptimizationModels.ProjectSummary project) {
+        AwsInfrastructureResponse aws = null;
+        K8sInfrastructureResponse k8s = null;
+        PrometheusOverviewResponse prometheus = null;
+        PrometheusCapacitySnapshot prometheusCapacity = null;
+        List<String> warnings = new ArrayList<>();
+        boolean hasAws = false;
+        boolean hasK8s = false;
+        boolean hasPrometheus = false;
+
+        if (connectorRegistryService.getAwsConnector(workspaceId).isPresent()) {
+            try {
+                aws = awsInfrastructureService.getInfrastructure(workspaceId);
+                hasAws = true;
+            } catch (IllegalArgumentException exception) {
+                warnings.add("AWS live 데이터 조회 실패: " + safeMessage(exception));
+            }
+        }
+
+        if (connectorRegistryService.getK8sConnector(workspaceId).isPresent()) {
+            try {
+                k8s = k8sInfrastructureService.getInfrastructure(workspaceId);
+                hasK8s = true;
+            } catch (IllegalArgumentException exception) {
+                warnings.add("Kubernetes live 데이터 조회 실패: " + safeMessage(exception));
+            }
+        }
+
+        if (connectorRegistryService.getPrometheusConnector(workspaceId).isPresent()) {
+            try {
+                prometheus = prometheusIntegrationService.getOverview(workspaceId);
+                prometheusCapacity = prometheusIntegrationService.getCapacitySnapshot(workspaceId);
+                hasPrometheus = true;
+            } catch (IllegalArgumentException exception) {
+                warnings.add("Prometheus live 데이터 조회 실패: " + safeMessage(exception));
+            }
+        }
+
+        if (!hasAws) {
+            if (hasPrometheus && prometheusCapacity != null && prometheusCapacity.nodeCount() > 0) {
+                warnings.add("AWS 연동이 없어 Prometheus capacity 기반 AWS 서울 리전 추정 비용을 사용합니다.");
+            } else {
+                warnings.add("AWS 연동이 없어 프로젝트 비용 분석이 제한됩니다.");
+            }
+        }
+        if (!hasK8s) {
+            warnings.add("Kubernetes 연동이 없어 컨테이너 최적화 분석이 제한됩니다.");
+        }
+        if (!hasPrometheus) {
+            warnings.add("Prometheus 연동이 없어 지표 기반 최적화 분석이 제한됩니다.");
+        }
+
+        OptimizationModels.ProjectSummary resolvedProject = project;
+        if (aws != null && !Objects.equals(project.awsRegion(), aws.region())) {
+            resolvedProject = new OptimizationModels.ProjectSummary(
+                    project.id(),
+                    project.name(),
+                    project.ownerUserId(),
+                    aws.region(),
+                    project.createdAt()
+            );
+            projects.put(project.id(), resolvedProject);
+        }
+
+        return new SourceSnapshot(
+                resolvedProject,
+                aws,
+                k8s,
+                prometheus,
+                prometheusCapacity,
+                new OptimizationModels.SourceCoverage(hasAws, hasK8s, hasPrometheus),
+                warnings
+        );
+    }
+
+    private OptimizationModels.AnalysisBundle buildAnalysisBundle(
+            String workspaceId,
+            OptimizationModels.ProjectSummary project,
+            int lookbackDays,
+            String triggeredBy,
+            SourceSnapshot sources
+    ) {
+        String analysisId = createId("analysis");
+        String now = nowIso();
+        LocalDateTime nowDateTime = LocalDateTime.now();
+        String periodEnd = DISPLAY_DATE_TIME.format(Instant.now().atZone(ZoneId.of("Asia/Seoul")));
+        String periodStart = DISPLAY_DATE_TIME.format(
+                Instant.now().minusSeconds((long) lookbackDays * 24 * 60 * 60).atZone(ZoneId.of("Asia/Seoul"))
+        );
+
+        List<OptimizationModels.InfrastructureResource> resources = buildInfrastructureResources(sources);
+        List<OptimizationModels.CostBreakdownItem> costBreakdown = buildCostBreakdown(sources);
+        long totalMonthlyCost = costBreakdown.stream()
+                .mapToLong(OptimizationModels.CostBreakdownItem::monthlyCost)
+                .sum();
+
+        List<OptimizationModels.Recommendation> recommendations = buildRecommendations(
+                analysisId,
+                workspaceId,
+                project,
+                lookbackDays,
+                totalMonthlyCost,
+                sources,
+                resources
+        );
+
+        long potentialMonthlySaving = recommendations.stream()
+                .mapToLong(OptimizationModels.Recommendation::estMonthlySaving)
+                .sum();
+        long wasteCost = Math.round(totalMonthlyCost * 0.27);
+        OptimizationModels.ScoreBreakdown score = calculateScoreBreakdown(
+                recommendations,
+                sources.coverage()
+        );
+
+        OptimizationModels.AnalysisSnapshot analysis = new OptimizationModels.AnalysisSnapshot(
+                analysisId,
+                workspaceId,
+                triggeredBy,
+                "completed",
+                now,
+                now,
+                now,
+                lookbackDays,
+                periodStart,
+                periodEnd,
+                project.awsRegion(),
+                sources.coverage(),
+                totalMonthlyCost,
+                wasteCost,
+                potentialMonthlySaving,
+                potentialMonthlySaving * 12,
+                score,
+                recommendations.stream().map(OptimizationModels.Recommendation::id).toList(),
+                resources,
+                costBreakdown,
+                buildWarnings(project, sources)
+        );
+
+        return new OptimizationModels.AnalysisBundle(
+                workspaceId,
+                sources.project(),
+                analysis,
+                recommendations
+        );
+    }
+
+    private List<OptimizationModels.InfrastructureResource> buildInfrastructureResources(SourceSnapshot sources) {
+        if (sources.aws() == null) {
+            return buildEstimatedInfrastructureResources(sources);
+        }
+
+        Map<String, CostAverage> averages = buildCostAverages(sources.aws());
+        Double cpu = sources.prometheus() == null ? null : sources.prometheus().summary().cpuUsagePercent();
+        Double memory = sources.prometheus() == null ? null : sources.prometheus().summary().memoryUsagePercent();
+
+        return sources.aws().resources().stream()
+                .map(resource -> {
+                    String category = normalizeAwsCategory(resource.type());
+                    CostAverage average = averages.getOrDefault(category, new CostAverage(0, 0));
+                    long monthlyCost = average.resourceCount <= 0
+                            ? average.totalMonthlyCost
+                            : Math.round((double) average.totalMonthlyCost / average.resourceCount);
+                    return new OptimizationModels.InfrastructureResource(
+                            resource.id(),
+                            resource.name(),
+                            resource.type(),
+                            resource.region(),
+                            resource.status(),
+                            "EC2".equals(category) ? cpu : null,
+                            ("EC2".equals(category) || "RDS".equals(category)) ? memory : null,
+                            monthlyCost,
+                            inferRiskLevel(resource.status(), category, cpu)
+                    );
+                })
+                .sorted(Comparator.comparing(OptimizationModels.InfrastructureResource::monthlyCost).reversed())
+                .toList();
+    }
+
+    private Map<String, CostAverage> buildCostAverages(AwsInfrastructureResponse aws) {
+        Map<String, CostAverage> averages = new ConcurrentHashMap<>();
+        for (AwsInfrastructureResponse.ServiceCost serviceCost : aws.costByService()) {
+            String category = normalizeServiceCategory(serviceCost.service());
+            averages.put(category, new CostAverage(
+                    Math.round(serviceCost.monthToDateCost()),
+                    serviceCost.resourceCount()
+            ));
+        }
+        return averages;
+    }
+
+    private List<OptimizationModels.CostBreakdownItem> buildCostBreakdown(SourceSnapshot sources) {
+        if (sources.aws() == null) {
+            return buildEstimatedCostBreakdown(sources);
+        }
+
+        return sources.aws().costByService().stream()
+                .map(item -> new OptimizationModels.CostBreakdownItem(
+                        item.service(),
+                        usageTypeForService(item.service()),
+                        Math.round(item.monthToDateCost()),
+                        sources.aws().region(),
+                        item.resourceCount()
+                ))
+                .sorted(Comparator.comparing(OptimizationModels.CostBreakdownItem::monthlyCost).reversed())
+                .toList();
+    }
+
+    private List<OptimizationModels.InfrastructureResource> buildEstimatedInfrastructureResources(SourceSnapshot sources) {
+        if (sources.prometheusCapacity() == null || sources.prometheusCapacity().nodeCount() <= 0) {
+            return List.of();
+        }
+
+        PrometheusCapacitySnapshot capacity = sources.prometheusCapacity();
+        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity);
+        Double cpuUsage = sources.prometheus() == null ? null : sources.prometheus().summary().cpuUsagePercent();
+        Double memoryUsage = sources.prometheus() == null ? null : sources.prometheus().summary().memoryUsagePercent();
+
+        List<OptimizationModels.InfrastructureResource> resources = new ArrayList<>();
+        resources.add(new OptimizationModels.InfrastructureResource(
+                "estimated-node-pool",
+                "Prometheus 추정 Node Pool",
+                "EC2",
+                sources.project().awsRegion(),
+                "estimated",
+                cpuUsage,
+                memoryUsage,
+                estimate.ec2MonthlyCost(),
+                inferRiskLevel("estimated", "EC2", cpuUsage)
+        ));
+        resources.add(new OptimizationModels.InfrastructureResource(
+                "estimated-eks-control-plane",
+                "Prometheus 추정 EKS Control Plane",
+                "EKS",
+                sources.project().awsRegion(),
+                "estimated",
+                null,
+                null,
+                estimate.eksMonthlyCost(),
+                "low"
+        ));
+        if (estimate.ebsMonthlyCost() > 0) {
+            resources.add(new OptimizationModels.InfrastructureResource(
+                    "estimated-persistent-storage",
+                    "Prometheus 추정 Persistent Storage",
+                    "S3",
+                    sources.project().awsRegion(),
+                    "estimated",
+                    null,
+                    null,
+                    estimate.ebsMonthlyCost(),
+                    "low"
+            ));
+        }
+
+        return resources.stream()
+                .sorted(Comparator.comparing(OptimizationModels.InfrastructureResource::monthlyCost).reversed())
+                .toList();
+    }
+
+    private List<OptimizationModels.CostBreakdownItem> buildEstimatedCostBreakdown(SourceSnapshot sources) {
+        if (sources.prometheusCapacity() == null || sources.prometheusCapacity().nodeCount() <= 0) {
+            return List.of();
+        }
+
+        PrometheusCapacitySnapshot capacity = sources.prometheusCapacity();
+        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity);
+        List<OptimizationModels.CostBreakdownItem> items = new ArrayList<>();
+        items.add(new OptimizationModels.CostBreakdownItem(
+                "Amazon Elastic Compute Cloud",
+                "Estimated On-Demand Worker Nodes",
+                estimate.ec2MonthlyCost(),
+                sources.project().awsRegion(),
+                Math.max(capacity.nodeCount(), 1)
+        ));
+        items.add(new OptimizationModels.CostBreakdownItem(
+                "Amazon Elastic Kubernetes Service",
+                "Estimated Control Plane",
+                estimate.eksMonthlyCost(),
+                sources.project().awsRegion(),
+                1
+        ));
+        if (estimate.ebsMonthlyCost() > 0) {
+            items.add(new OptimizationModels.CostBreakdownItem(
+                    "Amazon Elastic Block Store",
+                    "Estimated Persistent Volume",
+                    estimate.ebsMonthlyCost(),
+                    sources.project().awsRegion(),
+                    Math.max(capacity.nodeCount(), 1)
+            ));
+        }
+
+        return items.stream()
+                .sorted(Comparator.comparing(OptimizationModels.CostBreakdownItem::monthlyCost).reversed())
+                .toList();
+    }
+
+    private PrometheusCostEstimate estimatePrometheusAwsSeoulCost(PrometheusCapacitySnapshot capacity) {
+        double memoryGiB = bytesToGiB(capacity.totalMemoryBytes());
+        double storageGiB = bytesToGiB(capacity.pvcStorageBytes());
+
+        long ec2MonthlyCost = Math.round(
+                capacity.totalCpuCores() * ESTIMATED_EC2_VCPU_MONTHLY_KRW
+                        + memoryGiB * ESTIMATED_EC2_MEMORY_GIB_MONTHLY_KRW
+        );
+        long ebsMonthlyCost = Math.round(storageGiB * ESTIMATED_EBS_GIB_MONTHLY_KRW);
+
+        return new PrometheusCostEstimate(
+                Math.max(ec2MonthlyCost, 0),
+                ESTIMATED_EKS_CONTROL_PLANE_MONTHLY_KRW,
+                Math.max(ebsMonthlyCost, 0)
+        );
+    }
+
+    private double bytesToGiB(double bytes) {
+        if (bytes <= 0) {
+            return 0;
+        }
+        return bytes / (1024d * 1024d * 1024d);
+    }
+
+    private List<OptimizationModels.Recommendation> buildRecommendations(
+            String analysisId,
+            String workspaceId,
+            OptimizationModels.ProjectSummary project,
+            int lookbackDays,
+            long totalMonthlyCost,
+            SourceSnapshot sources,
+            List<OptimizationModels.InfrastructureResource> resources
+    ) {
+        List<OptimizationModels.Recommendation> recommendations = new ArrayList<>();
+        String now = nowIso();
+
+        Map<String, OptimizationModels.InfrastructureResource> resourcesByCategory = resources.stream()
+                .collect(Collectors.toMap(
+                        resource -> normalizeAwsCategory(resource.type()),
+                        resource -> resource,
+                        (left, right) -> left.monthlyCost() >= right.monthlyCost() ? left : right
+                ));
+
+        if (sources.aws() != null) {
+            OptimizationModels.CostBreakdownItem ec2 = findCostItemByCategory(sources, "EC2");
+            OptimizationModels.CostBreakdownItem rds = findCostItemByCategory(sources, "RDS");
+            OptimizationModels.CostBreakdownItem s3 = findCostItemByCategory(sources, "S3");
+
+            if (ec2 != null && resourcesByCategory.containsKey("EC2")) {
+                OptimizationModels.InfrastructureResource target = resourcesByCategory.get("EC2");
+                double cpu = target.cpuUsagePercent() == null ? 0 : target.cpuUsagePercent();
+                double savingRate = cpu < 20 ? 0.28 : cpu < 40 ? 0.18 : 0.1;
+                recommendations.add(createRecommendation(
+                        analysisId,
+                        workspaceId,
+                        "compute",
+                        "서울 리전 EC2 라이트사이징",
+                        "실제 EC2 비용과 Prometheus CPU 사용률을 기준으로 저활용 인스턴스를 축소합니다.",
+                        target.id(),
+                        Math.round(ec2.monthlyCost() * savingRate),
+                        cpu < 20 ? 0.95 : 0.87,
+                        cpu < 20 ? "low" : "medium",
+                        "aws ec2 modify-instance-attribute --region " + project.awsRegion()
+                                + " --instance-id " + target.id()
+                                + " --instance-type '{\"Value\":\"m7i.large\"}'",
+                        "aws ec2 modify-instance-attribute --region " + project.awsRegion()
+                                + " --instance-id " + target.id()
+                                + " --instance-type '{\"Value\":\"m7i.xlarge\"}'",
+                        List.of(
+                                new OptimizationModels.MetricValue("cpu_usage", round(cpu), "%"),
+                                new OptimizationModels.MetricValue(
+                                        "monthly_cost",
+                                        ec2.monthlyCost(),
+                                        "KRW"
+                                )
+                        ),
+                        "WA-COST-EC2-SEOUL-101",
+                        "Well-Architected: Cost Optimization",
+                        "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/welcome.html",
+                        lookbackDays,
+                        now
+                ));
+            }
+
+            if (rds != null && resourcesByCategory.containsKey("RDS")) {
+                OptimizationModels.InfrastructureResource target = resourcesByCategory.get("RDS");
+                recommendations.add(createRecommendation(
+                        analysisId,
+                        workspaceId,
+                        "database",
+                        "RDS 인스턴스 클래스 및 RI 검토",
+                        "실제 RDS 사용량과 월 비용을 기준으로 인스턴스 클래스 재조정 또는 Reserved 적용 대상을 추립니다.",
+                        target.id(),
+                        Math.round(rds.monthlyCost() * 0.16),
+                        0.88,
+                        "low",
+                        "aws rds modify-db-instance --apply-immediately --db-instance-identifier "
+                                + target.id()
+                                + " --db-instance-class db.r6g.large",
+                        "aws rds modify-db-instance --apply-immediately --db-instance-identifier "
+                                + target.id()
+                                + " --db-instance-class db.r6g.xlarge",
+                        List.of(
+                                new OptimizationModels.MetricValue("monthly_cost", rds.monthlyCost(), "KRW"),
+                                new OptimizationModels.MetricValue(
+                                        "memory_usage",
+                                        target.memoryUsagePercent() == null ? 0 : round(target.memoryUsagePercent()),
+                                        "%"
+                                )
+                        ),
+                        "WA-COST-RDS-SEOUL-102",
+                        "Well-Architected: Cost Optimization",
+                        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithReservedDBInstances.html",
+                        lookbackDays,
+                        now
+                ));
+            }
+
+            if (s3 != null && resourcesByCategory.containsKey("S3")) {
+                OptimizationModels.InfrastructureResource target = resourcesByCategory.get("S3");
+                recommendations.add(createRecommendation(
+                        analysisId,
+                        workspaceId,
+                        "storage",
+                        "S3 Lifecycle 및 보관 정책 최적화",
+                        "실제 S3 버킷 비용을 기준으로 오래된 로그/아카이브를 IA 또는 Glacier로 이관합니다.",
+                        target.id(),
+                        Math.round(s3.monthlyCost() * 0.22),
+                        0.84,
+                        "low",
+                        "aws s3api put-bucket-lifecycle-configuration --region " + project.awsRegion()
+                                + " --bucket " + target.name()
+                                + " --lifecycle-configuration file://s3-lifecycle.json",
+                        "aws s3api delete-bucket-lifecycle --region " + project.awsRegion()
+                                + " --bucket " + target.name(),
+                        List.of(
+                                new OptimizationModels.MetricValue("monthly_cost", s3.monthlyCost(), "KRW"),
+                                new OptimizationModels.MetricValue("bucket_count", s3.resourceCount(), "count")
+                        ),
+                        "WA-COST-S3-SEOUL-103",
+                        "Well-Architected: Cost Optimization",
+                        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html",
+                        lookbackDays,
+                        now
+                ));
+            }
+        }
+
+        if (sources.k8s() != null && !sources.k8s().deployments().isEmpty()) {
+            K8sInfrastructureResponse.Deployment deployment = sources.k8s().deployments().stream()
+                    .max(Comparator.comparing(K8sInfrastructureResponse.Deployment::replicas))
+                    .orElse(sources.k8s().deployments().get(0));
+            int restartCount = sources.k8s().pods().stream()
+                    .filter(pod -> deployment.namespace().equals(pod.namespace()))
+                    .mapToInt(K8sInfrastructureResponse.Pod::restartCount)
+                    .sum();
+            long saving = totalMonthlyCost <= 0 ? 0 : Math.round(totalMonthlyCost * 0.08);
+            recommendations.add(createRecommendation(
+                    analysisId,
+                    workspaceId,
+                    "eks",
+                    "K8s requests/limits 재조정",
+                    "실제 Deployment/POD 상태를 기준으로 requests/limits를 줄여 노드 과할당을 완화합니다.",
+                    deployment.namespace() + "/" + deployment.name(),
+                    saving,
+                    restartCount > 5 ? 0.78 : 0.86,
+                    restartCount > 5 ? "high" : "medium",
+                    "kubectl set resources deployment " + deployment.name()
+                            + " -n " + deployment.namespace()
+                            + " --requests=cpu=250m,memory=384Mi --limits=cpu=700m,memory=768Mi",
+                    "kubectl rollout undo deployment/" + deployment.name() + " -n " + deployment.namespace(),
+                    List.of(
+                            new OptimizationModels.MetricValue("replicas", deployment.replicas(), "count"),
+                            new OptimizationModels.MetricValue("ready_replicas", deployment.readyReplicas(), "count"),
+                            new OptimizationModels.MetricValue("restart_count", restartCount, "count")
+                    ),
+                    "K8S-EFFICIENCY-201",
+                    "Kubernetes: Resource Management",
+                    "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                    lookbackDays,
+                    now
+            ));
+        }
+
+        if (sources.prometheus() != null) {
+            PrometheusOverviewResponse.Summary summary = sources.prometheus().summary();
+            boolean highLatency = summary.p95LatencyMs() >= 100;
+            boolean highError = summary.errorRatePercent() >= 5;
+            double idleCpu = summary.cpuUsagePercent();
+            long saving = totalMonthlyCost <= 0 ? 0 : Math.round(totalMonthlyCost * (highLatency || highError ? 0.06 : 0.04));
+            CommandPlan commandPlan = buildPrometheusCommandPlan(sources, project, highLatency, highError);
+
+            recommendations.add(createRecommendation(
+                    analysisId,
+                    workspaceId,
+                    "finops",
+                    highLatency || highError
+                            ? "Prometheus 기반 병목 구간 튜닝"
+                            : "Prometheus 기반 유휴 리소스 스케줄 다운",
+                    highLatency || highError
+                            ? "실제 지연시간/오류율 지표를 기준으로 HPA 임계값과 병목 워크로드를 조정합니다."
+                            : "실제 CPU/메모리 지표를 기준으로 장시간 유휴한 리소스를 스케줄 다운 대상으로 분류합니다.",
+                    commandPlan.targetResource(),
+                    saving,
+                    highLatency || highError ? 0.82 : 0.85,
+                    highLatency || highError ? "medium" : "low",
+                    commandPlan.commandSnippet(),
+                    commandPlan.rollbackSnippet(),
+                    List.of(
+                            new OptimizationModels.MetricValue("cpu_usage", round(idleCpu), "%"),
+                            new OptimizationModels.MetricValue("memory_usage", round(summary.memoryUsagePercent()), "%"),
+                            new OptimizationModels.MetricValue("p95_latency", round(summary.p95LatencyMs()), "ms"),
+                            new OptimizationModels.MetricValue("error_rate", round(summary.errorRatePercent()), "%")
+                    ),
+                    "PROM-OPS-301",
+                    "Observability-driven Optimization",
+                    "https://prometheus.io/docs/prometheus/latest/querying/basics/",
+                    lookbackDays,
+                    now
+            ));
+        }
+
+        if (recommendations.isEmpty()) {
+            recommendations.add(createRecommendation(
+                    analysisId,
+                    workspaceId,
+                    "finops",
+                    "실데이터 연동 우선",
+                    "AWS, Kubernetes, Prometheus 연동이 충분하지 않아 backend가 실데이터 기반 분석을 완료하지 못했습니다.",
+                    "integration",
+                    0,
+                    0.35,
+                    "low",
+                    "# integrations 메뉴에서 AWS/K8s/Prometheus 연동을 먼저 완료하세요",
+                    "# rollback not required",
+                    List.of(new OptimizationModels.MetricValue("coverage", 0, "%")),
+                    "DATA-COVERAGE-000",
+                    "Data Coverage Baseline",
+                    "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html",
+                    lookbackDays,
+                    now
+            ));
+        }
+
+        return recommendations;
+    }
+
+    private OptimizationModels.Recommendation createRecommendation(
+            String analysisId,
+            String workspaceId,
+            String domain,
+            String title,
+            String description,
+            String targetResource,
+            long monthlySaving,
+            double confidenceScore,
+            String riskLevel,
+            String commandSnippet,
+            String rollbackSnippet,
+            List<OptimizationModels.MetricValue> metrics,
+            String ruleId,
+            String principleName,
+            String docUrl,
+            int lookbackDays,
+            String now
+    ) {
+        return new OptimizationModels.Recommendation(
+                createId("rec"),
+                analysisId,
+                workspaceId,
+                domain,
+                title,
+                description,
+                targetResource,
+                "reviewed",
+                round(confidenceScore),
+                riskLevel,
+                monthlySaving,
+                monthlySaving * 12,
+                commandSnippet,
+                rollbackSnippet,
+                new OptimizationModels.RecommendationEvidence(
+                        lookbackDays + "일 관측 구간과 backend live connector 데이터를 기반으로 계산했습니다.",
+                        lookbackDays,
+                        metrics
+                ),
+                new OptimizationModels.RuleTrace(
+                        ruleId,
+                        principleName,
+                        docUrl,
+                        "2026.03"
+                ),
+                now,
+                now
+        );
+    }
+
+    private OptimizationModels.ScoreBreakdown calculateScoreBreakdown(
+            List<OptimizationModels.Recommendation> recommendations,
+            OptimizationModels.SourceCoverage coverage
+    ) {
+        Map<String, MutablePillarScore> pillars = new ConcurrentHashMap<>();
+        for (PillarTemplate template : PILLAR_TEMPLATES) {
+            pillars.put(template.key(), new MutablePillarScore(
+                    template.key(),
+                    template.name(),
+                    template.maxScore(),
+                    template.maxScore(),
+                    0
+            ));
+        }
+
+        if (!coverage.aws()) {
+            deduct(pillars, "cost_optimization", 4);
+            deduct(pillars, "finops", 6);
+        }
+        if (!coverage.k8s()) {
+            deduct(pillars, "operational_excellence", 3);
+            deduct(pillars, "performance_efficiency", 2);
+        }
+        if (!coverage.prometheus()) {
+            deduct(pillars, "operational_excellence", 2);
+            deduct(pillars, "reliability", 4);
+        }
+
+        for (OptimizationModels.Recommendation recommendation : recommendations) {
+            String pillarKey = domainToPillar(recommendation.domain());
+            deduct(pillars, pillarKey, riskPenalty(recommendation.riskLevel()));
+        }
+
+        List<OptimizationModels.PillarScore> pillarScores = pillars.values().stream()
+                .sorted(Comparator.comparing(MutablePillarScore::pillarKey))
+                .map(MutablePillarScore::toResponse)
+                .toList();
+
+        int totalScore = pillarScores.stream().mapToInt(OptimizationModels.PillarScore::score).sum();
+        double confidenceAverage = recommendations.stream()
+                .mapToDouble(OptimizationModels.Recommendation::confidenceScore)
+                .average()
+                .orElse(0.35);
+        int confidencePercent = Math.max(35, Math.min(98, (int) Math.round(confidenceAverage * 100)));
+
+        return new OptimizationModels.ScoreBreakdown(
+                totalScore,
+                gradeForScore(totalScore),
+                confidencePercent,
+                pillarScores
+        );
+    }
+
+    private void deduct(Map<String, MutablePillarScore> pillars, String key, int amount) {
+        MutablePillarScore pillar = pillars.get(key);
+        if (pillar == null || amount <= 0) {
+            return;
+        }
+        pillar.deduction += amount;
+        pillar.score = Math.max(0, pillar.score - amount);
+    }
+
+    private List<String> buildWarnings(
+            OptimizationModels.ProjectSummary project,
+            SourceSnapshot sources
+    ) {
+        List<String> warnings = new ArrayList<>();
+        warnings.add("비용 분석은 AWS 서울 리전(" + project.awsRegion() + ") 기준으로 계산됩니다.");
+        warnings.addAll(sources.warnings());
+        return warnings.stream().distinct().toList();
+    }
+
+    private OptimizationModels.CostBreakdownItem findCostItemByCategory(SourceSnapshot sources, String category) {
+        return buildCostBreakdown(sources).stream()
+                .filter(item -> category.equals(normalizeServiceCategory(item.service())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String buildAssistantResponse(
+            String workspaceId,
+            String analysisId,
+            String content,
+            String pinnedRecommendationId,
+            List<OptimizationModels.ChatMessage> history
+    ) {
+        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
+        List<OptimizationModels.Recommendation> recommendations = recommendationsByAnalysis
+                .getOrDefault(analysisId, List.of())
+                .stream()
+                .filter(recommendation -> workspaceId.equals(recommendation.workspaceId()))
+                .toList();
+
+        OptimizationModels.Recommendation pinned = trimToNull(pinnedRecommendationId) == null
+                ? recommendations.stream().findFirst().orElse(null)
+                : recommendations.stream()
+                .filter(recommendation -> pinnedRecommendationId.equals(recommendation.id()))
+                .findFirst()
+                .orElse(recommendations.stream().findFirst().orElse(null));
+
+        if (pinned == null) {
+            return "아직 분석 결과가 없습니다. 먼저 프로젝트 비용 분석을 실행해 주세요.";
+        }
+
+        OptimizationModels.ProjectSummary project = projects.getOrDefault(
+                workspaceId,
+                new OptimizationModels.ProjectSummary(
+                        workspaceId,
+                        workspaceId,
+                        DEFAULT_OWNER,
+                        analysis == null ? AWS_SEOUL_REGION : analysis.awsRegion(),
+                        nowIso()
+                )
+        );
+
+        String llmReply = optimizationLlmService.complete(
+                workspaceId,
+                analysisId,
+                buildAssistantSystemPrompt(),
+                buildAssistantUserPrompt(project, analysis, recommendations, pinned, history, content)
+        ).orElse(null);
+        if (llmReply != null) {
+            return llmReply;
+        }
+
+        String lower = content.toLowerCase(Locale.ROOT);
+        boolean askRollback = lower.contains("롤백") || lower.contains("rollback");
+        boolean askCommand = lower.contains("명령") || lower.contains("command") || lower.contains("실행");
+        boolean askReason = lower.contains("왜") || lower.contains("근거") || lower.contains("이유");
+        boolean askStatus = lower.contains("상태") || lower.contains("요약") || lower.contains("summary");
+        String metricsText = pinned.evidence().metrics().stream()
+                .map(metric -> metric.key() + "=" + trimNumeric(metric.value()) + metric.unit())
+                .collect(Collectors.joining(", "));
+        String costContext = analysis == null
+                ? "분석 비용 정보가 아직 없습니다."
+                : "프로젝트 점수 " + analysis.score().totalScore() + "점 (" + analysis.score().grade() + ")"
+                + " · 총 월비용 " + formatKrw(analysis.totalMonthlyCost())
+                + " · 예상 월 절감 " + formatKrw(analysis.potentialMonthlySaving());
+        String coverageText = analysis == null
+                ? "coverage unavailable"
+                : "coverage aws=" + analysis.sourceCoverage().aws()
+                + ", k8s=" + analysis.sourceCoverage().k8s()
+                + ", prometheus=" + analysis.sourceCoverage().prometheus();
+        String warningText = analysis == null || analysis.warnings().isEmpty()
+                ? "특이 경고 없음"
+                : analysis.warnings().stream().limit(2).collect(Collectors.joining(" / "));
+        String commandFamily = detectCommandFamily(pinned.commandSnippet());
+
+        if (askRollback) {
+            return "권고: " + pinned.title()
+                    + "\n대상 리소스: " + pinned.targetResource()
+                    + "\n명령 계열: " + commandFamily
+                    + "\n롤백 절차: " + pinned.rollbackSnippet()
+                    + "\n현재 지표: " + metricsText
+                    + "\n룰: " + pinned.ruleTrace().ruleId() + " (" + pinned.ruleTrace().principleName() + ")"
+                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
+        }
+
+        if (askCommand) {
+            return "권고: " + pinned.title()
+                    + "\n대상 리소스: " + pinned.targetResource()
+                    + "\n명령 계열: " + commandFamily
+                    + "\n실행 명령: " + pinned.commandSnippet()
+                    + "\n예상 월 절감: " + formatKrw(pinned.estMonthlySaving())
+                    + "\n프로젝트 컨텍스트: " + costContext
+                    + "\n리스크: " + pinned.riskLevel().toUpperCase(Locale.ROOT)
+                    + " · 신뢰도 " + Math.round(pinned.confidenceScore() * 100) + "%"
+                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
+        }
+
+        if (askReason) {
+            return "결론: " + pinned.title() + "를 우선 적용하는 것이 비용 대비 효과가 큽니다."
+                    + "\n근거: " + pinned.description()
+                    + "\n메트릭: " + metricsText
+                    + "\n분석 요약: " + costContext
+                    + "\n커버리지: " + coverageText
+                    + "\n경고: " + warningText
+                    + "\n룰: " + pinned.ruleTrace().ruleId() + " (" + pinned.ruleTrace().principleName() + ")"
+                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
+        }
+
+        if (askStatus) {
+            return "선택 권고: " + pinned.title()
+                    + "\n대상 리소스: " + pinned.targetResource()
+                    + "\n현재 상태: " + costContext
+                    + "\n커버리지: " + coverageText
+                    + "\n핵심 지표: " + metricsText
+                    + "\n경고: " + warningText
+                    + "\n실행 경로: " + commandFamily;
+        }
+
+        return "핵심 액션: " + pinned.title()
+                + "\n대상 리소스: " + pinned.targetResource()
+                + "\n분석 요약: " + costContext
+                + "\n핵심 지표: " + metricsText
+                + "\n실행 경로: " + commandFamily
+                + "\n다음 단계: 실행 명령 검토 → 승인 여부 결정 → 실행 가이드에서 적용"
+                + "\n예상 절감: 월 " + formatKrw(pinned.estMonthlySaving());
+    }
+
+    private String buildAssistantSystemPrompt() {
+        return """
+                당신은 JeolgamAI의 FinOps/SRE 최적화 어시스턴트다.
+                반드시 한국어로 답변하고, 제공된 프로젝트 컨텍스트만 근거로 사용한다.
+                숫자, 비용, 리소스명, 명령어, 자격증명, URL을 추측하거나 새로 만들지 않는다.
+                실행/롤백 명령은 제공된 commandSnippet과 rollbackSnippet 범위 안에서만 설명한다.
+                데이터가 부족하면 부족한 연결(AWS, Kubernetes, Prometheus)을 명시하고 추가 확인이 필요하다고 답한다.
+                답변은 실무자가 바로 판단할 수 있게 결론, 근거, 리스크/전제조건, 실행 또는 롤백 포인트 순으로 간결하게 정리한다.
+                """;
+    }
+
+    private String buildAssistantUserPrompt(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations,
+            OptimizationModels.Recommendation pinned,
+            List<OptimizationModels.ChatMessage> history,
+            String question
+    ) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("현재 프로젝트 컨텍스트\n");
+        prompt.append("프로젝트명: ").append(project.name()).append('\n');
+        prompt.append("workspaceId: ").append(project.id()).append('\n');
+        prompt.append("AWS 리전: ").append(project.awsRegion()).append('\n');
+        prompt.append("analysisId: ").append(analysis == null ? "unknown" : analysis.id()).append('\n');
+
+        if (analysis != null) {
+            prompt.append("분석 점수: ")
+                    .append(analysis.score().totalScore())
+                    .append("점 (")
+                    .append(analysis.score().grade())
+                    .append(")\n");
+            prompt.append("총 월비용: ").append(formatKrw(analysis.totalMonthlyCost())).append('\n');
+            prompt.append("예상 월 절감: ").append(formatKrw(analysis.potentialMonthlySaving())).append('\n');
+            prompt.append("예상 연 절감: ").append(formatKrw(analysis.potentialAnnualSaving())).append('\n');
+            prompt.append("소스 커버리지: aws=")
+                    .append(analysis.sourceCoverage().aws())
+                    .append(", k8s=")
+                    .append(analysis.sourceCoverage().k8s())
+                    .append(", prometheus=")
+                    .append(analysis.sourceCoverage().prometheus())
+                    .append('\n');
+            prompt.append("경고: ")
+                    .append(
+                            analysis.warnings().isEmpty()
+                                    ? "없음"
+                                    : analysis.warnings().stream().limit(4).collect(Collectors.joining(" | "))
+                    )
+                    .append('\n');
+            prompt.append("주요 인프라 자원:\n");
+            prompt.append(
+                    analysis.resources().stream()
+                            .limit(5)
+                            .map(resource -> "- " + resource.name()
+                                    + " [" + resource.type() + "]"
+                                    + " status=" + resource.status()
+                                    + ", monthlyCost=" + formatKrw(resource.monthlyCost())
+                                    + ", cpu="
+                                    + (resource.cpuUsagePercent() == null
+                                    ? "n/a"
+                                    : trimNumeric(resource.cpuUsagePercent()))
+                                    + "%, memory="
+                                    + (resource.memoryUsagePercent() == null
+                                    ? "n/a"
+                                    : trimNumeric(resource.memoryUsagePercent()))
+                                    + "%")
+                            .collect(Collectors.joining("\n"))
+            ).append('\n');
+        }
+
+        prompt.append("최신 권고 목록:\n");
+        prompt.append(
+                recommendations.stream()
+                        .limit(4)
+                        .map(recommendation -> "- " + recommendation.title()
+                                + " | target=" + recommendation.targetResource()
+                                + " | saving=" + formatKrw(recommendation.estMonthlySaving())
+                                + " | risk=" + recommendation.riskLevel()
+                                + " | confidence=" + Math.round(recommendation.confidenceScore() * 100) + "%")
+                        .collect(Collectors.joining("\n"))
+        ).append('\n');
+
+        prompt.append("현재 선택된 권고:\n");
+        prompt.append("제목: ").append(pinned.title()).append('\n');
+        prompt.append("설명: ").append(pinned.description()).append('\n');
+        prompt.append("대상 리소스: ").append(pinned.targetResource()).append('\n');
+        prompt.append("리스크: ").append(pinned.riskLevel()).append('\n');
+        prompt.append("예상 월 절감: ").append(formatKrw(pinned.estMonthlySaving())).append('\n');
+        prompt.append("근거 메트릭: ").append(
+                pinned.evidence().metrics().stream()
+                        .map(metric -> metric.key() + "=" + trimNumeric(metric.value()) + metric.unit())
+                        .collect(Collectors.joining(", "))
+        ).append('\n');
+        prompt.append("실행 명령: ").append(pinned.commandSnippet()).append('\n');
+        prompt.append("롤백 명령: ").append(pinned.rollbackSnippet()).append('\n');
+        prompt.append("명령 계열: ").append(detectCommandFamily(pinned.commandSnippet())).append('\n');
+        prompt.append("참고 룰: ").append(pinned.ruleTrace().ruleId())
+                .append(" / ")
+                .append(pinned.ruleTrace().principleName())
+                .append('\n');
+        prompt.append("참고 문서: ").append(pinned.ruleTrace().awsDocUrl()).append('\n');
+
+        if (!history.isEmpty()) {
+            prompt.append("직전 대화 이력:\n");
+            prompt.append(
+                    history.stream()
+                            .skip(Math.max(0, history.size() - 6L))
+                            .map(message -> "- " + message.role() + ": " + message.content().replace('\n', ' '))
+                            .collect(Collectors.joining("\n"))
+            ).append('\n');
+        }
+
+        prompt.append("사용자 질문:\n");
+        prompt.append(question).append('\n');
+        prompt.append("응답 지시:\n");
+        prompt.append("- 한국어로 답변한다.\n");
+        prompt.append("- 숫자와 명령은 위 컨텍스트에 있는 값만 사용한다.\n");
+        prompt.append("- 가능하면 결론, 근거, 리스크/전제조건, 실행 또는 롤백 순으로 정리한다.\n");
+        prompt.append("- 컨텍스트가 부족하면 부족한 연결과 추가 확인 항목을 분명히 적는다.\n");
+        return prompt.toString();
+    }
+
+    private String detectCommandFamily(String commandSnippet) {
+        String normalized = commandSnippet.toLowerCase(Locale.ROOT);
+        boolean hasTerraform = normalized.contains("terraform ");
+        boolean hasOpenstack = normalized.contains("openstack ");
+        boolean hasKubectl = normalized.contains("kubectl ");
+        boolean hasAws = normalized.contains("aws ");
+
+        if (hasTerraform && hasOpenstack) {
+            return "Terraform + OpenStack";
+        }
+        if (hasKubectl) {
+            return "Kubernetes";
+        }
+        if (hasAws) {
+            return "AWS CLI";
+        }
+        if (hasTerraform) {
+            return "Terraform";
+        }
+        if (hasOpenstack) {
+            return "OpenStack";
+        }
+        return "Generic";
+    }
+
+    private CommandPlan buildPrometheusCommandPlan(
+            SourceSnapshot sources,
+            OptimizationModels.ProjectSummary project,
+            boolean highLatency,
+            boolean highError
+    ) {
+        if (sources.k8s() != null && !sources.k8s().deployments().isEmpty()) {
+            K8sInfrastructureResponse.Deployment deployment = sources.k8s().deployments().stream()
+                    .max(Comparator.comparing(K8sInfrastructureResponse.Deployment::replicas))
+                    .orElse(sources.k8s().deployments().get(0));
+
+            if (highLatency || highError) {
+                return new CommandPlan(
+                        deployment.namespace() + "/" + deployment.name(),
+                        "kubectl set resources deployment " + deployment.name()
+                                + " -n " + deployment.namespace()
+                                + " --requests=cpu=300m,memory=512Mi --limits=cpu=900m,memory=1024Mi",
+                        "kubectl rollout undo deployment/" + deployment.name() + " -n " + deployment.namespace()
+                );
+            }
+
+            return new CommandPlan(
+                    deployment.namespace() + "/" + deployment.name(),
+                    "kubectl scale deployment " + deployment.name()
+                            + " -n " + deployment.namespace()
+                            + " --replicas=" + Math.max(1, deployment.replicas() - 1),
+                    "kubectl scale deployment " + deployment.name()
+                            + " -n " + deployment.namespace()
+                            + " --replicas=" + deployment.replicas()
+            );
+        }
+
+        if (sources.aws() != null && !sources.aws().resources().isEmpty()) {
+            AwsInfrastructureResponse.Resource target = sources.aws().resources().stream()
+                    .filter(resource -> "EC2".equalsIgnoreCase(resource.type()))
+                    .findFirst()
+                    .orElse(sources.aws().resources().get(0));
+
+            if (highLatency || highError) {
+                return new CommandPlan(
+                        target.id(),
+                        "terraform apply -var 'aws_region=" + project.awsRegion()
+                                + "' -var 'api_instance_type=m7i.xlarge' -target=module.compute",
+                        "terraform apply -var 'aws_region=" + project.awsRegion()
+                                + "' -var 'api_instance_type=m7i.large' -target=module.compute"
+                );
+            }
+
+            return new CommandPlan(
+                    target.id(),
+                    "terraform apply -var 'aws_region=" + project.awsRegion()
+                            + "' -var 'api_desired_capacity=1' -target=module.compute",
+                    "terraform apply -var 'aws_region=" + project.awsRegion()
+                            + "' -var 'api_desired_capacity=2' -target=module.compute"
+            );
+        }
+
+        if (highLatency || highError) {
+            return new CommandPlan(
+                    "openstack/project",
+                    "openstack server resize <server-id> --flavor c4.large\nterraform apply -var 'openstack_flavor=c4.large' -target=openstack_compute_instance_v2.app",
+                    "openstack server resize <server-id> --flavor c2.large\nterraform apply -var 'openstack_flavor=c2.large' -target=openstack_compute_instance_v2.app"
+            );
+        }
+
+        return new CommandPlan(
+                "openstack/project",
+                "openstack server set --property finops_schedule=nightly-stop <server-id>\nterraform apply -var 'nightly_shutdown_enabled=true' -target=openstack_compute_instance_v2.app",
+                "openstack server unset --property finops_schedule <server-id>\nterraform apply -var 'nightly_shutdown_enabled=false' -target=openstack_compute_instance_v2.app"
+        );
+    }
+
+    private void saveAnalysisBundle(OptimizationModels.AnalysisBundle bundle) {
+        analysesByWorkspace.computeIfAbsent(bundle.workspaceId(), key -> new ConcurrentLinkedDeque<>())
+                .addFirst(bundle.analysis());
+        analysisById.put(bundle.analysis().id(), bundle.analysis());
+        recommendationsByAnalysis.put(bundle.analysis().id(), bundle.recommendations());
+        for (OptimizationModels.Recommendation recommendation : bundle.recommendations()) {
+            recommendationById.put(recommendation.id(), recommendation);
+        }
+    }
+
+    private void replaceRecommendationInAnalysis(OptimizationModels.Recommendation updated) {
+        recommendationsByAnalysis.computeIfPresent(updated.analysisId(), (key, existing) ->
+                existing.stream()
+                        .map(recommendation -> recommendation.id().equals(updated.id()) ? updated : recommendation)
+                        .toList()
+        );
+    }
+
+    private String normalizeServiceCategory(String serviceName) {
+        String normalized = serviceName.toLowerCase(Locale.ROOT);
+        if (normalized.contains("elastic compute") || normalized.contains("ec2")) {
+            return "EC2";
+        }
+        if (normalized.contains("elastic kubernetes") || normalized.contains("eks")) {
+            return "EKS";
+        }
+        if (normalized.contains("elastic block") || normalized.contains("ebs")) {
+            return "S3";
+        }
+        if (normalized.contains("relational database") || normalized.contains("rds")) {
+            return "RDS";
+        }
+        if (normalized.contains("simple storage") || normalized.contains("s3")) {
+            return "S3";
+        }
+        return serviceName;
+    }
+
+    private String normalizeAwsCategory(String type) {
+        String normalized = type.toLowerCase(Locale.ROOT);
+        if (normalized.contains("ec2")) {
+            return "EC2";
+        }
+        if (normalized.contains("eks")) {
+            return "EKS";
+        }
+        if (normalized.contains("ebs")) {
+            return "S3";
+        }
+        if (normalized.contains("rds")) {
+            return "RDS";
+        }
+        if (normalized.contains("s3")) {
+            return "S3";
+        }
+        return type;
+    }
+
+    private String usageTypeForService(String serviceName) {
+        return switch (normalizeServiceCategory(serviceName)) {
+            case "EC2" -> "On-Demand Instance Usage";
+            case "EKS" -> "Cluster Control Plane";
+            case "RDS" -> "Provisioned Database";
+            case "S3" -> "Standard Storage";
+            default -> "Unclassified Usage";
+        };
+    }
+
+    private String inferRiskLevel(String status, String category, Double cpuUsagePercent) {
+        String normalizedStatus = status == null ? "" : status.toLowerCase(Locale.ROOT);
+        if (normalizedStatus.contains("unused")) {
+            return "critical";
+        }
+        if (normalizedStatus.contains("warning") || normalizedStatus.contains("error")) {
+            return "high";
+        }
+        if ("EC2".equals(category) && cpuUsagePercent != null && cpuUsagePercent < 20) {
+            return "medium";
+        }
+        return "low";
+    }
+
+    private String domainToPillar(String domain) {
+        return switch (domain) {
+            case "compute" -> "performance_efficiency";
+            case "storage" -> "sustainability";
+            case "database" -> "reliability";
+            case "network" -> "security";
+            case "eks" -> "operational_excellence";
+            default -> "finops";
+        };
+    }
+
+    private int riskPenalty(String riskLevel) {
+        return switch (riskLevel) {
+            case "critical" -> 4;
+            case "high" -> 3;
+            case "medium" -> 2;
+            default -> 1;
+        };
+    }
+
+    private String gradeForScore(int totalScore) {
+        if (totalScore >= 88) {
+            return "A";
+        }
+        if (totalScore >= 76) {
+            return "B";
+        }
+        if (totalScore >= 64) {
+            return "C";
+        }
+        if (totalScore >= 48) {
+            return "D";
+        }
+        return "F";
+    }
+
+    private int normalizeLookbackDays(Integer lookbackDays) {
+        int resolved = lookbackDays == null ? 30 : lookbackDays;
+        if (resolved < 1 || resolved > 365) {
+            throw new IllegalArgumentException("lookbackDays는 1~365 범위여야 합니다.");
+        }
+        return resolved;
+    }
+
+    private String normalizeTriggeredBy(String triggeredBy) {
+        String normalized = trimToNull(triggeredBy);
+        if (normalized == null) {
+            return "manual";
+        }
+        if (!"manual".equals(normalized) && !"scheduled".equals(normalized)) {
+            throw new IllegalArgumentException("triggeredBy는 manual 또는 scheduled 이어야 합니다.");
+        }
+        return normalized;
+    }
+
+    private String normalizeApprovalAction(String action) {
+        String normalized = trimToNull(action);
+        if (normalized == null || (!"approved".equals(normalized) && !"rejected".equals(normalized))) {
+            throw new IllegalArgumentException("action은 approved/rejected 이어야 합니다.");
+        }
+        return normalized;
+    }
+
+    private String requireWorkspaceId(String workspaceId) {
+        String normalized = trimToNull(workspaceId);
+        if (normalized == null) {
+            throw new IllegalArgumentException("workspaceId는 필수입니다.");
+        }
+        return normalized;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String buildChatKey(String workspaceId, String analysisId, String pinnedRecommendationId) {
+        return workspaceId + "::" + analysisId + "::" + (pinnedRecommendationId == null ? "-" : pinnedRecommendationId);
+    }
+
+    private String createId(String prefix) {
+        return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+    }
+
+    private String nowIso() {
+        return Instant.now().atZone(ZoneId.of("Asia/Seoul")).format(DISPLAY_DATE_TIME);
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String safeMessage(Exception exception) {
+        return exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+    }
+
+    private String formatKrw(long value) {
+        return String.format(Locale.KOREA, "%,d원", value);
+    }
+
+    private String trimNumeric(double value) {
+        if (Math.rint(value) == value) {
+            return String.valueOf((long) value);
+        }
+        return String.format(Locale.US, "%.2f", value);
+    }
+
+    private record SourceSnapshot(
+            OptimizationModels.ProjectSummary project,
+            AwsInfrastructureResponse aws,
+            K8sInfrastructureResponse k8s,
+            PrometheusOverviewResponse prometheus,
+            PrometheusCapacitySnapshot prometheusCapacity,
+            OptimizationModels.SourceCoverage coverage,
+            List<String> warnings
+    ) {
+    }
+
+    private record CostAverage(
+            long totalMonthlyCost,
+            int resourceCount
+    ) {
+    }
+
+    private record CommandPlan(
+            String targetResource,
+            String commandSnippet,
+            String rollbackSnippet
+    ) {
+    }
+
+    private record PrometheusCostEstimate(
+            long ec2MonthlyCost,
+            long eksMonthlyCost,
+            long ebsMonthlyCost
+    ) {
+    }
+
+    private record PillarTemplate(
+            String key,
+            String name,
+            int maxScore
+    ) {
+    }
+
+    private static final class MutablePillarScore {
+        private final String pillarKey;
+        private final String pillarName;
+        private final int maxScore;
+        private int score;
+        private int deduction;
+
+        private MutablePillarScore(String pillarKey, String pillarName, int maxScore, int score, int deduction) {
+            this.pillarKey = pillarKey;
+            this.pillarName = pillarName;
+            this.maxScore = maxScore;
+            this.score = score;
+            this.deduction = deduction;
+        }
+
+        private String pillarKey() {
+            return pillarKey;
+        }
+
+        private OptimizationModels.PillarScore toResponse() {
+            return new OptimizationModels.PillarScore(
+                    pillarKey,
+                    pillarName,
+                    maxScore,
+                    score,
+                    deduction
+            );
+        }
+    }
+
+    private static final class MutableChatSession {
+        private final String id;
+        private final String workspaceId;
+        private final String analysisId;
+        private final String pinnedRecommendationId;
+        private final List<OptimizationModels.ChatMessage> messages;
+        private String updatedAt;
+
+        private MutableChatSession(
+                String id,
+                String workspaceId,
+                String analysisId,
+                String pinnedRecommendationId,
+                List<OptimizationModels.ChatMessage> messages,
+                String updatedAt
+        ) {
+            this.id = id;
+            this.workspaceId = workspaceId;
+            this.analysisId = analysisId;
+            this.pinnedRecommendationId = pinnedRecommendationId;
+            this.messages = messages;
+            this.updatedAt = updatedAt;
+        }
+
+        private List<OptimizationModels.ChatMessage> messages() {
+            return messages;
+        }
+
+        private OptimizationModels.ChatSession toResponse() {
+            return new OptimizationModels.ChatSession(
+                    id,
+                    workspaceId,
+                    analysisId,
+                    pinnedRecommendationId,
+                    List.copyOf(messages),
+                    updatedAt
+            );
+        }
+    }
+}

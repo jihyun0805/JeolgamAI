@@ -836,7 +836,7 @@ export default function InfrastructureMapPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
-      <MainSidebar active="infra_map" />
+      <MainSidebar active="infrastructure" />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <PageTopBar

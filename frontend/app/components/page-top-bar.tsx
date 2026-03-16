@@ -1,5 +1,8 @@
-import { ReactNode } from "react";
+"use client";
+
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import UserProfileChip from "@/app/components/user-profile-chip";
 
 function TopBarIcon({
@@ -37,6 +40,23 @@ function TopBarIcon({
   );
 }
 
+interface SessionPayload {
+  userId: string;
+  name: string;
+  role: string;
+  workspaceId: string;
+  activeProject?: {
+    id: string;
+    name: string;
+    awsRegion: string;
+  } | null;
+  projects?: Array<{
+    id: string;
+    name: string;
+    awsRegion: string;
+  }>;
+}
+
 export default function PageTopBar({
   title,
   description,
@@ -52,6 +72,69 @@ export default function PageTopBar({
   userRole?: string;
   actions?: ReactNode;
 }) {
+  const router = useRouter();
+  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [switchingProject, setSwitchingProject] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      if (!payload?.ok || !payload?.data || cancelled) return;
+      setSession(payload.data as SessionPayload);
+    }
+
+    loadSession().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const profileName = session?.name ?? userName;
+  const profileRole = useMemo(() => {
+    if (session?.activeProject?.name) {
+      return `${session.role} · ${session.activeProject.name}`;
+    }
+    return userRole;
+  }, [session, userRole]);
+
+  async function onSelectProject(projectId: string) {
+    if (!projectId || projectId === session?.workspaceId) return;
+
+    setSwitchingProject(true);
+    try {
+      const response = await fetch("/api/projects/select", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.ok) {
+        return;
+      }
+
+      setSession((previous) =>
+        previous
+          ? {
+              ...previous,
+              workspaceId: projectId,
+              activeProject: payload.data?.project ?? previous.activeProject,
+            }
+          : previous,
+      );
+      router.refresh();
+    } finally {
+      setSwitchingProject(false);
+    }
+  }
+
   return (
     <header className="sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur-md dark:border-slate-800 dark:bg-[#161B22]/90">
       <div className="flex items-start justify-between gap-3 px-4 py-3 md:items-center md:gap-4 md:px-8">
@@ -65,6 +148,21 @@ export default function PageTopBar({
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
           {actions ? (
             <div className="hidden items-center gap-2 xl:flex">{actions}</div>
+          ) : null}
+
+          {session?.projects && session.projects.length > 0 ? (
+            <select
+              className="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 md:block dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-200"
+              disabled={switchingProject}
+              onChange={(event) => onSelectProject(event.target.value)}
+              value={session.workspaceId}
+            >
+              {session.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name} ({project.awsRegion})
+                </option>
+              ))}
+            </select>
           ) : null}
 
           <div className="relative hidden 2xl:block">
@@ -93,7 +191,11 @@ export default function PageTopBar({
             로그아웃
           </Link>
 
-          <UserProfileChip userName={userName} userRole={userRole} variant="topbar" />
+          <UserProfileChip
+            userName={profileName}
+            userRole={profileRole}
+            variant="topbar"
+          />
         </div>
       </div>
     </header>

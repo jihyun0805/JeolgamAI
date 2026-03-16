@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAuthUser, getAuthUserByLoginId } from "@/lib/store";
+import { createAuthUser, getAuthUserByLoginId, getProjectById } from "@/lib/store";
 
 interface RegisterRequestBody {
   loginId?: string;
@@ -21,11 +21,17 @@ export async function POST(request: Request) {
     );
   }
 
-  if (password.length < 4) {
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+
+  if (password.length < 8 || !hasLetter || !hasDigit) {
     return NextResponse.json(
       {
         ok: false,
-        error: { code: "WEAK_PASSWORD", message: "비밀번호는 4자 이상이어야 합니다." },
+        error: {
+          code: "WEAK_PASSWORD",
+          message: "비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.",
+        },
       },
       { status: 400 },
     );
@@ -51,6 +57,9 @@ export async function POST(request: Request) {
       userId: user.userId,
       loginId: user.loginId,
       name: user.name,
+      defaultProject: user.defaultProjectId
+        ? getProjectById(user.defaultProjectId)
+        : null,
     },
   });
 }
