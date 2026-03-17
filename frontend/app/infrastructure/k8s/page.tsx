@@ -1007,7 +1007,7 @@ export default function K8sInfrastructurePage() {
         />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 md:p-8">
-          <div className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col gap-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-6">
             <section className="shrink-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div>
                 <div>

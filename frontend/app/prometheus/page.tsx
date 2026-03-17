@@ -439,7 +439,7 @@ export default function PrometheusPage() {
         />
 
         <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto w-full max-w-7xl space-y-5">
+          <div className="space-y-5">
 
             {/* 프로젝트 + 시간 범위 컨트롤 – 한 줄 통합 */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">

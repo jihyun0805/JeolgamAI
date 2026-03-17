@@ -121,7 +121,7 @@ export default function OpsPage() {
         />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 md:p-8">
-          <div className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col gap-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
 
             {error ? (
               <div className="shrink-0 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
