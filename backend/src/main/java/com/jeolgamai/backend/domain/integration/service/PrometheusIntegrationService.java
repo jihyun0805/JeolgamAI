@@ -220,18 +220,6 @@ public class PrometheusIntegrationService {
 
         List<String> warnings = new ArrayList<>();
 
-        double cpuUsagePercent = queryInstantValue(connector, CPU_USAGE_QUERIES, "cpu_usage", range, warnings);
-        double memoryUsagePercent = queryInstantValue(connector, MEMORY_USAGE_QUERIES, "memory_usage", range, warnings);
-        double p95LatencyMs = queryInstantValue(connector, LATENCY_QUERIES, "latency", range, warnings);
-        double errorRatePercent = queryInstantValue(connector, ERROR_RATE_QUERIES, "error_rate", range, warnings);
-        double scrapeHealthPercent = queryInstantValue(
-                connector,
-                List.of(new QueryCandidate("up", SCRAPE_HEALTH_QUERY)),
-                "scrape_health",
-                range,
-                warnings
-        );
-
         List<PrometheusOverviewResponse.Point> cpuUsage = queryRangeSeries(
                 connector,
                 CPU_USAGE_QUERIES,
@@ -257,6 +245,20 @@ public class PrometheusIntegrationService {
                 connector,
                 ERROR_RATE_QUERIES,
                 "error_rate",
+                range,
+                warnings
+        );
+
+        double cpuUsagePercent = averageSeries(cpuUsage)
+                .orElseGet(() -> queryInstantValue(connector, CPU_USAGE_QUERIES, "cpu_usage", range, warnings));
+        double memoryUsagePercent = averageSeries(memoryUsage)
+                .orElseGet(() -> queryInstantValue(connector, MEMORY_USAGE_QUERIES, "memory_usage", range, warnings));
+        double p95LatencyMs = queryInstantValue(connector, LATENCY_QUERIES, "latency", range, warnings);
+        double errorRatePercent = queryInstantValue(connector, ERROR_RATE_QUERIES, "error_rate", range, warnings);
+        double scrapeHealthPercent = queryInstantValue(
+                connector,
+                List.of(new QueryCandidate("up", SCRAPE_HEALTH_QUERY)),
+                "scrape_health",
                 range,
                 warnings
         );
@@ -531,6 +533,16 @@ public class PrometheusIntegrationService {
             points.add(new PrometheusOverviewResponse.Point(label, round(aggregate[0] / aggregate[1])));
         });
         return points;
+    }
+
+    private OptionalDouble averageSeries(List<PrometheusOverviewResponse.Point> points) {
+        if (points == null || points.isEmpty()) {
+            return OptionalDouble.empty();
+        }
+
+        return points.stream()
+                .mapToDouble(PrometheusOverviewResponse.Point::value)
+                .average();
     }
 
     private int countResults(JsonNode payload) {

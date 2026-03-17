@@ -6,9 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jeolgamai.backend.domain.optimization.dto.OptimizationModels;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationAnalysisRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationApprovalLogRecord;
+import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatMessageRecord;
+import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatSessionRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationRecommendationRecord;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationAnalysisRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationApprovalLogRecordRepository;
+import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatMessageRecordRepository;
+import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatSessionRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationRecommendationRecordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +45,8 @@ public class OptimizationPersistenceService {
     private final OptimizationAnalysisRecordRepository analysisRepository;
     private final OptimizationRecommendationRecordRepository recommendationRepository;
     private final OptimizationApprovalLogRecordRepository approvalLogRepository;
+    private final OptimizationChatSessionRecordRepository chatSessionRepository;
+    private final OptimizationChatMessageRecordRepository chatMessageRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -86,6 +92,56 @@ public class OptimizationPersistenceService {
 
     public boolean analysisExists(String workspaceId, String analysisId) {
         return analysisRepository.existsByIdAndWorkspaceId(analysisId, workspaceId);
+    }
+
+    @Transactional
+    public OptimizationModels.ChatSession getOrCreateChatSession(
+            String sessionId,
+            String workspaceId,
+            String analysisId,
+            String pinnedRecommendationId,
+            String updatedAt
+    ) {
+        OptimizationChatSessionRecord record = chatSessionRepository.findById(sessionId)
+                .orElseGet(() -> {
+                    OptimizationChatSessionRecord created = new OptimizationChatSessionRecord();
+                    created.setId(sessionId);
+                    created.setWorkspaceId(workspaceId);
+                    created.setAnalysisId(analysisId);
+                    created.setPinnedRecommendationId(pinnedRecommendationId);
+                    created.setUpdatedAt(updatedAt);
+                    return chatSessionRepository.save(created);
+                });
+        return toChatSession(record);
+    }
+
+    @Transactional
+    public OptimizationModels.ChatSession appendChatMessages(
+            String sessionId,
+            List<OptimizationModels.ChatMessage> newMessages,
+            String updatedAt
+    ) {
+        OptimizationChatSessionRecord sessionRecord = chatSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("chatSessionId=" + sessionId + "를 찾을 수 없습니다."));
+
+        long nextSequence = chatMessageRepository.countBySessionId(sessionId) + 1;
+        List<OptimizationChatMessageRecord> messageRecords = new java.util.ArrayList<>(newMessages.size());
+        for (OptimizationModels.ChatMessage message : newMessages) {
+            messageRecords.add(
+                    toChatMessageRecord(
+                            sessionRecord.getWorkspaceId(),
+                            sessionId,
+                            message,
+                            nextSequence
+                    )
+            );
+            nextSequence++;
+        }
+
+        chatMessageRepository.saveAll(messageRecords);
+        sessionRecord.setUpdatedAt(updatedAt);
+        chatSessionRepository.save(sessionRecord);
+        return toChatSession(sessionRecord);
     }
 
     private OptimizationModels.AnalysisBundle toAnalysisBundle(OptimizationAnalysisRecord record) {
@@ -239,6 +295,48 @@ public class OptimizationPersistenceService {
                 record.getActor(),
                 record.getAction(),
                 record.getNote(),
+                record.getCreatedAt()
+        );
+    }
+
+    private OptimizationModels.ChatSession toChatSession(OptimizationChatSessionRecord record) {
+        List<OptimizationModels.ChatMessage> messages = chatMessageRepository.findBySessionIdOrderBySequenceNoAsc(record.getId())
+                .stream()
+                .map(this::toChatMessage)
+                .toList();
+
+        return new OptimizationModels.ChatSession(
+                record.getId(),
+                record.getWorkspaceId(),
+                record.getAnalysisId(),
+                record.getPinnedRecommendationId(),
+                messages,
+                record.getUpdatedAt()
+        );
+    }
+
+    private OptimizationChatMessageRecord toChatMessageRecord(
+            String workspaceId,
+            String sessionId,
+            OptimizationModels.ChatMessage message,
+            long sequenceNo
+    ) {
+        OptimizationChatMessageRecord record = new OptimizationChatMessageRecord();
+        record.setId(message.id());
+        record.setSessionId(sessionId);
+        record.setWorkspaceId(workspaceId);
+        record.setRole(message.role());
+        record.setContent(message.content());
+        record.setCreatedAt(message.createdAt());
+        record.setSequenceNo(sequenceNo);
+        return record;
+    }
+
+    private OptimizationModels.ChatMessage toChatMessage(OptimizationChatMessageRecord record) {
+        return new OptimizationModels.ChatMessage(
+                record.getId(),
+                record.getRole(),
+                record.getContent(),
                 record.getCreatedAt()
         );
     }

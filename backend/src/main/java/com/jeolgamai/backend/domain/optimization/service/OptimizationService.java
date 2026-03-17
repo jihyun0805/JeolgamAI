@@ -56,7 +56,6 @@ public class OptimizationService {
     private final OptimizationPersistenceService optimizationPersistenceService;
 
     private final ConcurrentMap<String, OptimizationModels.ProjectSummary> projects = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, MutableChatSession> chatSessions = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<OptimizationModels.ReportArtifact>> reportsByWorkspace =
             new ConcurrentHashMap<>();
 
@@ -198,19 +197,13 @@ public class OptimizationService {
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
         ensureAnalysisExists(normalizedWorkspaceId, analysisId);
-        MutableChatSession session = chatSessions.computeIfAbsent(
+        return optimizationPersistenceService.getOrCreateChatSession(
                 buildChatKey(normalizedWorkspaceId, analysisId, pinnedRecommendationId),
-                key -> new MutableChatSession(
-                        createId("chat"),
-                        normalizedWorkspaceId,
-                        analysisId,
-                        pinnedRecommendationId,
-                        new ArrayList<>(),
-                        nowIso()
-                )
+                normalizedWorkspaceId,
+                analysisId,
+                pinnedRecommendationId,
+                nowIso()
         );
-
-        return session.toResponse();
     }
 
     public OptimizationModels.ChatEnvelope appendChat(OptimizationModels.ChatRequest request) {
@@ -222,16 +215,13 @@ public class OptimizationService {
             throw new IllegalArgumentException("content는 필수입니다.");
         }
 
-        MutableChatSession session = chatSessions.computeIfAbsent(
-                buildChatKey(normalizedWorkspaceId, request.analysisId(), request.pinnedRecommendationId()),
-                key -> new MutableChatSession(
-                        createId("chat"),
-                        normalizedWorkspaceId,
-                        request.analysisId(),
-                        request.pinnedRecommendationId(),
-                        new ArrayList<>(),
-                        nowIso()
-                )
+        String sessionId = buildChatKey(normalizedWorkspaceId, request.analysisId(), request.pinnedRecommendationId());
+        OptimizationModels.ChatSession session = optimizationPersistenceService.getOrCreateChatSession(
+                sessionId,
+                normalizedWorkspaceId,
+                request.analysisId(),
+                request.pinnedRecommendationId(),
+                nowIso()
         );
 
         OptimizationModels.ChatMessage userMessage = new OptimizationModels.ChatMessage(
@@ -253,11 +243,14 @@ public class OptimizationService {
                 nowIso()
         );
 
-        session.messages().add(userMessage);
-        session.messages().add(assistantMessage);
-        session.updatedAt = nowIso();
+        String updatedAt = nowIso();
+        OptimizationModels.ChatSession persistedSession = optimizationPersistenceService.appendChatMessages(
+                sessionId,
+                List.of(userMessage, assistantMessage),
+                updatedAt
+        );
 
-        return new OptimizationModels.ChatEnvelope(session.toResponse(), assistantMessage);
+        return new OptimizationModels.ChatEnvelope(persistedSession, assistantMessage);
     }
 
     public OptimizationModels.ReportArtifact generateReport(OptimizationModels.GenerateReportRequest request) {
@@ -1843,43 +1836,4 @@ public class OptimizationService {
         }
     }
 
-    private static final class MutableChatSession {
-        private final String id;
-        private final String workspaceId;
-        private final String analysisId;
-        private final String pinnedRecommendationId;
-        private final List<OptimizationModels.ChatMessage> messages;
-        private String updatedAt;
-
-        private MutableChatSession(
-                String id,
-                String workspaceId,
-                String analysisId,
-                String pinnedRecommendationId,
-                List<OptimizationModels.ChatMessage> messages,
-                String updatedAt
-        ) {
-            this.id = id;
-            this.workspaceId = workspaceId;
-            this.analysisId = analysisId;
-            this.pinnedRecommendationId = pinnedRecommendationId;
-            this.messages = messages;
-            this.updatedAt = updatedAt;
-        }
-
-        private List<OptimizationModels.ChatMessage> messages() {
-            return messages;
-        }
-
-        private OptimizationModels.ChatSession toResponse() {
-            return new OptimizationModels.ChatSession(
-                    id,
-                    workspaceId,
-                    analysisId,
-                    pinnedRecommendationId,
-                    List.copyOf(messages),
-                    updatedAt
-            );
-        }
-    }
 }
