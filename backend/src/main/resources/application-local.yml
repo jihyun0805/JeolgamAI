@@ -4,6 +4,13 @@ spring:
     username: myuser
     password: secret
     driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
 
 management:
   tracing:
