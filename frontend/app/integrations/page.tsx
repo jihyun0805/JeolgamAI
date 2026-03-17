@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 
 type IntegrationStatus = "active" | "partial" | "failed";
-
 type IntegrationType = "aws" | "k8s" | "prometheus";
 
 interface IntegrationConfig {
@@ -22,85 +21,232 @@ interface IntegrationConfig {
 interface IntegrationsResponse {
   workspaceId: string;
   integrations: IntegrationConfig[];
-  localCoverage: {
-    aws: boolean;
-    k8s: boolean;
-    prometheus: boolean;
-  };
-  backendCoverage: {
-    aws: boolean;
-    k8s: boolean;
-    prometheus: boolean;
-  };
-  coverage: {
-    aws: boolean;
-    k8s: boolean;
-    prometheus: boolean;
-  };
+  localCoverage: { aws: boolean; k8s: boolean; prometheus: boolean };
+  backendCoverage: { aws: boolean; k8s: boolean; prometheus: boolean };
+  coverage: { aws: boolean; k8s: boolean; prometheus: boolean };
   warnings?: string[];
 }
 
 interface ApiEnvelope<T> {
   ok: boolean;
   data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
+  error?: { code: string; message: string };
 }
 
-const statusClassMap: Record<IntegrationStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  partial: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-};
+/* ─── shared input style ────────────────────────────────────────────────── */
+const inputCls =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#1c59f2] dark:focus:bg-[#111824]";
+const textareaCls =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#1c59f2] dark:focus:bg-[#111824]";
 
-function IntegrationCard({
-  title,
-  status,
-  backendRegistered,
-  subtitle,
+/* ─── field wrapper ─────────────────────────────────────────────────────── */
+function Field({
+  label,
+  hint,
+  span2,
+  children,
 }: {
-  title: string;
-  status?: IntegrationStatus;
-  backendRegistered?: boolean;
-  subtitle: string;
+  label: string;
+  hint?: ReactNode;
+  span2?: boolean;
+  children: ReactNode;
 }) {
-  const isBackendMissing = backendRegistered === false;
-
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-bold">{title}</h3>
-        {isBackendMissing ? (
-          <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
-            backend missing
-          </span>
-        ) : status ? (
-          <span
-            className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusClassMap[status]}`}
-          >
-            {status}
-          </span>
-        ) : (
-          <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase dark:border-slate-700">
-            not connected
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        {isBackendMissing ? `${subtitle} · backend connector 재등록 필요` : subtitle}
-      </p>
+    <div className={span2 ? "md:col-span-2" : undefined}>
+      <p className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+      {children}
+      {hint ? (
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">{hint}</p>
+      ) : null}
     </div>
   );
 }
 
+/* ─── auth mode tab ─────────────────────────────────────────────────────── */
+function AuthTab({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0B0E14]">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+            value === opt.value
+              ? "bg-white text-slate-900 shadow-sm dark:bg-[#161B22] dark:text-slate-100"
+              : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── status badge ──────────────────────────────────────────────────────── */
+function StatusBadge({
+  status,
+  backendRegistered,
+}: {
+  status?: IntegrationStatus;
+  backendRegistered?: boolean;
+}) {
+  if (backendRegistered === false) {
+    return (
+      <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
+        connector 필요
+      </span>
+    );
+  }
+  if (status === "active") {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        연동됨
+      </span>
+    );
+  }
+  if (status === "partial") {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        부분 연동
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+        실패
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-500">
+      미연동
+    </span>
+  );
+}
+
+/* ─── integration icon ──────────────────────────────────────────────────── */
+function IntegrationIcon({ type }: { type: "aws" | "k8s" | "prometheus" }) {
+  const baseProps = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-5 w-5",
+    "aria-hidden": true,
+  };
+
+  if (type === "aws") {
+    return (
+      <svg {...baseProps}>
+        <path d="M7 18.5h9.5a3.5 3.5 0 1 0-.5-7 5 5 0 0 0-9.7-1.3A3.8 3.8 0 0 0 7 18.5Z" />
+      </svg>
+    );
+  }
+  if (type === "k8s") {
+    return (
+      <svg {...baseProps}>
+        <path d="M12 4 5 8v8l7 4 7-4V8l-7-4Z" />
+        <path d="m5 8 7 4 7-4" />
+        <path d="M12 12v8" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...baseProps}>
+      <path d="M4 18V6" />
+      <path d="M10 18v-7" />
+      <path d="M16 18v-4" />
+      <path d="M22 18V8" />
+      <path d="m4 12 6-3 6 2 6-4" />
+    </svg>
+  );
+}
+
+/* ─── form section card ─────────────────────────────────────────────────── */
+function FormCard({
+  type,
+  title,
+  tagline,
+  status,
+  backendRegistered,
+  iconColor,
+  onSubmit,
+  loading,
+  submitLabel,
+  children,
+}: {
+  type: "aws" | "k8s" | "prometheus";
+  title: string;
+  tagline: string;
+  status?: IntegrationStatus;
+  backendRegistered?: boolean;
+  iconColor: string;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  loading: boolean;
+  submitLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+    >
+      {/* card header */}
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${iconColor}`}
+          >
+            <IntegrationIcon type={type} />
+          </div>
+          <div>
+            <h2 className="font-black tracking-tight">{title}</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">{tagline}</p>
+          </div>
+        </div>
+        <StatusBadge status={status} backendRegistered={backendRegistered} />
+      </div>
+
+      {/* fields */}
+      <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">{children}</div>
+
+      {/* footer */}
+      <div className="flex items-center justify-end border-t border-slate-200 px-6 py-4 dark:border-slate-800">
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-[#1c59f2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "처리 중…" : submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* ─── page ──────────────────────────────────────────────────────────────── */
 export default function IntegrationsPage() {
   const [loading, setLoading] = useState(false);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
-  const [message, setMessage] = useState<string>("");
-  const [error, setError] = useState<string>("");
-  const [lastAnalysisId, setLastAnalysisId] = useState<string>("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [lastAnalysisId, setLastAnalysisId] = useState("");
   const [data, setData] = useState<IntegrationsResponse | null>(null);
 
   const [awsForm, setAwsForm] = useState({
@@ -132,50 +278,41 @@ export default function IntegrationsPage() {
 
   const integrationsByType = useMemo(() => {
     const map = new Map<IntegrationType, IntegrationConfig>();
-    data?.integrations.forEach((integration) => {
-      map.set(integration.type, integration);
-    });
+    data?.integrations.forEach((i) => map.set(i.type, i));
     return map;
   }, [data]);
 
   async function loadIntegrations() {
     const response = await fetch("/api/integrations", { cache: "no-store" });
     const payload = (await response.json()) as ApiEnvelope<IntegrationsResponse>;
-
     if (!payload.ok || !payload.data) {
       throw new Error(payload.error?.message ?? "연동 상태를 불러오지 못했습니다.");
     }
-
     setData(payload.data);
   }
 
   useEffect(() => {
-    loadIntegrations().catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
-    });
+    loadIntegrations().catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   async function submitForm(endpoint: string, body: object, successMessage: string) {
     setLoading(true);
     setError("");
     setMessage("");
-
     try {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const payload = (await response.json()) as ApiEnvelope<unknown>;
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error?.message ?? "요청 처리에 실패했습니다.");
       }
-
       setMessage(successMessage);
       await loadIntegrations();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : String(submitError));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -183,24 +320,10 @@ export default function IntegrationsPage() {
 
   async function onSubmitAws(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     const body =
       awsForm.authMode === "role"
-        ? {
-            name: awsForm.name,
-            authMode: "role",
-            roleArn: awsForm.roleArn,
-            externalId: awsForm.externalId,
-            region: awsForm.region,
-          }
-        : {
-            name: awsForm.name,
-            authMode: "access_key",
-            accessKeyId: awsForm.accessKeyId,
-            secretAccessKey: awsForm.secretAccessKey,
-            region: awsForm.region,
-          };
-
+        ? { name: awsForm.name, authMode: "role", roleArn: awsForm.roleArn, externalId: awsForm.externalId, region: awsForm.region }
+        : { name: awsForm.name, authMode: "access_key", accessKeyId: awsForm.accessKeyId, secretAccessKey: awsForm.secretAccessKey, region: awsForm.region };
     await submitForm("/api/integrations/aws", body, "AWS 연동이 저장되었습니다.");
   }
 
@@ -208,30 +331,16 @@ export default function IntegrationsPage() {
     event.preventDefault();
     await submitForm(
       "/api/integrations/k8s",
-      {
-        name: k8sForm.name,
-        clusterName: k8sForm.clusterName,
-        apiServerUrl: k8sForm.apiServerUrl,
-        token: k8sForm.token,
-        caCertPem: k8sForm.caCertPem,
-      },
+      { name: k8sForm.name, clusterName: k8sForm.clusterName, apiServerUrl: k8sForm.apiServerUrl, token: k8sForm.token, caCertPem: k8sForm.caCertPem },
       "Kubernetes 연동이 저장되었습니다.",
     );
   }
 
   async function onSubmitPrometheus(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     await submitForm(
       "/api/integrations/prometheus",
-      {
-        name: promForm.name,
-        baseUrl: promForm.baseUrl,
-        authMode: promForm.authMode,
-        username: promForm.username,
-        password: promForm.password,
-        token: promForm.token,
-      },
+      { name: promForm.name, baseUrl: promForm.baseUrl, authMode: promForm.authMode, username: promForm.username, password: promForm.password, token: promForm.token },
       "Prometheus 연동이 저장되었습니다.",
     );
   }
@@ -240,28 +349,39 @@ export default function IntegrationsPage() {
     setRunningAnalysis(true);
     setError("");
     setMessage("");
-
     try {
       const response = await fetch("/api/analysis/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lookbackDays: 30, triggeredBy: "manual" }),
       });
-
       const payload = (await response.json()) as ApiEnvelope<{ id: string }>;
-
       if (!response.ok || !payload.ok || !payload.data) {
         throw new Error(payload.error?.message ?? "분석 실행에 실패했습니다.");
       }
-
       setLastAnalysisId(payload.data.id);
-      setMessage("샘플 분석이 완료되었습니다. 대시보드에서 결과를 확인하세요.");
-    } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError));
+      setMessage("분석이 완료되었습니다. 대시보드에서 결과를 확인하세요.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunningAnalysis(false);
     }
   }
+
+  /* step completion state */
+  const awsStatus = integrationsByType.get("aws")?.status;
+  const k8sStatus = integrationsByType.get("k8s")?.status;
+  const promStatus = integrationsByType.get("prometheus")?.status;
+  const step1Done = awsStatus === "active" || awsStatus === "partial";
+  const step2Done = k8sStatus === "active" || promStatus === "active" || k8sStatus === "partial" || promStatus === "partial";
+  const step3Done = Boolean(lastAnalysisId);
+
+  const steps = [
+    { label: "AWS 연동 완료", done: step1Done },
+    { label: "K8s 또는 Prometheus 연동", done: step2Done },
+    { label: "분석 실행", done: step3Done },
+    { label: "대시보드에서 결과 확인", done: false },
+  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
@@ -270,446 +390,400 @@ export default function IntegrationsPage() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <PageTopBar
           title="데이터 연동 설정"
-          description="AWS / Kubernetes / Prometheus 연동 후 분석을 실행하세요."
+          description="AWS · Kubernetes · Prometheus를 연동하고 비용 분석을 시작하세요."
           actions={
-            <>
-              <Link
-                href="/dashboard"
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-              >
-                대시보드
-              </Link>
-              <Link
-                href="/analysis/infrastructure"
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-              >
-                인프라 분석
-              </Link>
-              <button
-                onClick={runAnalysis}
-                disabled={runningAnalysis}
-                className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1c59f2]/90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {runningAnalysis ? "분석 실행 중..." : "샘플 분석 실행"}
-              </button>
-            </>
+            <button
+              onClick={runAnalysis}
+              disabled={runningAnalysis}
+              className="rounded-xl bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {runningAnalysis ? "분석 중…" : "샘플 분석 실행"}
+            </button>
           }
         />
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 xl:grid-cols-3">
-            <section className="space-y-6 xl:col-span-2">
-          <form
-            onSubmit={onSubmitAws}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">AWS 연동</h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                IAM Role 권장
-              </span>
-            </div>
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium">
-                연동 이름
-                <input
-                  value={awsForm.name}
-                  onChange={(event) =>
-                    setAwsForm((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
+            {/* ── left: forms ── */}
+            <div className="space-y-6">
 
-              <label className="text-sm font-medium">
-                리전
-                <input
-                  value={awsForm.region}
-                  onChange={(event) =>
-                    setAwsForm((prev) => ({ ...prev, region: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium md:col-span-2">
-                인증 방식
-                <select
-                  value={awsForm.authMode}
-                  onChange={(event) =>
-                    setAwsForm((prev) => ({
-                      ...prev,
-                      authMode: event.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                >
-                  <option value="role">Cross-account IAM Role</option>
-                  <option value="access_key">Access Key (fallback)</option>
-                </select>
-              </label>
-
-              {awsForm.authMode === "role" ? (
-                <>
-                  <label className="text-sm font-medium md:col-span-2">
-                    Role ARN
-                    <input
-                      value={awsForm.roleArn}
-                      onChange={(event) =>
-                        setAwsForm((prev) => ({ ...prev, roleArn: event.target.value }))
-                      }
-                      placeholder="arn:aws:iam::123456789012:role/JeolgamReadOnlyRole"
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-                  <label className="text-sm font-medium md:col-span-2">
-                    External ID
-                    <input
-                      value={awsForm.externalId}
-                      onChange={(event) =>
-                        setAwsForm((prev) => ({ ...prev, externalId: event.target.value }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label className="text-sm font-medium">
-                    Access Key ID
-                    <input
-                      value={awsForm.accessKeyId}
-                      onChange={(event) =>
-                        setAwsForm((prev) => ({
-                          ...prev,
-                          accessKeyId: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-                  <label className="text-sm font-medium">
-                    Secret Access Key
-                    <input
-                      type="password"
-                      value={awsForm.secretAccessKey}
-                      onChange={(event) =>
-                        setAwsForm((prev) => ({
-                          ...prev,
-                          secretAccessKey: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1c59f2]/90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                AWS 검증 및 저장
-              </button>
-            </div>
-          </form>
-
-          <form
-            onSubmit={onSubmitK8s}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
-          >
-            <h2 className="mb-4 text-lg font-bold">Kubernetes 연동</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium">
-                연동 이름
-                <input
-                  value={k8sForm.name}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium">
-                클러스터 이름
-                <input
-                  value={k8sForm.clusterName}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, clusterName: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium md:col-span-2">
-                API Server URL
-                <input
-                  value={k8sForm.apiServerUrl}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, apiServerUrl: event.target.value }))
-                  }
-                  placeholder="https://xxxx.gr7.ap-northeast-2.eks.amazonaws.com"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium md:col-span-2">
-                Read-only Token
-                <input
-                  value={k8sForm.token}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, token: event.target.value }))
-                  }
-                  type="password"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium md:col-span-2">
-                CA Certificate
-                <textarea
-                  value={k8sForm.caCertPem}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, caCertPem: event.target.value }))
-                  }
-                  rows={5}
-                  placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n또는 kubeconfig의 certificate-authority-data"}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  사설 CA 클러스터라면 PEM 인증서 또는 kubeconfig의
-                  {" "}
-                  <code>certificate-authority-data</code>
-                  {" "}
-                  값을 넣으세요. API Server URL은 IP 대신 kubeconfig의
-                  {" "}
-                  <code>server</code>
-                  {" "}
-                  DNS endpoint를 권장합니다.
-                </p>
-              </label>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1c59f2]/90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                K8s 검증 및 저장
-              </button>
-            </div>
-          </form>
-
-          <form
-            onSubmit={onSubmitPrometheus}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
-          >
-            <h2 className="mb-4 text-lg font-bold">Prometheus 연동</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium">
-                연동 이름
-                <input
-                  value={promForm.name}
-                  onChange={(event) =>
-                    setPromForm((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium">
-                Base URL
-                <input
-                  value={promForm.baseUrl}
-                  onChange={(event) =>
-                    setPromForm((prev) => ({ ...prev, baseUrl: event.target.value }))
-                  }
-                  placeholder="https://prometheus.example.com"
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium">
-                인증 방식
-                <select
-                  value={promForm.authMode}
-                  onChange={(event) =>
-                    setPromForm((prev) => ({
-                      ...prev,
-                      authMode: event.target.value as "basic" | "bearer",
-                    }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                >
-                  <option value="basic">Basic</option>
-                  <option value="bearer">Bearer</option>
-                </select>
-              </label>
-
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                nginx/basic auth 앞단이면 `basic`, 토큰 기반 ingress나 gateway면 `bearer`를 사용합니다.
-              </div>
-
-              {promForm.authMode === "basic" ? (
-                <>
-                  <label className="text-sm font-medium">
-                    Username
-                    <input
-                      value={promForm.username}
-                      onChange={(event) =>
-                        setPromForm((prev) => ({
-                          ...prev,
-                          username: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-
-                  <label className="text-sm font-medium">
-                    Password
-                    <input
-                      value={promForm.password}
-                      onChange={(event) =>
-                        setPromForm((prev) => ({
-                          ...prev,
-                          password: event.target.value,
-                        }))
-                      }
-                      type="password"
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </label>
-                </>
-              ) : null}
-
-              <label className="text-sm font-medium md:col-span-2">
-                Bearer Token
-                <input
-                  value={promForm.token}
-                  onChange={(event) =>
-                    setPromForm((prev) => ({ ...prev, token: event.target.value }))
-                  }
-                  type="password"
-                  placeholder={
-                    promForm.authMode === "bearer"
-                      ? "Prometheus access token"
-                      : "basic 모드에서는 비워둬도 됩니다"
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium md:col-span-2">
-                CA Certificate PEM
-                <textarea
-                  value={k8sForm.caCertPem}
-                  onChange={(event) =>
-                    setK8sForm((prev) => ({ ...prev, caCertPem: event.target.value }))
-                  }
-                  placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
-                  className="mt-1 h-32 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                />
-                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                  온프레미스나 사설 CA 클러스터일 때만 입력합니다. 토큰에 `Bearer ` 접두어가 있어도 backend에서 자동 정리합니다.
-                </span>
-              </label>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1c59f2]/90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Prometheus 검증 및 저장
-              </button>
-            </div>
-          </form>
-            </section>
-
-            <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">
-              연결 상태
-            </h3>
-            <div className="space-y-3">
-              <IntegrationCard
+              {/* AWS */}
+              <FormCard
+                type="aws"
                 title="AWS"
-                subtitle="Cost Explorer / EC2 / RDS / S3"
+                tagline="Cost Explorer · EC2 · RDS · S3"
                 status={integrationsByType.get("aws")?.status}
                 backendRegistered={integrationsByType.get("aws")?.backendRegistered}
-              />
-              <IntegrationCard
+                iconColor="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                onSubmit={onSubmitAws}
+                loading={loading}
+                submitLabel="AWS 검증 및 저장"
+              >
+                <Field label="연동 이름">
+                  <input
+                    value={awsForm.name}
+                    onChange={(e) => setAwsForm((p) => ({ ...p, name: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="리전">
+                  <input
+                    value={awsForm.region}
+                    onChange={(e) => setAwsForm((p) => ({ ...p, region: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="인증 방식" span2>
+                  <AuthTab
+                    options={[
+                      { value: "role", label: "Cross-account IAM Role (권장)" },
+                      { value: "access_key", label: "Access Key" },
+                    ]}
+                    value={awsForm.authMode}
+                    onChange={(v) => setAwsForm((p) => ({ ...p, authMode: v }))}
+                  />
+                </Field>
+
+                {awsForm.authMode === "role" ? (
+                  <>
+                    <Field
+                      label="Role ARN"
+                      span2
+                      hint="arn:aws:iam::123456789012:role/JeolgamReadOnlyRole 형식"
+                    >
+                      <input
+                        value={awsForm.roleArn}
+                        onChange={(e) => setAwsForm((p) => ({ ...p, roleArn: e.target.value }))}
+                        placeholder="arn:aws:iam::123456789012:role/JeolgamReadOnlyRole"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="External ID" span2 hint="선택 사항 — IAM trust policy에 설정한 값을 입력합니다.">
+                      <input
+                        value={awsForm.externalId}
+                        onChange={(e) => setAwsForm((p) => ({ ...p, externalId: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    <Field label="Access Key ID">
+                      <input
+                        value={awsForm.accessKeyId}
+                        onChange={(e) => setAwsForm((p) => ({ ...p, accessKeyId: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Secret Access Key">
+                      <input
+                        type="password"
+                        value={awsForm.secretAccessKey}
+                        onChange={(e) => setAwsForm((p) => ({ ...p, secretAccessKey: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                )}
+              </FormCard>
+
+              {/* Kubernetes */}
+              <FormCard
+                type="k8s"
                 title="Kubernetes"
-                subtitle="nodes / pods / requests / limits"
+                tagline="nodes · pods · requests · limits"
                 status={integrationsByType.get("k8s")?.status}
                 backendRegistered={integrationsByType.get("k8s")?.backendRegistered}
-              />
-              <IntegrationCard
+                iconColor="border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300"
+                onSubmit={onSubmitK8s}
+                loading={loading}
+                submitLabel="K8s 검증 및 저장"
+              >
+                <Field label="연동 이름">
+                  <input
+                    value={k8sForm.name}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, name: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="클러스터 이름">
+                  <input
+                    value={k8sForm.clusterName}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, clusterName: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field
+                  label="API Server URL"
+                  span2
+                  hint="IP 대신 kubeconfig의 server DNS endpoint를 권장합니다."
+                >
+                  <input
+                    value={k8sForm.apiServerUrl}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, apiServerUrl: e.target.value }))}
+                    placeholder="https://xxxx.gr7.ap-northeast-2.eks.amazonaws.com"
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Read-only Token" span2>
+                  <input
+                    type="password"
+                    value={k8sForm.token}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, token: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field
+                  label="CA Certificate"
+                  span2
+                  hint="사설 CA 클러스터일 때만 입력합니다. kubeconfig의 certificate-authority-data 값을 붙여넣으세요."
+                >
+                  <textarea
+                    value={k8sForm.caCertPem}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, caCertPem: e.target.value }))}
+                    rows={5}
+                    placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
+                    className={textareaCls}
+                  />
+                </Field>
+              </FormCard>
+
+              {/* Prometheus */}
+              <FormCard
+                type="prometheus"
                 title="Prometheus"
-                subtitle="CPU / Memory / Error / Latency"
+                tagline="CPU · Memory · Error rate · Latency"
                 status={integrationsByType.get("prometheus")?.status}
                 backendRegistered={integrationsByType.get("prometheus")?.backendRegistered}
-              />
+                iconColor="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300"
+                onSubmit={onSubmitPrometheus}
+                loading={loading}
+                submitLabel="Prometheus 검증 및 저장"
+              >
+                <Field label="연동 이름">
+                  <input
+                    value={promForm.name}
+                    onChange={(e) => setPromForm((p) => ({ ...p, name: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Base URL">
+                  <input
+                    value={promForm.baseUrl}
+                    onChange={(e) => setPromForm((p) => ({ ...p, baseUrl: e.target.value }))}
+                    placeholder="https://prometheus.example.com"
+                    className={inputCls}
+                  />
+                </Field>
+                <Field
+                  label="인증 방식"
+                  span2
+                  hint={
+                    promForm.authMode === "basic"
+                      ? "nginx/basic auth 앞단 구성에 사용합니다."
+                      : "토큰 기반 ingress 또는 gateway 구성에 사용합니다."
+                  }
+                >
+                  <AuthTab
+                    options={[
+                      { value: "basic", label: "Basic Auth" },
+                      { value: "bearer", label: "Bearer Token" },
+                    ]}
+                    value={promForm.authMode}
+                    onChange={(v) => setPromForm((p) => ({ ...p, authMode: v }))}
+                  />
+                </Field>
+
+                {promForm.authMode === "basic" ? (
+                  <>
+                    <Field label="Username">
+                      <input
+                        value={promForm.username}
+                        onChange={(e) => setPromForm((p) => ({ ...p, username: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Password">
+                      <input
+                        type="password"
+                        value={promForm.password}
+                        onChange={(e) => setPromForm((p) => ({ ...p, password: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                ) : null}
+
+                <Field
+                  label="Bearer Token"
+                  span2
+                  hint="Bearer 접두어 없이 토큰 값만 입력합니다."
+                >
+                  <input
+                    type="password"
+                    value={promForm.token}
+                    onChange={(e) => setPromForm((p) => ({ ...p, token: e.target.value }))}
+                    placeholder={
+                      promForm.authMode === "bearer"
+                        ? "Prometheus access token"
+                        : "Basic 모드에서는 비워도 됩니다"
+                    }
+                    className={inputCls}
+                  />
+                </Field>
+
+                <Field
+                  label="CA Certificate PEM"
+                  span2
+                  hint="온프레미스 또는 사설 CA 구성일 때만 입력합니다."
+                >
+                  <textarea
+                    value={k8sForm.caCertPem}
+                    onChange={(e) => setK8sForm((p) => ({ ...p, caCertPem: e.target.value }))}
+                    rows={4}
+                    placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
+                    className={textareaCls}
+                  />
+                </Field>
+              </FormCard>
             </div>
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">
-              다음 단계
-            </h3>
-            <ol className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              <li>1. 연동 검증을 완료합니다.</li>
-              <li>2. 샘플 분석을 실행합니다.</li>
-              <li>3. 대시보드에서 점수와 권고를 검토합니다.</li>
-              <li>4. 실행 가이드에서 승인/적용을 진행합니다.</li>
-            </ol>
+            {/* ── right: sidebar ── */}
+            <aside className="space-y-4">
 
-            {lastAnalysisId ? (
-              <div className="mt-4 rounded-lg border border-[#1c59f2]/30 bg-[#1c59f2]/10 p-3 text-xs text-[#1c59f2]">
-                최근 분석 ID: <span className="font-bold">{lastAnalysisId}</span>
+              {/* connection status */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+                <p className="mb-4 text-[10px] font-bold tracking-[0.22em] text-slate-400 uppercase">
+                  연결 상태
+                </p>
+                <div className="space-y-3">
+                  {(
+                    [
+                      {
+                        type: "aws" as const,
+                        label: "AWS",
+                        sub: "Cost Explorer · EC2 · RDS · S3",
+                        iconColor: "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
+                      },
+                      {
+                        type: "k8s" as const,
+                        label: "Kubernetes",
+                        sub: "nodes · pods · requests · limits",
+                        iconColor: "border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300",
+                      },
+                      {
+                        type: "prometheus" as const,
+                        label: "Prometheus",
+                        sub: "CPU · Memory · Errors · Latency",
+                        iconColor: "border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300",
+                      },
+                    ] as const
+                  ).map((src) => {
+                    const cfg = integrationsByType.get(src.type);
+                    return (
+                      <div
+                        key={src.type}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 dark:border-slate-700/60"
+                      >
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${src.iconColor}`}
+                        >
+                          <IntegrationIcon type={src.type} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{src.label}</p>
+                          <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">
+                            {src.sub}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          status={cfg?.status}
+                          backendRegistered={cfg?.backendRegistered}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            ) : null}
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Link
-                href="/dashboard"
-                className="rounded-lg bg-[#1c59f2] px-3 py-2 text-center text-xs font-bold text-white hover:bg-[#1c59f2]/90"
-              >
-                대시보드
-              </Link>
-              <Link
-                href="/ai-optimization"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-center text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-              >
-                AI 최적화
-              </Link>
-            </div>
-          </div>
+              {/* guide */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+                <p className="mb-4 text-[10px] font-bold tracking-[0.22em] text-slate-400 uppercase">
+                  시작 가이드
+                </p>
+                <ol className="space-y-3">
+                  {steps.map((step, i) => (
+                    <li key={step.label} className="flex items-center gap-3">
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
+                          step.done
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-500"
+                        }`}
+                      >
+                        {step.done ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
+                            <path d="m5 12 5 5L20 7" />
+                          </svg>
+                        ) : (
+                          i + 1
+                        )}
+                      </span>
+                      <span
+                        className={`text-sm ${
+                          step.done
+                            ? "font-semibold text-emerald-700 dark:text-emerald-300"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
 
-          {message ? (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">
-              {message}
-            </div>
-          ) : null}
-          {error ? (
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-400">
-              {error}
-            </div>
-          ) : null}
-          {data?.warnings?.length ? (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-400">
-              {data.warnings.join(" / ")}
-            </div>
-          ) : null}
+                {lastAnalysisId ? (
+                  <div className="mt-4 rounded-xl border border-[#1c59f2]/20 bg-[#1c59f2]/5 p-3 text-xs text-[#1c59f2]">
+                    최근 분석 ID{" "}
+                    <span className="font-bold">{lastAnalysisId}</span>
+                  </div>
+                ) : null}
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Link
+                    href="/dashboard"
+                    className="rounded-xl bg-[#1c59f2] px-3 py-2 text-center text-xs font-bold text-white transition hover:bg-[#194fd8]"
+                  >
+                    대시보드
+                  </Link>
+                  <Link
+                    href="/ai-optimization"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-center text-xs font-semibold transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                  >
+                    AI 최적화
+                  </Link>
+                </div>
+              </div>
+
+              {/* toasts */}
+              {message ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/8 dark:text-emerald-300">
+                  {message}
+                </div>
+              ) : null}
+              {error ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/8 dark:text-rose-300">
+                  {error}
+                </div>
+              ) : null}
+              {data?.warnings?.length ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/8 dark:text-amber-300">
+                  {data.warnings.join(" / ")}
+                </div>
+              ) : null}
             </aside>
+
           </div>
         </main>
       </div>
