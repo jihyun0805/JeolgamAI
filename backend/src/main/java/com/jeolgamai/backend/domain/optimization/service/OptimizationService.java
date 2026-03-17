@@ -116,13 +116,12 @@ public class OptimizationService {
                 .peekFirst();
 
         if (latest == null) {
-            return runAnalysis(new OptimizationModels.RunAnalysisRequest(
+            return new OptimizationModels.AnalysisBundle(
                     normalizedWorkspaceId,
-                    project.name(),
-                    project.awsRegion(),
-                    30,
-                    "manual"
-            ));
+                    project,
+                    null,
+                    List.of()
+            );
         }
 
         return new OptimizationModels.AnalysisBundle(
@@ -155,10 +154,16 @@ public class OptimizationService {
     }
 
     public OptimizationModels.RecommendationList getRecommendations(String workspaceId) {
-        OptimizationModels.AnalysisBundle latest = getLatestAnalysis(workspaceId, null, null);
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.AnalysisSnapshot latest = analysesByWorkspace
+                .getOrDefault(normalizedWorkspaceId, new ConcurrentLinkedDeque<>())
+                .peekFirst();
+        if (latest == null) {
+            return new OptimizationModels.RecommendationList(null, List.of());
+        }
         return new OptimizationModels.RecommendationList(
-                latest.analysis() == null ? null : latest.analysis().id(),
-                latest.recommendations()
+                latest.id(),
+                recommendationsByAnalysis.getOrDefault(latest.id(), List.of())
         );
     }
 
@@ -199,7 +204,8 @@ public class OptimizationService {
                 current.evidence(),
                 current.ruleTrace(),
                 current.createdAt(),
-                now
+                now,
+                current.rationale()
         );
 
         recommendationById.put(updated.id(), updated);
@@ -547,14 +553,25 @@ public class OptimizationService {
                 recommendations.stream().map(OptimizationModels.Recommendation::id).toList(),
                 resources,
                 costBreakdown,
-                buildWarnings(project, sources)
+                buildWarnings(project, sources),
+                null
+        );
+
+        List<OptimizationModels.Recommendation> enrichedRecommendations = enrichRecommendationRationales(
+                project,
+                analysis,
+                recommendations
+        );
+        OptimizationModels.AnalysisSnapshot enrichedAnalysis = withExecutiveSummary(
+                analysis,
+                enrichExecutiveSummary(project, analysis, enrichedRecommendations)
         );
 
         return new OptimizationModels.AnalysisBundle(
                 workspaceId,
                 sources.project(),
-                analysis,
-                recommendations
+                enrichedAnalysis,
+                enrichedRecommendations
         );
     }
 
@@ -1001,8 +1018,252 @@ public class OptimizationService {
                         "2026.03"
                 ),
                 now,
-                now
+                now,
+                null
         );
+    }
+
+    private List<OptimizationModels.Recommendation> enrichRecommendationRationales(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        return recommendations.stream()
+                .map(recommendation -> withRecommendationRationale(
+                        recommendation,
+                        enrichRecommendationRationale(project, analysis, recommendation, recommendations)
+                ))
+                .toList();
+    }
+
+    private String enrichRecommendationRationale(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            OptimizationModels.Recommendation recommendation,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        String fallback = buildFallbackRecommendationRationale(analysis, recommendation);
+        String prompt = buildRecommendationNarrativePrompt(project, analysis, recommendation, recommendations);
+        return optimizationLlmService.complete(
+                project.id(),
+                analysis.id(),
+                buildRecommendationNarrativeSystemPrompt(),
+                prompt
+        ).map(this::sanitizeNarrativeText).filter(text -> !text.isBlank()).orElse(fallback);
+    }
+
+    private String enrichExecutiveSummary(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        String fallback = buildFallbackExecutiveSummary(analysis, recommendations);
+        String prompt = buildExecutiveSummaryPrompt(project, analysis, recommendations);
+        return optimizationLlmService.complete(
+                project.id(),
+                analysis.id(),
+                buildExecutiveSummarySystemPrompt(),
+                prompt
+        ).map(this::sanitizeNarrativeText).filter(text -> !text.isBlank()).orElse(fallback);
+    }
+
+    private String buildExecutiveSummarySystemPrompt() {
+        return """
+                당신은 JeolgamAI의 분석 요약 작성기다.
+                한국어로만 답하고, 제공된 숫자와 리소스명만 사용한다.
+                2~4문장으로 끝내고, 보고서 말투보다 운영 동료에게 브리핑하듯 자연스럽게 쓴다.
+                첫 문장은 현재 비용/절감/상태를 요약하고, 뒤 문장에서는 가장 먼저 볼 권고와 이유를 짧게 설명한다.
+                마크다운 제목, 번호 목록, 과장 표현은 쓰지 않는다.
+                """;
+    }
+
+    private String buildExecutiveSummaryPrompt(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("프로젝트명: ").append(project.name()).append('\n');
+        prompt.append("리전: ").append(project.awsRegion()).append('\n');
+        prompt.append("분석 점수: ")
+                .append(analysis.score().totalScore())
+                .append("점 (")
+                .append(analysis.score().grade())
+                .append(")\n");
+        prompt.append("총 월비용: ").append(formatKrw(analysis.totalMonthlyCost())).append('\n');
+        prompt.append("낭비 비용: ").append(formatKrw(analysis.wasteCost())).append('\n');
+        prompt.append("예상 월 절감: ").append(formatKrw(analysis.potentialMonthlySaving())).append('\n');
+        prompt.append("소스 커버리지: aws=")
+                .append(analysis.sourceCoverage().aws())
+                .append(", k8s=")
+                .append(analysis.sourceCoverage().k8s())
+                .append(", prometheus=")
+                .append(analysis.sourceCoverage().prometheus())
+                .append('\n');
+        prompt.append("경고: ")
+                .append(analysis.warnings().isEmpty() ? "없음" : String.join(" | ", analysis.warnings().stream().limit(4).toList()))
+                .append('\n');
+        prompt.append("권고 목록:\n");
+        prompt.append(recommendations.stream()
+                .limit(4)
+                .map(recommendation -> "- " + recommendation.title()
+                        + " | target=" + recommendation.targetResource()
+                        + " | risk=" + recommendation.riskLevel()
+                        + " | monthlySaving=" + formatKrw(recommendation.estMonthlySaving()))
+                .collect(Collectors.joining("\n")));
+        return prompt.toString();
+    }
+
+    private String buildRecommendationNarrativeSystemPrompt() {
+        return """
+                당신은 JeolgamAI의 권고 설명 작성기다.
+                한국어로만 답하고, 제공된 메트릭과 명령만 사용한다.
+                2~3문장으로 작성하고, 첫 문장에서 왜 이 권고를 보는지 설명한다.
+                둘째 문장에서는 실제 영향 또는 적용 포인트를 말한다.
+                필요하면 마지막 짧은 문장으로 리스크나 검증 포인트를 덧붙인다.
+                마크다운 제목, bullet, 코드블록은 쓰지 않는다.
+                """;
+    }
+
+    private String buildRecommendationNarrativePrompt(
+            OptimizationModels.ProjectSummary project,
+            OptimizationModels.AnalysisSnapshot analysis,
+            OptimizationModels.Recommendation recommendation,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("프로젝트명: ").append(project.name()).append('\n');
+        prompt.append("리전: ").append(project.awsRegion()).append('\n');
+        prompt.append("분석 점수: ")
+                .append(analysis.score().totalScore())
+                .append("점 (")
+                .append(analysis.score().grade())
+                .append(")\n");
+        prompt.append("총 월비용: ").append(formatKrw(analysis.totalMonthlyCost())).append('\n');
+        prompt.append("예상 월 절감: ").append(formatKrw(analysis.potentialMonthlySaving())).append('\n');
+        prompt.append("현재 권고 제목: ").append(recommendation.title()).append('\n');
+        prompt.append("설명: ").append(recommendation.description()).append('\n');
+        prompt.append("대상 리소스: ").append(recommendation.targetResource()).append('\n');
+        prompt.append("리스크: ").append(recommendation.riskLevel()).append('\n');
+        prompt.append("신뢰도: ").append(Math.round(recommendation.confidenceScore() * 100)).append("%\n");
+        prompt.append("예상 월 절감: ").append(formatKrw(recommendation.estMonthlySaving())).append('\n');
+        prompt.append("근거 메트릭: ").append(recommendation.evidence().metrics().stream()
+                .map(metric -> metric.key() + "=" + trimNumeric(metric.value()) + metric.unit())
+                .collect(Collectors.joining(", "))).append('\n');
+        prompt.append("실행 명령: ").append(recommendation.commandSnippet()).append('\n');
+        prompt.append("롤백 명령: ").append(recommendation.rollbackSnippet()).append('\n');
+        prompt.append("비교 대상 상위 권고:\n");
+        prompt.append(recommendations.stream()
+                .filter(candidate -> !Objects.equals(candidate.id(), recommendation.id()))
+                .limit(2)
+                .map(candidate -> "- " + candidate.title()
+                        + " | risk=" + candidate.riskLevel()
+                        + " | monthlySaving=" + formatKrw(candidate.estMonthlySaving()))
+                .collect(Collectors.joining("\n")));
+        return prompt.toString();
+    }
+
+    private String buildFallbackExecutiveSummary(
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        OptimizationModels.Recommendation topRecommendation = recommendations.stream()
+                .max(Comparator.comparingLong(OptimizationModels.Recommendation::estMonthlySaving))
+                .orElse(null);
+        if (topRecommendation == null) {
+            return "AI 요약을 아직 생성하지 못했습니다. 다시 시도하면 최신 분석 결과를 바탕으로 짧은 브리핑을 제공할 수 있습니다.";
+        }
+
+        return "AI 요약을 아직 생성하지 못해 규칙 기반 설명을 대신 보여드립니다. 현재 프로젝트는 월 " + formatKrw(analysis.totalMonthlyCost())
+                + " 규모로 집계됐고, 지금 기준으로는 월 "
+                + formatKrw(analysis.potentialMonthlySaving())
+                + " 정도를 줄일 여지가 있습니다. 가장 먼저 볼 권고는 "
+                + topRecommendation.title()
+                + "이고, 대상은 " + topRecommendation.targetResource()
+                + " 입니다. 절감 효과가 가장 크고 현재 분석 점수 "
+                + analysis.score().totalScore()
+                + "점에서 직접적으로 영향을 주는 항목이라 우선순위가 높습니다.";
+    }
+
+    private String buildFallbackRecommendationRationale(
+            OptimizationModels.AnalysisSnapshot analysis,
+            OptimizationModels.Recommendation recommendation
+    ) {
+        String metrics = recommendation.evidence().metrics().stream()
+                .limit(3)
+                .map(metric -> metric.key() + "=" + trimNumeric(metric.value()) + metric.unit())
+                .collect(Collectors.joining(", "));
+        return "AI 설명을 아직 생성하지 못해 규칙 기반 설명을 대신 보여드립니다. " + recommendation.title() + " 권고는 " + recommendation.targetResource()
+                + " 쪽에서 보이는 낭비나 과할당을 줄이기 위해 먼저 보는 항목입니다. "
+                + recommendation.description()
+                + " 현재 근거 메트릭은 " + (metrics.isBlank() ? "충분하지 않음" : metrics)
+                + "이고, 적용하면 월 " + formatKrw(recommendation.estMonthlySaving())
+                + " 수준 절감을 기대할 수 있습니다.";
+    }
+
+    private OptimizationModels.Recommendation withRecommendationRationale(
+            OptimizationModels.Recommendation recommendation,
+            String rationale
+    ) {
+        return new OptimizationModels.Recommendation(
+                recommendation.id(),
+                recommendation.analysisId(),
+                recommendation.workspaceId(),
+                recommendation.domain(),
+                recommendation.title(),
+                recommendation.description(),
+                recommendation.targetResource(),
+                recommendation.status(),
+                recommendation.confidenceScore(),
+                recommendation.riskLevel(),
+                recommendation.estMonthlySaving(),
+                recommendation.estAnnualSaving(),
+                recommendation.commandSnippet(),
+                recommendation.rollbackSnippet(),
+                recommendation.evidence(),
+                recommendation.ruleTrace(),
+                recommendation.createdAt(),
+                recommendation.updatedAt(),
+                rationale
+        );
+    }
+
+    private OptimizationModels.AnalysisSnapshot withExecutiveSummary(
+            OptimizationModels.AnalysisSnapshot analysis,
+            String executiveSummary
+    ) {
+        return new OptimizationModels.AnalysisSnapshot(
+                analysis.id(),
+                analysis.workspaceId(),
+                analysis.triggeredBy(),
+                analysis.status(),
+                analysis.createdAt(),
+                analysis.startedAt(),
+                analysis.completedAt(),
+                analysis.lookbackDays(),
+                analysis.periodStart(),
+                analysis.periodEnd(),
+                analysis.awsRegion(),
+                analysis.sourceCoverage(),
+                analysis.totalMonthlyCost(),
+                analysis.wasteCost(),
+                analysis.potentialMonthlySaving(),
+                analysis.potentialAnnualSaving(),
+                analysis.score(),
+                analysis.recommendationIds(),
+                analysis.resources(),
+                analysis.costBreakdown(),
+                analysis.warnings(),
+                executiveSummary
+        );
+    }
+
+    private String sanitizeNarrativeText(String value) {
+        return value
+                .replace("\r", "")
+                .replaceAll("(?m)^#{1,6}\\s*", "")
+                .replaceAll("(?m)^[-*]\\s+", "")
+                .trim();
     }
 
     private OptimizationModels.ScoreBreakdown calculateScoreBreakdown(
@@ -1130,79 +1391,7 @@ public class OptimizationService {
             return llmReply;
         }
 
-        String lower = content.toLowerCase(Locale.ROOT);
-        boolean askRollback = lower.contains("롤백") || lower.contains("rollback");
-        boolean askCommand = lower.contains("명령") || lower.contains("command") || lower.contains("실행");
-        boolean askReason = lower.contains("왜") || lower.contains("근거") || lower.contains("이유");
-        boolean askStatus = lower.contains("상태") || lower.contains("요약") || lower.contains("summary");
-        String metricsText = pinned.evidence().metrics().stream()
-                .map(metric -> metric.key() + "=" + trimNumeric(metric.value()) + metric.unit())
-                .collect(Collectors.joining(", "));
-        String costContext = analysis == null
-                ? "분석 비용 정보가 아직 없습니다."
-                : "프로젝트 점수 " + analysis.score().totalScore() + "점 (" + analysis.score().grade() + ")"
-                + " · 총 월비용 " + formatKrw(analysis.totalMonthlyCost())
-                + " · 예상 월 절감 " + formatKrw(analysis.potentialMonthlySaving());
-        String coverageText = analysis == null
-                ? "coverage unavailable"
-                : "coverage aws=" + analysis.sourceCoverage().aws()
-                + ", k8s=" + analysis.sourceCoverage().k8s()
-                + ", prometheus=" + analysis.sourceCoverage().prometheus();
-        String warningText = analysis == null || analysis.warnings().isEmpty()
-                ? "특이 경고 없음"
-                : analysis.warnings().stream().limit(2).collect(Collectors.joining(" / "));
-        String commandFamily = detectCommandFamily(pinned.commandSnippet());
-
-        if (askRollback) {
-            return "권고: " + pinned.title()
-                    + "\n대상 리소스: " + pinned.targetResource()
-                    + "\n명령 계열: " + commandFamily
-                    + "\n롤백 절차: " + pinned.rollbackSnippet()
-                    + "\n현재 지표: " + metricsText
-                    + "\n룰: " + pinned.ruleTrace().ruleId() + " (" + pinned.ruleTrace().principleName() + ")"
-                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
-        }
-
-        if (askCommand) {
-            return "권고: " + pinned.title()
-                    + "\n대상 리소스: " + pinned.targetResource()
-                    + "\n명령 계열: " + commandFamily
-                    + "\n실행 명령: " + pinned.commandSnippet()
-                    + "\n예상 월 절감: " + formatKrw(pinned.estMonthlySaving())
-                    + "\n프로젝트 컨텍스트: " + costContext
-                    + "\n리스크: " + pinned.riskLevel().toUpperCase(Locale.ROOT)
-                    + " · 신뢰도 " + Math.round(pinned.confidenceScore() * 100) + "%"
-                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
-        }
-
-        if (askReason) {
-            return "결론: " + pinned.title() + "를 우선 적용하는 것이 비용 대비 효과가 큽니다."
-                    + "\n근거: " + pinned.description()
-                    + "\n메트릭: " + metricsText
-                    + "\n분석 요약: " + costContext
-                    + "\n커버리지: " + coverageText
-                    + "\n경고: " + warningText
-                    + "\n룰: " + pinned.ruleTrace().ruleId() + " (" + pinned.ruleTrace().principleName() + ")"
-                    + "\n참고: " + pinned.ruleTrace().awsDocUrl();
-        }
-
-        if (askStatus) {
-            return "선택 권고: " + pinned.title()
-                    + "\n대상 리소스: " + pinned.targetResource()
-                    + "\n현재 상태: " + costContext
-                    + "\n커버리지: " + coverageText
-                    + "\n핵심 지표: " + metricsText
-                    + "\n경고: " + warningText
-                    + "\n실행 경로: " + commandFamily;
-        }
-
-        return "핵심 액션: " + pinned.title()
-                + "\n대상 리소스: " + pinned.targetResource()
-                + "\n분석 요약: " + costContext
-                + "\n핵심 지표: " + metricsText
-                + "\n실행 경로: " + commandFamily
-                + "\n다음 단계: 실행 명령 검토 → 승인 여부 결정 → 실행 가이드에서 적용"
-                + "\n예상 절감: 월 " + formatKrw(pinned.estMonthlySaving());
+        return buildFallbackAssistantResponse(content, analysis, recommendations, pinned, history);
     }
 
     private String buildAssistantSystemPrompt() {
@@ -1212,7 +1401,10 @@ public class OptimizationService {
                 숫자, 비용, 리소스명, 명령어, 자격증명, URL을 추측하거나 새로 만들지 않는다.
                 실행/롤백 명령은 제공된 commandSnippet과 rollbackSnippet 범위 안에서만 설명한다.
                 데이터가 부족하면 부족한 연결(AWS, Kubernetes, Prometheus)을 명시하고 추가 확인이 필요하다고 답한다.
-                답변은 실무자가 바로 판단할 수 있게 결론, 근거, 리스크/전제조건, 실행 또는 롤백 포인트 순으로 간결하게 정리한다.
+                기본 답변 톤은 보고서가 아니라 동료와 대화하듯 자연스럽고 간결해야 한다.
+                사용자가 간단히 물으면 먼저 한두 문장으로 바로 답하고, 필요할 때만 근거와 주의사항을 덧붙인다.
+                마크다운 제목(예: #, ##, ###)과 과도한 섹션 구분은 쓰지 않는다.
+                bullet 목록은 사용자가 비교, 절차, 명령, 롤백을 물었을 때만 짧게 사용한다.
                 """;
     }
 
@@ -1322,9 +1514,24 @@ public class OptimizationService {
         prompt.append("응답 지시:\n");
         prompt.append("- 한국어로 답변한다.\n");
         prompt.append("- 숫자와 명령은 위 컨텍스트에 있는 값만 사용한다.\n");
-        prompt.append("- 가능하면 결론, 근거, 리스크/전제조건, 실행 또는 롤백 순으로 정리한다.\n");
+        prompt.append("- 기본은 대화체로 자연스럽게 답한다. 첫 문장에서 질문에 바로 답한다.\n");
+        prompt.append("- 마크다운 제목(#, ##, ###)은 쓰지 않는다.\n");
+        prompt.append("- 절차/비교/명령/롤백이 필요할 때만 짧은 bullet을 사용한다.\n");
         prompt.append("- 컨텍스트가 부족하면 부족한 연결과 추가 확인 항목을 분명히 적는다.\n");
         return prompt.toString();
+    }
+
+    private String buildFallbackAssistantResponse(
+            String question,
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations,
+            OptimizationModels.Recommendation pinned,
+            List<OptimizationModels.ChatMessage> history
+    ) {
+        return """
+                지금은 AI 응답을 생성하지 못했습니다.
+                잠시 후 다시 시도해 주세요. 계속 같은 상태면 GMS/OpenAI 연결 또는 인증 상태를 먼저 확인해야 합니다.
+                """.trim();
     }
 
     private String detectCommandFamily(String commandSnippet) {

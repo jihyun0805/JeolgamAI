@@ -16,13 +16,16 @@ public class OptimizationLlmService {
     private static final Logger log = LoggerFactory.getLogger(OptimizationLlmService.class);
 
     private final ObjectProvider<ChatModel> chatModelProvider;
+    private final GmsLlmClient gmsLlmClient;
     private final boolean llmEnabled;
 
     public OptimizationLlmService(
             ObjectProvider<ChatModel> chatModelProvider,
+            GmsLlmClient gmsLlmClient,
             @Value("${optimization.ai.llm-enabled:true}") boolean llmEnabled
     ) {
         this.chatModelProvider = chatModelProvider;
+        this.gmsLlmClient = gmsLlmClient;
         this.llmEnabled = llmEnabled;
     }
 
@@ -38,7 +41,7 @@ public class OptimizationLlmService {
 
         ChatModel chatModel = chatModelProvider.getIfAvailable();
         if (chatModel == null) {
-            return Optional.empty();
+            return gmsLlmClient.complete(workspaceId, analysisId, systemPrompt, userPrompt);
         }
 
         try {
@@ -50,7 +53,7 @@ public class OptimizationLlmService {
                     .content();
 
             if (content == null || content.isBlank()) {
-                return Optional.empty();
+                return gmsLlmClient.complete(workspaceId, analysisId, systemPrompt, userPrompt);
             }
             return Optional.of(content.trim());
         } catch (RuntimeException exception) {
@@ -60,7 +63,7 @@ public class OptimizationLlmService {
                     analysisId,
                     exception.getMessage()
             );
-            return Optional.empty();
+            return gmsLlmClient.complete(workspaceId, analysisId, systemPrompt, userPrompt);
         }
     }
 }

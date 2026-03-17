@@ -33,7 +33,7 @@ interface AnalysisPayload {
       resourceCount: number;
     }>;
     warnings: string[];
-  };
+  } | null;
   recommendations: Array<{
     id: string;
     title: string;
@@ -91,12 +91,17 @@ export default function InfrastructureAnalysisPage() {
     }
   }
 
+  const project = data?.project ?? null;
+  const analysis = data?.analysis ?? null;
+  const recommendations = data?.recommendations ?? [];
+  const warnings = analysis?.warnings ?? [];
+
   const sortedResources = useMemo(
     () =>
-      [...(data?.analysis.resources ?? [])].sort(
+      [...(analysis?.resources ?? [])].sort(
         (left, right) => right.monthlyCost - left.monthlyCost,
       ),
-    [data],
+    [analysis],
   );
 
   return (
@@ -127,26 +132,24 @@ export default function InfrastructureAnalysisPage() {
                     Project Cost Scope
                   </p>
                   <h2 className="mt-2 text-3xl font-black tracking-tight">
-                    {data?.project?.name ?? "프로젝트 로딩 중"}
+                    {project?.name ?? "프로젝트 로딩 중"}
                   </h2>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    분석 기간 최근 {data?.analysis?.lookbackDays ?? 30}일 · 리전{" "}
-                    {data?.analysis?.awsRegion ?? "ap-northeast-2"}
+                    분석 기간 최근 {analysis?.lookbackDays ?? 30}일 · 리전{" "}
+                    {analysis?.awsRegion ?? "ap-northeast-2"}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14]">
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">월간 비용</p>
                     <p className="mt-1 text-xl font-black">
-                      {data?.analysis ? formatKrw(data.analysis.totalMonthlyCost) : "..."}
+                      {analysis ? formatKrw(analysis.totalMonthlyCost) : "..."}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">월 절감 가능</p>
                     <p className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-300">
-                      {data?.analysis
-                        ? formatKrw(data.analysis.potentialMonthlySaving)
-                        : "..."}
+                      {analysis ? formatKrw(analysis.potentialMonthlySaving) : "..."}
                     </p>
                   </div>
                 </div>
@@ -178,7 +181,7 @@ export default function InfrastructureAnalysisPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {(data?.analysis.costBreakdown ?? []).map((item) => (
+                      {(analysis?.costBreakdown ?? []).map((item) => (
                         <tr key={`${item.service}-${item.usageType}`}>
                           <td className="px-4 py-3 font-semibold">{item.service}</td>
                           <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
@@ -195,12 +198,17 @@ export default function InfrastructureAnalysisPage() {
                     </tbody>
                   </table>
                 </div>
+                {!analysis ? (
+                  <div className="border-t border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    아직 분석 결과가 없습니다. 상단의 분석 다시 실행 버튼으로 직접 실행해주세요.
+                  </div>
+                ) : null}
               </article>
 
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
                 <h3 className="text-lg font-bold">상위 절감 권고</h3>
                 <div className="mt-4 space-y-3">
-                  {(data?.recommendations ?? []).slice(0, 5).map((recommendation) => (
+                  {recommendations.slice(0, 5).map((recommendation) => (
                     <div
                       key={recommendation.id}
                       className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
@@ -255,11 +263,11 @@ export default function InfrastructureAnalysisPage() {
               </div>
             </section>
 
-            {(data?.analysis.warnings ?? []).length > 0 ? (
+            {warnings.length > 0 ? (
               <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                 <p className="font-bold">분석 주의사항</p>
                 <ul className="mt-3 space-y-2">
-                  {data?.analysis.warnings.map((warning) => (
+                  {warnings.map((warning) => (
                     <li key={warning}>{warning}</li>
                   ))}
                 </ul>

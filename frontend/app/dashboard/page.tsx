@@ -38,13 +38,15 @@ interface DashboardPayload {
       riskLevel: string;
       status: string;
     }>;
-  };
+    executiveSummary?: string | null;
+  } | null;
   recommendations: Array<{
     id: string;
     title: string;
     description: string;
     estMonthlySaving: number;
     riskLevel: string;
+    rationale?: string | null;
   }>;
 }
 
@@ -70,7 +72,7 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 function getCostBasisLabel(data: DashboardPayload | null) {
-  if (!data?.analysis) return "분석 로딩 중";
+  if (!data?.analysis) return "분석 없음";
 
   if (data.analysis.sourceCoverage.aws) {
     return "AWS 실측 비용 기반";
@@ -274,6 +276,17 @@ export default function DashboardPage() {
               ))}
             </section>
 
+            {data?.analysis?.executiveSummary ? (
+              <section className="rounded-2xl border border-[#1c59f2]/20 bg-[#1c59f2]/5 p-5 shadow-sm dark:border-[#1c59f2]/30 dark:bg-[#11234d]/30">
+                <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+                  AI Analysis Summary
+                </p>
+                <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200">
+                  {data.analysis.executiveSummary}
+                </p>
+              </section>
+            ) : null}
+
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.9fr]">
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
                 <div className="flex items-center justify-between">
@@ -292,7 +305,7 @@ export default function DashboardPage() {
                         <div>
                           <h4 className="font-bold">{recommendation.title}</h4>
                           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {recommendation.description}
+                            {recommendation.rationale ?? recommendation.description}
                           </p>
                         </div>
                         <span className="rounded-full bg-[#1c59f2]/10 px-3 py-1 text-xs font-bold text-[#1c59f2]">

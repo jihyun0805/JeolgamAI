@@ -169,6 +169,12 @@ docker compose up -d
 ./gradlew bootRun
 ```
 
+또는 로컬 env 파일을 두고 실행
+```bash
+cp .env.local.example .env.local
+bash scripts/run-local-backend.sh
+```
+
 3. 자동 추천 생성 호출
 ```bash
 POST /api/recommendations/generate/1
@@ -186,3 +192,18 @@ GET /api/recommendations
 - `compileJava`는 성공.
 - `test`의 `contextLoads`는 로컬 DB 환경 설정 영향으로 실패 가능.
 - 즉, 코드 변경 자체는 컴파일 기준으로 정상 반영됨.
+
+---
+
+## 5) LLM 키 관리
+
+- `GMS_API_KEY`는 코드에 하드코딩하지 말고 `backend/.env.local` 또는 systemd `EnvironmentFile`로 관리한다.
+- 로컬 실행:
+```bash
+cp .env.local.example .env.local
+vi .env.local
+bash scripts/run-local-backend.sh
+```
+- systemd 예시:
+  - 서비스 파일 템플릿: `deploy/systemd/jeolgamai-backend.service.example`
+  - 환경 파일 템플릿: `deploy/systemd/backend.env.example`

@@ -1,0 +1,16 @@
+[Unit]
+Description=JeolgamAI Backend
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/S14P21A502/backend
+EnvironmentFile=/home/ubuntu/S14P21A502/backend/deploy/systemd/backend.env
+ExecStart=/usr/bin/bash /home/ubuntu/S14P21A502/backend/gradlew bootRun --args=--server.port=8081
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

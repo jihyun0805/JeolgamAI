@@ -65,7 +65,8 @@ public final class OptimizationModels {
             RecommendationEvidence evidence,
             RuleTrace ruleTrace,
             String createdAt,
-            String updatedAt
+            String updatedAt,
+            String rationale
     ) {
     }
 
@@ -129,7 +130,8 @@ public final class OptimizationModels {
             List<String> recommendationIds,
             List<InfrastructureResource> resources,
             List<CostBreakdownItem> costBreakdown,
-            List<String> warnings
+            List<String> warnings,
+            String executiveSummary
     ) {
     }
 

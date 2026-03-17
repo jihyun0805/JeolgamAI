@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 
@@ -11,16 +11,24 @@ interface AnalysisPayload {
       totalScore: number;
       grade: string;
     };
+    executiveSummary?: string | null;
   } | null;
-  recommendations: Array<{
-    id: string;
-    title: string;
-    description: string;
-    targetResource: string;
-    confidenceScore: number;
-    riskLevel: string;
-    estMonthlySaving: number;
-  }>;
+}
+
+interface RecommendationSummary {
+  id: string;
+  title: string;
+  description: string;
+  targetResource: string;
+  confidenceScore: number;
+  riskLevel: string;
+  estMonthlySaving: number;
+  rationale?: string | null;
+}
+
+interface RecommendationListPayload {
+  analysisId: string | null;
+  recommendations: RecommendationSummary[];
 }
 
 interface ChatSessionPayload {
@@ -41,35 +49,55 @@ function formatKrw(value: number) {
 
 export default function AiOptimizationPage() {
   const [analysisId, setAnalysisId] = useState("");
-  const [recommendations, setRecommendations] = useState<AnalysisPayload["recommendations"]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationSummary[]>([]);
   const [selectedRecommendationId, setSelectedRecommendationId] = useState("");
   const [messages, setMessages] = useState<ChatSessionPayload["session"]["messages"]>([]);
   const [scoreLabel, setScoreLabel] = useState("");
+  const [analysisSummary, setAnalysisSummary] = useState("");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadAnalysis() {
+  async function loadWorkspaceOptimization() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/analysis/latest", { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok || !payload?.ok || !payload?.data) {
-        throw new Error(payload?.error?.message ?? "분석 결과를 불러오지 못했습니다.");
+      const [analysisResponse, recommendationsResponse] = await Promise.all([
+        fetch("/api/analysis/latest", { cache: "no-store" }),
+        fetch("/api/recommendations", { cache: "no-store" }),
+      ]);
+      const [analysisPayload, recommendationsPayload] = await Promise.all([
+        analysisResponse.json(),
+        recommendationsResponse.json(),
+      ]);
+      if (!analysisResponse.ok || !analysisPayload?.ok || !analysisPayload?.data) {
+        throw new Error(analysisPayload?.error?.message ?? "분석 결과를 불러오지 못했습니다.");
+      }
+      if (!recommendationsResponse.ok || !recommendationsPayload?.ok || !recommendationsPayload?.data) {
+        throw new Error(recommendationsPayload?.error?.message ?? "권고 목록을 불러오지 못했습니다.");
       }
 
-      const data = payload.data as AnalysisPayload;
-      setAnalysisId(data.analysis?.id ?? "");
-      setRecommendations(data.recommendations ?? []);
+      const analysisData = analysisPayload.data as AnalysisPayload;
+      const recommendationData = recommendationsPayload.data as RecommendationListPayload;
+      const nextAnalysisId = recommendationData.analysisId ?? analysisData.analysis?.id ?? "";
+
+      setAnalysisId(nextAnalysisId);
+      setRecommendations(recommendationData.recommendations ?? []);
       setSelectedRecommendationId(
-        (current) => current || data.recommendations?.[0]?.id || "",
+        (current) =>
+          recommendationData.recommendations.some((recommendation) => recommendation.id === current)
+            ? current
+            : recommendationData.recommendations[0]?.id || "",
       );
-      if (data.analysis) {
+      if (analysisData.analysis) {
         setScoreLabel(
-          `${data.analysis.score.totalScore}점 · ${data.analysis.score.grade}`,
+          `${analysisData.analysis.score.totalScore}점 · ${analysisData.analysis.score.grade}`,
         );
+        setAnalysisSummary(analysisData.analysis.executiveSummary ?? "");
+      } else {
+        setScoreLabel("");
+        setAnalysisSummary("");
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -96,7 +124,7 @@ export default function AiOptimizationPage() {
   }
 
   useEffect(() => {
-    loadAnalysis().catch(() => {});
+    loadWorkspaceOptimization().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -106,8 +134,7 @@ export default function AiOptimizationPage() {
     });
   }, [analysisId, selectedRecommendationId]);
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitPrompt() {
     if (!analysisId || !prompt.trim()) return;
 
     setSubmitting(true);
@@ -138,6 +165,23 @@ export default function AiOptimizationPage() {
     }
   }
 
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitPrompt();
+  }
+
+  function handlePromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+    submitPrompt().catch(() => {});
+  }
+
   const selectedRecommendation =
     recommendations.find((recommendation) => recommendation.id === selectedRecommendationId) ??
     recommendations[0];
@@ -163,7 +207,7 @@ export default function AiOptimizationPage() {
                   {loading ? "분석 결과 로딩 중" : scoreLabel || "분석 없음"}
                 </h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  프로젝트별 분석과 권고만 조회합니다.
+                  {analysisSummary || "프로젝트별 분석과 권고만 조회합니다."}
                 </p>
               </article>
 
@@ -196,7 +240,7 @@ export default function AiOptimizationPage() {
                         <div>
                           <p className="font-bold">{recommendation.title}</p>
                           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {recommendation.description}
+                            {recommendation.rationale ?? recommendation.description}
                           </p>
                         </div>
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-200">
@@ -237,9 +281,7 @@ export default function AiOptimizationPage() {
                         : "ml-auto bg-[#1c59f2] text-white"
                     }`}
                   >
-                    {message.content.split("\n").map((line) => (
-                      <p key={`${message.id}-${line}`}>{line}</p>
-                    ))}
+                    <p className="whitespace-pre-wrap break-words">{message.content}</p>
                   </div>
                 ))}
                 {!loading && messages.length === 0 ? (
@@ -256,12 +298,13 @@ export default function AiOptimizationPage() {
                 <textarea
                   className="h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#1c59f2] dark:border-slate-700 dark:bg-[#0B0E14]"
                   onChange={(event) => setPrompt(event.target.value)}
+                  onKeyDown={handlePromptKeyDown}
                   placeholder="예: 이 권고의 근거와 롤백 절차를 설명해줘"
                   value={prompt}
                 />
                 <div className="mt-4 flex items-center justify-between">
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    현재 프로젝트와 선택한 권고만 질의 대상입니다.
+                    현재 프로젝트와 선택한 권고만 질의 대상입니다. Enter 전송, Shift+Enter 줄바꿈
                   </p>
                   <button
                     className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:opacity-60"

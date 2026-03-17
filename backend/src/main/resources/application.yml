@@ -17,11 +17,11 @@ spring:
     model:
       chat: ${SPRING_AI_MODEL_CHAT:none}
     openai:
-      api-key: ${SPRING_AI_OPENAI_API_KEY:${OPENAI_API_KEY:}}
-      base-url: ${SPRING_AI_OPENAI_BASE_URL:${OPENAI_BASE_URL:https://api.openai.com}}
+      api-key: ${SPRING_AI_OPENAI_API_KEY:${OPENAI_API_KEY:${GMS_API_KEY:}}}
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:${OPENAI_BASE_URL:${GMS_OPENAI_BASE_URL:https://api.openai.com}}}
       chat:
         options:
-          model: ${SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL:${OPENAI_CHAT_MODEL:gpt-4o-mini}}
+          model: ${SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL:${OPENAI_CHAT_MODEL:${GMS_OPENAI_CHAT_MODEL:gpt-4o-mini}}}
           temperature: ${SPRING_AI_OPENAI_CHAT_OPTIONS_TEMPERATURE:${OPENAI_CHAT_TEMPERATURE:0.2}}
 
 management:
@@ -68,3 +68,11 @@ connector:
 optimization:
   ai:
     llm-enabled: ${OPTIMIZATION_AI_LLM_ENABLED:true}
+    gms:
+      access-token: ${GMS_ACCESS_TOKEN:}
+      api-key: ${GMS_API_KEY:}
+      api-base-url: ${GMS_API_BASE_URL:https://gms.ssafy.io/api/v1}
+      openai-base-url: ${GMS_OPENAI_BASE_URL:https://gms.ssafy.io/gmsapi/api.openai.com/v1}
+      model: ${GMS_OPENAI_CHAT_MODEL:gpt-4o}
+      temperature: ${GMS_OPENAI_CHAT_TEMPERATURE:${OPENAI_CHAT_TEMPERATURE:0.2}}
+      timeout-seconds: ${GMS_TIMEOUT_SECONDS:30}
