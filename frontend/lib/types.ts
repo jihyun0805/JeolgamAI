@@ -33,6 +33,22 @@ export interface SourceCoverage {
   prometheus: boolean;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  awsRegion: string;
+  createdAt: string;
+}
+
+export interface ProjectMembership {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 export interface IntegrationConfig {
   id: string;
   type: IntegrationType;
@@ -64,6 +80,7 @@ export interface RecommendationEvidence {
 export interface Recommendation {
   id: string;
   analysisId: string;
+  workspaceId: string;
   domain: RecommendationDomain;
   title: string;
   description: string;
@@ -85,11 +102,20 @@ export interface InfrastructureResource {
   id: string;
   name: string;
   type: string;
+  region?: string;
   status: string;
   cpuUsagePercent: number | null;
   memoryUsagePercent: number | null;
   monthlyCost: number;
   riskLevel: RiskLevel;
+}
+
+export interface CostBreakdownItem {
+  service: string;
+  usageType: string;
+  monthlyCost: number;
+  region: string;
+  resourceCount: number;
 }
 
 export interface PillarScore {
@@ -125,6 +151,7 @@ export interface AnalysisSnapshot {
   lookbackDays: number;
   periodStart: string;
   periodEnd: string;
+  awsRegion: string;
   sourceCoverage: SourceCoverage;
   totalMonthlyCost: number;
   wasteCost: number;
@@ -133,11 +160,13 @@ export interface AnalysisSnapshot {
   score: ScoreBreakdown;
   recommendationIds: string[];
   resources: InfrastructureResource[];
+  costBreakdown: CostBreakdownItem[];
   warnings: string[];
 }
 
 export interface ApprovalLog {
   id: string;
+  workspaceId: string;
   recommendationId: string;
   actor: string;
   action: "approved" | "rejected";
@@ -147,6 +176,7 @@ export interface ApprovalLog {
 
 export interface ReportArtifact {
   id: string;
+  workspaceId: string;
   analysisId: string;
   templateType: ReportTemplateType;
   createdBy: string;
@@ -203,6 +233,11 @@ export interface UserSession {
   name: string;
   role: UserRole;
   workspaceId: string;
+  backendUserId?: string;
+  backendLoginId?: string;
+  backendEmail?: string;
+  backendAccessToken?: string;
+  backendTokenType?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -210,7 +245,12 @@ export interface UserSession {
 export interface AuthUser {
   userId: string;
   loginId: string;
-  password: string;
+  backendUserId?: string;
+  email?: string;
+  passwordHash: string;
+  passwordSalt: string;
+  defaultProjectId?: string;
+  password?: string;
   name: string;
   role: UserRole;
   createdAt: string;
@@ -218,6 +258,7 @@ export interface AuthUser {
 
 export interface AuditEvent {
   id: string;
+  workspaceId?: string;
   actor: string;
   actorRole: UserRole;
   action:
@@ -228,14 +269,17 @@ export interface AuditEvent {
     | "report.generate"
     | "command.copy"
     | "auth.login"
-    | "auth.logout";
+    | "auth.logout"
+    | "project.select"
+    | "project.create";
   targetType:
     | "integration"
     | "analysis"
     | "recommendation"
     | "report"
     | "execution"
-    | "auth";
+    | "auth"
+    | "project";
   targetId: string;
   result: "success" | "forbidden" | "failed";
   metadata?: Record<string, string>;

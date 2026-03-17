@@ -2,7 +2,6 @@ import {
   AnalysisSnapshot,
   ApprovalLog,
   IntegrationConfig,
-  InfrastructureResource,
   PillarScore,
   Recommendation,
   RecommendationDomain,
@@ -10,10 +9,12 @@ import {
   RiskLevel,
   ScoreBreakdown,
 } from "@/lib/types";
+import { AWS_SEOUL_REGION, buildCostBreakdown, buildProjectResources } from "@/lib/project-data";
 import {
   addNotification,
   createId,
   getIntegrations,
+  getProjectById,
   getStore,
   nowIso,
   persistStore,
@@ -52,8 +53,8 @@ function getDomainToPillar(domain: RecommendationDomain): PillarScore["pillarKey
   }
 }
 
-function getCoverage() {
-  const integrations = getIntegrations();
+function getCoverage(workspaceId: string) {
+  const integrations = getIntegrations(workspaceId);
   const byType = new Map(integrations.map((item) => [item.type, item]));
 
   const isConnected = (config: IntegrationConfig | undefined) =>
@@ -66,116 +67,28 @@ function getCoverage() {
   };
 }
 
-function buildResources(): InfrastructureResource[] {
-  return [
-    {
-      id: "i-0a1b2c3d4e5f6g",
-      name: "PROD-WEB-01",
-      type: "ec2.t3.large",
-      status: "running",
-      cpuUsagePercent: 78.2,
-      memoryUsagePercent: 64.5,
-      monthlyCost: 112400,
-      riskLevel: "low",
-    },
-    {
-      id: "i-07823ab45c67",
-      name: "PROD-API-EXT",
-      type: "ec2.m5.xlarge",
-      status: "warning",
-      cpuUsagePercent: 0.8,
-      memoryUsagePercent: 12.2,
-      monthlyCost: 320800,
-      riskLevel: "high",
-    },
-    {
-      id: "i-0ff9123aac9d0a1f",
-      name: "BATCH-WORKER-01",
-      type: "ec2.c6i.2xlarge",
-      status: "running",
-      cpuUsagePercent: 22.4,
-      memoryUsagePercent: 34.8,
-      monthlyCost: 418000,
-      riskLevel: "medium",
-    },
-    {
-      id: "db-prod-main",
-      name: "Aurora PostgreSQL",
-      type: "rds.db.r6g.large",
-      status: "available",
-      cpuUsagePercent: 42.1,
-      memoryUsagePercent: 82.8,
-      monthlyCost: 542000,
-      riskLevel: "medium",
-    },
-    {
-      id: "s3-prod-logs",
-      name: "S3 PROD Logs Bucket",
-      type: "s3.standard",
-      status: "available",
-      cpuUsagePercent: null,
-      memoryUsagePercent: null,
-      monthlyCost: 186000,
-      riskLevel: "medium",
-    },
-    {
-      id: "nat-gw-apne2a-01",
-      name: "NAT Gateway APNE2A",
-      type: "network.nat-gateway",
-      status: "warning",
-      cpuUsagePercent: null,
-      memoryUsagePercent: null,
-      monthlyCost: 264000,
-      riskLevel: "high",
-    },
-    {
-      id: "alb-prod-edge-01",
-      name: "ALB PROD EDGE",
-      type: "network.alb",
-      status: "running",
-      cpuUsagePercent: null,
-      memoryUsagePercent: null,
-      monthlyCost: 138000,
-      riskLevel: "medium",
-    },
-    {
-      id: "vol-02948bc12e",
-      name: "DISK-LOGS",
-      type: "ebs.gp3.500gb",
-      status: "unused",
-      cpuUsagePercent: null,
-      memoryUsagePercent: null,
-      monthlyCost: 45500,
-      riskLevel: "critical",
-    },
-    {
-      id: "eks-nodegroup-prod-general",
-      name: "EKS NodeGroup Prod General",
-      type: "eks.mng.m5.large",
-      status: "running",
-      cpuUsagePercent: 31.4,
-      memoryUsagePercent: 45.3,
-      monthlyCost: 512000,
-      riskLevel: "medium",
-    },
-    {
-      id: "cloudfront-prod-main",
-      name: "CloudFront Prod Main",
-      type: "network.cloudfront",
-      status: "available",
-      cpuUsagePercent: null,
-      memoryUsagePercent: null,
-      monthlyCost: 119000,
-      riskLevel: "low",
-    },
-  ];
-}
-
-function buildRecommendationInput(coverage: {
-  aws: boolean;
-  k8s: boolean;
-  prometheus: boolean;
+function buildRecommendationInput(params: {
+  workspaceId: string;
+  coverage: { aws: boolean; k8s: boolean; prometheus: boolean };
+  lookbackDays: number;
 }) {
+  const project = getProjectById(params.workspaceId);
+  const resources = buildProjectResources({
+    id: params.workspaceId,
+    name: project?.name ?? "Project",
+    awsRegion: project?.awsRegion ?? AWS_SEOUL_REGION,
+  });
+
+  const byType = {
+    ec2Api: resources.find((resource) => resource.id.endsWith("-ec2-api")) ?? resources[0],
+    ebs: resources.find((resource) => resource.id.endsWith("-ebs")) ?? resources[0],
+    s3: resources.find((resource) => resource.id.endsWith("-s3")) ?? resources[0],
+    rds: resources.find((resource) => resource.id.endsWith("-rds")) ?? resources[0],
+    nat: resources.find((resource) => resource.id.endsWith("-nat")) ?? resources[0],
+    eks: resources.find((resource) => resource.id.endsWith("-eks")) ?? resources[0],
+  };
+
+  const region = project?.awsRegion ?? AWS_SEOUL_REGION;
   const items: Array<{
     domain: RecommendationDomain;
     title: string;
@@ -192,324 +105,173 @@ function buildRecommendationInput(coverage: {
     metrics: Array<{ key: string; value: number; unit: string }>;
   }> = [];
 
-  if (coverage.aws) {
+  if (params.coverage.aws) {
     items.push(
       {
         domain: "compute",
-        title: "EC2 인스턴스 라이트사이징",
+        title: "서울 리전 EC2 API 워크로드 라이트사이징",
         description:
-          "7일 이상 저사용 인스턴스를 t3.medium 클래스 중심으로 다운사이징하여 비용과 낭비율을 동시 절감합니다.",
-        resource: "i-07823ab45c67",
-        saving: 3200000,
-        confidence: 0.98,
+          "서울 리전에서 저사용 API 인스턴스를 한 단계 다운사이징해 월 비용과 낭비율을 함께 줄입니다.",
+        resource: byType.ec2Api.id,
+        saving: Math.round(byType.ec2Api.monthlyCost * 0.34),
+        confidence: 0.96,
         risk: "medium",
-        command:
-          "aws ec2 modify-instance-attribute --instance-id i-07823ab45c67 --instance-type '{\"Value\":\"t3.medium\"}'",
-        rollback:
-          "aws ec2 modify-instance-attribute --instance-id i-07823ab45c67 --instance-type '{\"Value\":\"m5.xlarge\"}'",
-        ruleId: "WA-COST-EC2-RIGHTSIZE-001",
+        command: `aws ec2 modify-instance-attribute --region ${region} --instance-id ${byType.ec2Api.id} --instance-type '{"Value":"m7i.large"}'`,
+        rollback: `aws ec2 modify-instance-attribute --region ${region} --instance-id ${byType.ec2Api.id} --instance-type '{"Value":"m7i.xlarge"}'`,
+        ruleId: "WA-COST-EC2-RIGHTSIZE-SEOUL-001",
         principle: "Well-Architected: Cost Optimization",
         docUrl:
           "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/welcome.html",
         metrics: [
-          { key: "cpu_p95", value: 1.1, unit: "%" },
-          { key: "mem_p95", value: 14.2, unit: "%" },
-        ],
-      },
-      {
-        domain: "compute",
-        title: "배치 워커 스케줄링 최적화",
-        description:
-          "비업무 시간대에 배치 워커 노드를 자동 축소하도록 스케줄 정책을 적용해 컴퓨트 낭비를 줄입니다.",
-        resource: "i-0ff9123aac9d0a1f",
-        saving: 980000,
-        confidence: 0.91,
-        risk: "low",
-        command:
-          "aws autoscaling put-scheduled-update-group-action --auto-scaling-group-name batch-workers --scheduled-action-name scale-down-night --recurrence '0 20 * * 1-5' --desired-capacity 0",
-        rollback:
-          "aws autoscaling delete-scheduled-action --auto-scaling-group-name batch-workers --scheduled-action-name scale-down-night",
-        ruleId: "WA-COST-EC2-SCHEDULE-006",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html",
-        metrics: [
-          { key: "offhour_cpu_avg", value: 3.7, unit: "%" },
-          { key: "offhour_running_hours", value: 224, unit: "h/month" },
+          { key: "cpu_p95", value: byType.ec2Api.cpuUsagePercent ?? 0, unit: "%" },
+          { key: "memory_p95", value: byType.ec2Api.memoryUsagePercent ?? 0, unit: "%" },
         ],
       },
       {
         domain: "storage",
-        title: "EBS gp2 -> gp3 전환",
+        title: "서울 리전 미연결 EBS 정리 및 gp3 표준화",
         description:
-          "미사용 또는 저성능 요구 워크로드의 gp2 볼륨을 gp3로 전환해 저장소 단가를 개선합니다.",
-        resource: "vol-02948bc12e",
-        saving: 45000,
-        confidence: 0.93,
+          "서울 리전의 유휴 볼륨을 정리하고 gp3로 표준화해 즉시 절감 가능한 저장소 비용을 회수합니다.",
+        resource: byType.ebs.id,
+        saving: Math.round(byType.ebs.monthlyCost * 0.82),
+        confidence: 0.94,
         risk: "low",
-        command:
-          "aws ec2 modify-volume --volume-id vol-02948bc12e --volume-type gp3",
-        rollback:
-          "aws ec2 modify-volume --volume-id vol-02948bc12e --volume-type gp2",
-        ruleId: "WA-COST-EBS-TIER-004",
+        command: `aws ec2 modify-volume --region ${region} --volume-id ${byType.ebs.id} --volume-type gp3`,
+        rollback: `aws ec2 modify-volume --region ${region} --volume-id ${byType.ebs.id} --volume-type gp2`,
+        ruleId: "WA-COST-EBS-SEOUL-002",
         principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/general-purpose.html",
-        metrics: [{ key: "volume_utilization", value: 3.2, unit: "%" }],
-      },
-      {
-        domain: "storage",
-        title: "S3 Lifecycle 정책 적용 (Standard -> IA/Glacier)",
-        description:
-          "30일 이상 미접근 객체를 S3 Standard-IA, 90일 이상 객체를 Glacier Instant Retrieval로 자동 전환합니다.",
-        resource: "s3-prod-logs",
-        saving: 640000,
-        confidence: 0.89,
-        risk: "low",
-        command:
-          "aws s3api put-bucket-lifecycle-configuration --bucket s3-prod-logs --lifecycle-configuration file://s3-lifecycle.json",
-        rollback:
-          "aws s3api delete-bucket-lifecycle --bucket s3-prod-logs",
-        ruleId: "WA-COST-S3-LIFECYCLE-003",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html",
-        metrics: [
-          { key: "cold_object_ratio", value: 72, unit: "%" },
-          { key: "avg_object_age", value: 118, unit: "days" },
-        ],
+        docUrl: "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/general-purpose.html",
+        metrics: [{ key: "volume_utilization", value: 4.1, unit: "%" }],
       },
       {
         domain: "database",
-        title: "RDS 예약 인스턴스 전환",
+        title: "서울 리전 Aurora 용량 계획 재조정",
         description:
-          "지속적으로 사용 중인 RDS 워크로드를 1년 RI로 전환해 장기 단가를 낮춥니다.",
-        resource: "db-prod-main",
-        saving: 1450000,
+          "지속 사용 DB는 RI 또는 한 단계 낮은 클래스 검토가 가능하며, 메모리 headroom을 감안해 비용을 절감합니다.",
+        resource: byType.rds.id,
+        saving: Math.round(byType.rds.monthlyCost * 0.22),
         confidence: 0.9,
         risk: "low",
         command:
-          "aws rds purchase-reserved-db-instances-offering --reserved-db-instances-offering-id <offering-id>",
+          "aws rds modify-db-instance --apply-immediately --db-instance-identifier <db-id> --db-instance-class db.r6g.large",
         rollback:
-          "# RI 구매는 취소 불가. 만기 전까지 온디맨드 대비 절감 추적 필요",
-        ruleId: "WA-COST-RDS-RI-002",
+          "aws rds modify-db-instance --apply-immediately --db-instance-identifier <db-id> --db-instance-class db.r6g.xlarge",
+        ruleId: "WA-COST-RDS-SEOUL-003",
         principle: "Well-Architected: Cost Optimization",
         docUrl:
           "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithReservedDBInstances.html",
-        metrics: [{ key: "rds_ondemand_ratio", value: 100, unit: "%" }],
+        metrics: [
+          { key: "cpu_avg", value: byType.rds.cpuUsagePercent ?? 0, unit: "%" },
+          { key: "memory_avg", value: byType.rds.memoryUsagePercent ?? 0, unit: "%" },
+        ],
       },
       {
         domain: "network",
-        title: "NAT Gateway 데이터 전송 최적화",
+        title: "서울 리전 NAT Gateway 트래픽 오프로드",
         description:
-          "대역폭이 큰 ECR/S3 트래픽을 VPC Endpoint로 전환해 NAT Gateway data processing 비용을 절감합니다.",
-        resource: "nat-gw-apne2a-01",
-        saving: 870000,
-        confidence: 0.92,
+          "S3/ECR 트래픽을 Gateway Endpoint로 전환해 서울 리전 NAT Data Processing 비용을 절감합니다.",
+        resource: byType.nat.id,
+        saving: Math.round(byType.nat.monthlyCost * 0.41),
+        confidence: 0.91,
         risk: "medium",
         command:
-          "aws ec2 create-vpc-endpoint --vpc-id <vpc-id> --service-name com.amazonaws.ap-northeast-2.s3 --vpc-endpoint-type Gateway",
-        rollback:
-          "aws ec2 delete-vpc-endpoint --vpc-endpoint-id <vpce-id>",
-        ruleId: "WA-COST-NETWORK-ENDPOINT-008",
+          `aws ec2 create-vpc-endpoint --region ${region} --vpc-id <vpc-id> --service-name com.amazonaws.${region}.s3 --vpc-endpoint-type Gateway`,
+        rollback: `aws ec2 delete-vpc-endpoint --region ${region} --vpc-endpoint-id <vpce-id>`,
+        ruleId: "WA-COST-NETWORK-SEOUL-004",
         principle: "Well-Architected: Cost Optimization",
         docUrl:
           "https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html",
         metrics: [
-          { key: "nat_data_processed", value: 4.2, unit: "TB/month" },
-          { key: "cross_az_traffic_ratio", value: 37, unit: "%" },
+          { key: "nat_data_processed", value: 3.8, unit: "TB/month" },
+          { key: "cross_az_ratio", value: 31, unit: "%" },
         ],
-      },
-      {
-        domain: "network",
-        title: "CloudFront 캐시 오프로드 확대",
-        description:
-          "정적 자산 캐시 정책을 강화해 ALB/EC2 원본 요청을 줄이고 전송비와 컴퓨트 부하를 동시에 낮춥니다.",
-        resource: "cloudfront-prod-main",
-        saving: 390000,
-        confidence: 0.87,
-        risk: "low",
-        command:
-          "aws cloudfront update-distribution --id <distribution-id> --if-match <etag> --distribution-config file://cf-cache-policy.json",
-        rollback:
-          "aws cloudfront update-distribution --id <distribution-id> --if-match <etag> --distribution-config file://cf-cache-policy-prev.json",
-        ruleId: "WA-PERF-CDN-CACHE-012",
-        principle: "Well-Architected: Performance Efficiency",
-        docUrl:
-          "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html",
-        metrics: [
-          { key: "cache_hit_ratio", value: 63, unit: "%" },
-          { key: "origin_req_reduction", value: 41, unit: "%" },
-        ],
-      },
-    );
-  }
-
-  if (coverage.k8s) {
-    items.push(
-      {
-        domain: "eks",
-        title: "K8s Requests/Limits 재조정",
-        description:
-          "실사용 대비 과도한 request/limit 설정을 다운사이징해 노드 과프로비저닝을 완화합니다.",
-        resource: "namespace/prod",
-        saving: 780000,
-        confidence: 0.88,
-        risk: "medium",
-        command:
-          "kubectl set resources deployment api -n prod --requests=cpu=200m,memory=256Mi --limits=cpu=500m,memory=512Mi",
-        rollback:
-          "kubectl rollout undo deployment/api -n prod",
-        ruleId: "WA-PERF-K8S-RIGHTSIZE-011",
-        principle: "Well-Architected: Performance Efficiency",
-        docUrl:
-          "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
-        metrics: [
-          { key: "cpu_request_utilization", value: 22, unit: "%" },
-          { key: "memory_request_utilization", value: 39, unit: "%" },
-        ],
-      },
-      {
-        domain: "eks",
-        title: "EKS 노드그룹 Spot 혼합 전략 적용",
-        description:
-          "온디맨드 위주의 노드그룹을 Spot 혼합으로 전환해 워크로드 안정성을 유지하면서 컴퓨트 비용을 낮춥니다.",
-        resource: "eks-nodegroup-prod-general",
-        saving: 1260000,
-        confidence: 0.84,
-        risk: "medium",
-        command:
-          "eksctl create nodegroup --cluster prod --name prod-spot-mix --spot --instance-types m5.large,m5a.large,m4.large --nodes 3",
-        rollback:
-          "eksctl delete nodegroup --cluster prod --name prod-spot-mix",
-        ruleId: "WA-COST-EKS-SPOT-014",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/eks/latest/userguide/managed-node-groups.html",
-        metrics: [
-          { key: "spot_eligible_workload_ratio", value: 58, unit: "%" },
-          { key: "on_demand_node_ratio", value: 100, unit: "%" },
-        ],
-      },
-    );
-  }
-
-  if (coverage.prometheus) {
-    items.push(
-      {
-        domain: "finops",
-        title: "Prometheus 기반 유휴 리소스 자동 태깅",
-        description:
-          "장기간 유휴 지표가 관측된 리소스를 자동 태깅해 정리 후보군과 승인 워크플로를 연결합니다.",
-        resource: "prometheus/ruleset/idle-resource",
-        saving: 520000,
-        confidence: 0.86,
-        risk: "low",
-        command:
-          "kubectl apply -f finops-idle-rule.yaml",
-        rollback:
-          "kubectl delete -f finops-idle-rule.yaml",
-        ruleId: "WA-OPS-OBSERVABILITY-017",
-        principle: "Well-Architected: Operational Excellence",
-        docUrl:
-          "https://aws.amazon.com/architecture/well-architected/",
-        metrics: [{ key: "idle_candidates", value: 14, unit: "count" }],
-      },
-      {
-        domain: "finops",
-        title: "에러율 기반 과다 프로비저닝 자동 스케일백",
-        description:
-          "에러율/지연시간이 안정 범위일 때 과도한 replica를 자동으로 축소해 비용을 줄입니다.",
-        resource: "prometheus/alert/scaleback",
-        saving: 430000,
-        confidence: 0.82,
-        risk: "medium",
-        command:
-          "kubectl apply -f hpa-cost-optimized.yaml",
-        rollback:
-          "kubectl apply -f hpa-default.yaml",
-        ruleId: "WA-FINOPS-AUTOSCALE-021",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
-        metrics: [
-          { key: "error_rate_p95", value: 0.07, unit: "%" },
-          { key: "latency_p95", value: 213, unit: "ms" },
-        ],
-      },
-    );
-  }
-
-  if (!coverage.aws && !coverage.k8s && !coverage.prometheus) {
-    items.push(
-      {
-        domain: "finops",
-        title: "데이터 소스 연동 우선",
-        description:
-          "분석 정확도를 위해 AWS/K8s/Prometheus 연동을 먼저 완료해야 합니다.",
-        resource: "integration",
-        saving: 0,
-        confidence: 0.35,
-        risk: "low",
-        command: "# /integrations 페이지에서 데이터 소스를 연결하세요",
-        rollback: "# 해당 없음",
-        ruleId: "WA-DATA-COVERAGE-000",
-        principle: "Data Coverage Baseline",
-        docUrl: "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html",
-        metrics: [{ key: "coverage", value: 0, unit: "%" }],
       },
       {
         domain: "storage",
-        title: "S3 수명주기 템플릿 적용 (예시)",
+        title: "S3 로그 버킷 Lifecycle 최적화",
         description:
-          "샘플 템플릿 기준으로 오래된 객체를 IA/Glacier로 전환하는 정책입니다. 실제 데이터 분석 전 가이드 전용 권고입니다.",
-        resource: "s3-template",
-        saving: 380000,
-        confidence: 0.46,
+          "서울 리전 로그 버킷에 Lifecycle 정책을 적용해 Standard-IA 및 Glacier로 자동 이관합니다.",
+        resource: byType.s3.id,
+        saving: Math.round(byType.s3.monthlyCost * 0.36),
+        confidence: 0.88,
         risk: "low",
-        command: "# 샘플 정책: s3-lifecycle-template.json 적용",
-        rollback: "# 샘플 정책 제거",
-        ruleId: "DEMO-WA-S3-LIFECYCLE-001",
+        command: `aws s3api put-bucket-lifecycle-configuration --region ${region} --bucket ${byType.s3.name.toLowerCase()} --lifecycle-configuration file://s3-lifecycle.json`,
+        rollback: `aws s3api delete-bucket-lifecycle --region ${region} --bucket ${byType.s3.name.toLowerCase()}`,
+        ruleId: "WA-COST-S3-SEOUL-005",
         principle: "Well-Architected: Cost Optimization",
         docUrl:
           "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html",
-        metrics: [{ key: "template_coverage", value: 100, unit: "%" }],
-      },
-      {
-        domain: "compute",
-        title: "EC2 라이트사이징 템플릿 (예시)",
-        description:
-          "CPU/메모리 저사용 패턴 인스턴스를 기준 크기로 자동 추천하는 템플릿입니다. 실제 연동 후 수치가 보정됩니다.",
-        resource: "ec2-template",
-        saving: 1120000,
-        confidence: 0.44,
-        risk: "medium",
-        command: "# 샘플 명령: aws ec2 modify-instance-attribute ...",
-        rollback: "# 샘플 롤백: 원본 타입 복원",
-        ruleId: "DEMO-WA-EC2-RIGHTSIZE-002",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/welcome.html",
-        metrics: [{ key: "template_candidates", value: 24, unit: "count" }],
-      },
-      {
-        domain: "network",
-        title: "NAT 비용 절감 템플릿 (예시)",
-        description:
-          "S3/ECR VPC Endpoint 전환으로 NAT Data Processing을 줄이는 모범사례 템플릿입니다.",
-        resource: "network-template",
-        saving: 760000,
-        confidence: 0.43,
-        risk: "medium",
-        command: "# 샘플 명령: aws ec2 create-vpc-endpoint ...",
-        rollback: "# 샘플 롤백: 생성한 endpoint 삭제",
-        ruleId: "DEMO-WA-NETWORK-ENDPOINT-003",
-        principle: "Well-Architected: Cost Optimization",
-        docUrl:
-          "https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html",
-        metrics: [{ key: "template_nat_monthly_gb", value: 3200, unit: "GB" }],
+        metrics: [
+          { key: "cold_object_ratio", value: 69, unit: "%" },
+          { key: "avg_object_age", value: params.lookbackDays + 42, unit: "days" },
+        ],
       },
     );
+  }
+
+  if (params.coverage.k8s) {
+    items.push({
+      domain: "eks",
+      title: "EKS 노드그룹 요청/제한 재조정",
+      description:
+        "서울 리전 EKS 워크로드의 requests/limits를 실제 사용량 기준으로 조정해 노드 과할당을 완화합니다.",
+      resource: byType.eks.id,
+      saving: Math.round(byType.eks.monthlyCost * 0.19),
+      confidence: 0.86,
+      risk: "medium",
+      command:
+        "kubectl set resources deployment api -n prod --requests=cpu=250m,memory=384Mi --limits=cpu=700m,memory=768Mi",
+      rollback: "kubectl rollout undo deployment/api -n prod",
+      ruleId: "WA-EKS-SEOUL-006",
+      principle: "Well-Architected: Performance Efficiency",
+      docUrl:
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+      metrics: [
+        { key: "cpu_request_utilization", value: 29, unit: "%" },
+        { key: "memory_request_utilization", value: 44, unit: "%" },
+      ],
+    });
+  }
+
+  if (params.coverage.prometheus) {
+    items.push({
+      domain: "finops",
+      title: "Prometheus 기반 유휴 리소스 자동 태깅",
+      description:
+        "Prometheus 지표 기반으로 장기간 유휴 리소스를 태깅해 승인 전용 절감 후보군을 자동 분류합니다.",
+      resource: "prometheus/idleness-policy",
+      saving: Math.round((byType.ec2Api.monthlyCost + byType.eks.monthlyCost) * 0.09),
+      confidence: 0.84,
+      risk: "low",
+      command: "kubectl apply -f finops-idle-rule.yaml",
+      rollback: "kubectl delete -f finops-idle-rule.yaml",
+      ruleId: "WA-PROM-SEOUL-007",
+      principle: "Well-Architected: Operational Excellence",
+      docUrl: "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+      metrics: [
+        { key: "idle_candidates", value: 7, unit: "count" },
+        { key: "latency_p95", value: 173, unit: "ms" },
+      ],
+    });
+  }
+
+  if (!params.coverage.aws && !params.coverage.k8s && !params.coverage.prometheus) {
+    items.push({
+      domain: "finops",
+      title: "AWS/Prometheus/K8s 연동 우선",
+      description:
+        "실제 프로젝트별 비용과 인프라 분석을 위해 서울 리전 AWS, Prometheus, Kubernetes 연동을 먼저 완료해야 합니다.",
+      resource: "integration",
+      saving: 0,
+      confidence: 0.35,
+      risk: "low",
+      command: "# 설정에서 AWS 서울 리전 및 Prometheus/Kubernetes 연동을 먼저 등록하세요",
+      rollback: "# 해당 없음",
+      ruleId: "WA-DATA-COVERAGE-000",
+      principle: "Data Coverage Baseline",
+      docUrl: "https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html",
+      metrics: [{ key: "coverage", value: 0, unit: "%" }],
+    });
   }
 
   return items;
@@ -586,8 +348,7 @@ function calculateScoreBreakdown(
             : 2;
 
     const confidencePenalty = Math.round((1 - recommendation.confidenceScore) * 4);
-    const rawDeduction = riskWeight + confidencePenalty;
-    const deduction = Math.min(8, rawDeduction);
+    const deduction = Math.min(8, riskWeight + confidencePenalty);
 
     pillar.deduction += deduction;
     pillar.score = Math.max(0, pillar.score - deduction);
@@ -601,10 +362,7 @@ function calculateScoreBreakdown(
 
   const totalScore = Math.max(
     0,
-    Math.min(
-      100,
-      Math.round(pillars.reduce((acc, pillar) => acc + pillar.score, 0)),
-    ),
+    Math.min(100, Math.round(pillars.reduce((acc, pillar) => acc + pillar.score, 0))),
   );
 
   let grade: ScoreBreakdown["grade"] = "F";
@@ -631,18 +389,28 @@ function calculateScoreBreakdown(
 export function runAnalysis(params?: {
   lookbackDays?: number;
   triggeredBy?: AnalysisSnapshot["triggeredBy"];
+  workspaceId?: string;
 }): AnalysisSnapshot {
   const store = getStore();
+  const workspaceId = params?.workspaceId ?? store.workspaceId;
+  const project = getProjectById(workspaceId);
   const now = nowIso();
   const lookbackDays = params?.lookbackDays ?? 30;
   const periodEndDate = new Date();
   const periodStartDate = new Date(periodEndDate);
   periodStartDate.setDate(periodEndDate.getDate() - lookbackDays);
 
-  const coverage = getCoverage();
-  const resources = buildResources();
-
-  const recommendationInput = buildRecommendationInput(coverage);
+  const coverage = getCoverage(workspaceId);
+  const resources = buildProjectResources({
+    id: workspaceId,
+    name: project?.name ?? "Project",
+    awsRegion: project?.awsRegion ?? AWS_SEOUL_REGION,
+  });
+  const recommendationInput = buildRecommendationInput({
+    workspaceId,
+    coverage,
+    lookbackDays,
+  });
   const analysisId = createId("analysis");
 
   const recommendations: Recommendation[] = recommendationInput.map((item) => {
@@ -650,6 +418,7 @@ export function runAnalysis(params?: {
     return {
       id: createId("rec"),
       analysisId,
+      workspaceId,
       domain: item.domain,
       title: item.title,
       description: item.description,
@@ -662,7 +431,7 @@ export function runAnalysis(params?: {
       commandSnippet: item.command,
       rollbackSnippet: item.rollback,
       evidence: {
-        summary: `${lookbackDays}일 관측 구간에서 수집된 메트릭을 기반으로 계산되었습니다.`,
+        summary: `${lookbackDays}일 관측 구간에서 수집된 서울 리전 메트릭을 기반으로 계산되었습니다.`,
         lookbackDays,
         metrics: item.metrics,
       },
@@ -670,7 +439,7 @@ export function runAnalysis(params?: {
         ruleId: item.ruleId,
         principleName: item.principle,
         awsDocUrl: item.docUrl,
-        ruleVersion: "2026.02",
+        ruleVersion: "2026.03",
       },
       createdAt: now,
       updatedAt: now,
@@ -682,13 +451,12 @@ export function runAnalysis(params?: {
     (acc, recommendation) => acc + recommendation.estMonthlySaving,
     0,
   );
-
-  const wasteCost = Math.round(totalMonthlyCost * 0.372);
+  const wasteCost = Math.round(totalMonthlyCost * 0.294);
   const score = calculateScoreBreakdown(recommendations, coverage, lookbackDays);
 
   const snapshot: AnalysisSnapshot = {
     id: analysisId,
-    workspaceId: store.workspaceId,
+    workspaceId,
     triggeredBy: params?.triggeredBy ?? "manual",
     status: "completed",
     createdAt: now,
@@ -697,6 +465,7 @@ export function runAnalysis(params?: {
     lookbackDays,
     periodStart: periodStartDate.toISOString(),
     periodEnd: periodEndDate.toISOString(),
+    awsRegion: project?.awsRegion ?? AWS_SEOUL_REGION,
     sourceCoverage: coverage,
     totalMonthlyCost,
     wasteCost,
@@ -705,10 +474,10 @@ export function runAnalysis(params?: {
     score,
     recommendationIds: recommendations.map((recommendation) => recommendation.id),
     resources,
+    costBreakdown: buildCostBreakdown(resources),
     warnings: [
-      ...(!coverage.aws
-        ? ["AWS 연동이 없어 비용 데이터 신뢰도가 낮습니다."]
-        : []),
+      `비용 분석은 AWS 서울 리전(${project?.awsRegion ?? AWS_SEOUL_REGION}) 기준입니다.`,
+      ...(!coverage.aws ? ["AWS 연동이 없어 비용 데이터 신뢰도가 낮습니다."] : []),
       ...(!coverage.k8s
         ? ["Kubernetes 연동이 없어 컨테이너 레벨 최적화 분석이 제한됩니다."]
         : []),
@@ -724,23 +493,21 @@ export function runAnalysis(params?: {
       (recommendation) => recommendation.analysisId !== analysisId,
     ),
   ];
-
   store.analyses.unshift(snapshot);
 
   addNotification({
-    workspaceId: store.workspaceId,
+    workspaceId,
     severity: "info",
-    title: "분석이 완료되었습니다",
-    body: `${score.totalScore}점 (${score.grade}) · 월 절감 예상 ${potentialMonthlySaving.toLocaleString("ko-KR")}원`,
+    title: "프로젝트 비용 분석이 완료되었습니다",
+    body: `${project?.name ?? "프로젝트"} · ${score.totalScore}점 (${score.grade}) · 월 절감 예상 ${potentialMonthlySaving.toLocaleString("ko-KR")}원`,
   });
 
   const criticalCount = recommendations.filter(
     (recommendation) => recommendation.riskLevel === "critical",
   ).length;
-
   if (criticalCount > 0) {
     addNotification({
-      workspaceId: store.workspaceId,
+      workspaceId,
       severity: "critical",
       title: "Critical 권고가 감지되었습니다",
       body: `즉시 검토가 필요한 권고 ${criticalCount}건`,
@@ -756,10 +523,13 @@ export function approveRecommendation(params: {
   actor: string;
   action: "approved" | "rejected";
   note?: string;
+  workspaceId?: string;
 }): { recommendation: Recommendation; log: ApprovalLog } | null {
   const store = getStore();
   const recommendation = store.recommendations.find(
-    (item) => item.id === params.recommendationId,
+    (item) =>
+      item.id === params.recommendationId &&
+      (params.workspaceId ? item.workspaceId === params.workspaceId : true),
   );
 
   if (!recommendation) return null;
@@ -769,6 +539,7 @@ export function approveRecommendation(params: {
 
   const log: ApprovalLog = {
     id: createId("approval"),
+    workspaceId: recommendation.workspaceId,
     recommendationId: recommendation.id,
     actor: params.actor,
     action: params.action,
@@ -779,7 +550,7 @@ export function approveRecommendation(params: {
   store.approvals.unshift(log);
 
   addNotification({
-    workspaceId: store.workspaceId,
+    workspaceId: recommendation.workspaceId,
     severity: params.action === "approved" ? "info" : "warning",
     title:
       params.action === "approved"

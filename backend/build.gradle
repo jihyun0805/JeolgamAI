@@ -20,14 +20,18 @@ repositories {
 
 ext {
 	set('springCloudVersion', "2025.0.1")
+	set('springAiVersion', "1.1.2")
+	set('awsSdkVersion', "2.31.63")
 }
 
 dependencies {
+	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -54,10 +58,19 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
+	// AWS SDK
+	implementation 'software.amazon.awssdk:auth'
+	implementation 'software.amazon.awssdk:sts'
+	implementation 'software.amazon.awssdk:ec2'
+	implementation 'software.amazon.awssdk:rds'
+	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:costexplorer'
+
 }
 
 dependencyManagement {
 	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
 		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
 	}
 }

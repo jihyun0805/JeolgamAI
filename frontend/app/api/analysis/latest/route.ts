@@ -1,32 +1,25 @@
 import { ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
-import {
-  getLatestAnalysis,
-  getRecommendationsByAnalysis,
-  getStore,
-} from "@/lib/store";
+import { requireBackendSession } from "@/lib/auth";
+import { getBackendJson } from "@/lib/backend-client";
+import { getProjectById } from "@/lib/store";
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
-  const store = getStore();
-  const latest = getLatestAnalysis();
-
-  if (!latest) {
-    return ok({
-      workspaceId: store.workspaceId,
-      analysis: null,
-      recommendations: [],
-    });
-  }
-
-  const recommendations = getRecommendationsByAnalysis(latest.id);
-
-  return ok({
-    workspaceId: store.workspaceId,
-    analysis: latest,
-    recommendations,
-    notifications: store.notifications.slice(0, 10),
-  });
+  const project = getProjectById(auth.session.workspaceId);
+  const data = await getBackendJson<{
+    workspaceId: string;
+    project: unknown;
+    analysis: unknown;
+    recommendations: unknown[];
+  }>(
+    `/api/optimization/analysis/latest?workspaceId=${encodeURIComponent(
+      auth.session.workspaceId,
+    )}&projectName=${encodeURIComponent(project?.name ?? "")}&awsRegion=${encodeURIComponent(
+      project?.awsRegion ?? "",
+    )}`,
+    { accessToken: auth.session.backendAccessToken },
+  );
+  return ok(data);
 }

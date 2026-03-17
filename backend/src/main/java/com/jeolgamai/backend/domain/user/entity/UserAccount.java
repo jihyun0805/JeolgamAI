@@ -26,6 +26,9 @@ public class UserAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "login_id", nullable = false, unique = true, length = 50)
+    private String loginId;
+
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
@@ -41,7 +44,8 @@ public class UserAccount {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public UserAccount(String email, String passwordHash, String name) {
+    public UserAccount(String loginId, String email, String passwordHash, String name) {
+        this.loginId = loginId;
         this.email = email;
         this.passwordHash = passwordHash;
         this.name = name;

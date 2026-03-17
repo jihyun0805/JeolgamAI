@@ -1,6 +1,5 @@
 package com.jeolgamai.backend.domain.auth.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -14,8 +13,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class SignUpRequest {
 
-    @Email
     @NotBlank
+    @Size(min = 3, max = 50)
+    private String loginId;
+
     private String email;
 
     @NotBlank

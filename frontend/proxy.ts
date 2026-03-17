@@ -5,6 +5,8 @@ const SESSION_COOKIE_NAME = "jeolgamai_session";
 const PROTECTED_PATH_PREFIXES = [
   "/dashboard",
   "/analysis",
+  "/infrastructure",
+  "/prometheus",
   "/reports",
   "/execution-guide",
   "/integrations",
@@ -50,6 +52,8 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/analysis/:path*",
+    "/infrastructure/:path*",
+    "/prometheus/:path*",
     "/reports/:path*",
     "/execution-guide/:path*",
     "/integrations/:path*",

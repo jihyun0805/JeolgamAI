@@ -30,13 +30,14 @@ public class JwtTokenProvider {
         signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(Long userId, String email) {
+    public String generateToken(Long userId, String email, String loginId) {
         Instant now = Instant.now();
         Instant expiry = now.plusSeconds(jwtProperties.getExpirationSeconds());
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
+                .claim("loginId", loginId)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
                 .signWith(signingKey)

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import UserProfileChip from "@/app/components/user-profile-chip";
 
 type SidebarIconName =
@@ -9,7 +12,8 @@ type SidebarIconName =
   | "description"
   | "list_alt"
   | "settings"
-  | "person";
+  | "person"
+  | "cloud";
 
 function SidebarIcon({
   name,
@@ -107,6 +111,12 @@ function SidebarIcon({
           <path d="M5 20a7 7 0 0 1 14 0" />
         </svg>
       );
+    case "cloud":
+      return (
+        <svg {...baseProps}>
+          <path d="M7 18.5h9.5a3.5 3.5 0 1 0-.5-7 5 5 0 0 0-9.7-1.3A3.8 3.8 0 0 0 7 18.5Z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -115,7 +125,10 @@ function SidebarIcon({
 type SidebarKey =
   | "dashboard"
   | "analysis"
-  | "infra_map"
+  | "prometheus"
+  | "aws_infra"
+  | "k8s_infra"
+  | "infrastructure"
   | "chat"
   | "reports"
   | "ops"
@@ -127,6 +140,7 @@ const menuItems: Array<{
   href: string;
   label: string;
   icon: SidebarIconName;
+  coverageKey?: "aws" | "k8s" | "prometheus";
 }> = [
   { key: "dashboard", href: "/dashboard", label: "대시보드", icon: "dashboard" },
   {
@@ -136,18 +150,83 @@ const menuItems: Array<{
     icon: "monitoring",
   },
   {
-    key: "infra_map",
-    href: "/analysis/infra-map",
-    label: "인프라 맵",
+    key: "prometheus",
+    href: "/prometheus",
+    label: "Prometheus",
+    icon: "query_stats",
+    coverageKey: "prometheus",
+  },
+  {
+    key: "aws_infra",
+    href: "/infrastructure/aws",
+    label: "AWS 인프라",
+    icon: "cloud",
+    coverageKey: "aws",
+  },
+  {
+    key: "k8s_infra",
+    href: "/infrastructure/k8s",
+    label: "K8s 인프라",
     icon: "list_alt",
+    coverageKey: "k8s",
   },
   { key: "chat", href: "/ai-optimization", label: "AI 최적화", icon: "auto_awesome" },
   { key: "reports", href: "/reports/new", label: "리포트", icon: "description" },
   { key: "ops", href: "/admin/ops", label: "운영 로그", icon: "settings" },
 ];
 
+interface SessionPayload {
+  name: string;
+  role: string;
+  activeProject?: {
+    name: string;
+  } | null;
+}
+
+interface CoveragePayload {
+  aws: boolean;
+  k8s: boolean;
+  prometheus: boolean;
+}
+
 export default function MainSidebar({ active }: { active: SidebarKey }) {
+  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [coverage, setCoverage] = useState<CoveragePayload>({
+    aws: false,
+    k8s: false,
+    prometheus: false,
+  });
   const isSettingsActive = active === "integrations";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+      const [sessionResponse, integrationResponse] = await Promise.all([
+        fetch("/api/auth/session", { cache: "no-store" }),
+        fetch("/api/integrations", { cache: "no-store" }),
+      ]);
+
+      if (sessionResponse.ok) {
+        const payload = await sessionResponse.json();
+        if (payload?.ok && payload?.data && !cancelled) {
+          setSession(payload.data as SessionPayload);
+        }
+      }
+
+      if (integrationResponse.ok) {
+        const payload = await integrationResponse.json();
+        if (payload?.ok && payload?.data?.coverage && !cancelled) {
+          setCoverage(payload.data.coverage as CoveragePayload);
+        }
+      }
+    }
+
+    loadSession().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0B0E14] md:flex">
@@ -164,14 +243,31 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
       <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
         {menuItems.map((item) => {
           const isActive = item.key === active;
+          const isDisabled = item.coverageKey ? !coverage[item.coverageKey] : false;
+          const className = `flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+            isActive
+              ? "bg-[#1c59f2]/10 text-[#1c59f2]"
+              : isDisabled
+                ? "cursor-not-allowed text-slate-400 opacity-55 dark:text-slate-600"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          }`;
+
+          if (isDisabled) {
+            return (
+              <div key={item.key} className={className} aria-disabled="true">
+                <SidebarIcon name={item.icon} className="h-5 w-5" />
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
+                  <span className="text-[10px] font-bold uppercase">연동 필요</span>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.key}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
-                isActive
-                  ? "bg-[#1c59f2]/10 text-[#1c59f2]"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              }`}
+              className={className}
               href={item.href}
             >
               <SidebarIcon name={item.icon} className="h-5 w-5" />
@@ -195,8 +291,8 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
         </Link>
         <div className="mt-2 rounded-xl bg-slate-100 px-3 py-2.5 dark:bg-slate-800/50">
           <UserProfileChip
-            userName="Admin User"
-            userRole="Pro Plan"
+            userName={session?.name ?? "Protected User"}
+            userRole={session?.activeProject?.name ?? session?.role ?? "Project Scoped"}
             variant="sidebar"
           />
         </div>
