@@ -864,6 +864,7 @@ export default function K8sInfrastructurePage() {
   const [showAllNamespaces, setShowAllNamespaces] = useState(false);
   const [workloadSearch, setWorkloadSearch] = useState("");
   const [topologyZoom, setTopologyZoom] = useState(0.85);
+  const [topologyPage, setTopologyPage] = useState(0);
   const [selectedResource, setSelectedResource] = useState<SidebarResource | null>(null);
 
   function getFitTopologyZoom() {
@@ -972,6 +973,7 @@ export default function K8sInfrastructurePage() {
 
   useEffect(() => {
     setSelectedResource(null);
+    setTopologyPage(0);
   }, [selectedNamespace, workloadSearch]);
 
   useEffect(() => {
@@ -1170,8 +1172,33 @@ export default function K8sInfrastructurePage() {
                 />
               </div>
 
-              <div className="mt-6 space-y-5">
-                {filteredDeployments.map((deployment) => {
+              {/* pagination controls */}
+              {filteredDeployments.length > 1 && (
+                <div className="mt-5 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setTopologyPage((p) => Math.max(0, p - 1))}
+                    disabled={topologyPage === 0}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    ← 이전
+                  </button>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {topologyPage + 1} / {filteredDeployments.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTopologyPage((p) => Math.min(filteredDeployments.length - 1, p + 1))}
+                    disabled={topologyPage === filteredDeployments.length - 1}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    다음 →
+                  </button>
+                </div>
+              )}
+
+              <div className="mt-5">
+                {filteredDeployments.slice(topologyPage, topologyPage + 1).map((deployment) => {
                       const deploymentServices = namespaceServices.filter((service) => {
                         return (
                           selectorMatches(service.selector, deployment.selector) ||
@@ -1672,12 +1699,11 @@ export default function K8sInfrastructurePage() {
                         </div>
                       );
                     })}
-
-                    {!filteredDeployments.length ? (
+                    {!filteredDeployments.length && (
                       <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-400">
                         현재 필터에서 보여줄 deployment가 없습니다.
                       </div>
-                    ) : null}
+                    )}
               </div>
             </section>
 
