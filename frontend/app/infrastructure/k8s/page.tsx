@@ -272,7 +272,7 @@ function getTopologyCanvasHeight(rows: number) {
 }
 
 function clampTopologyZoom(value: number) {
-  return Math.min(1.6, Math.max(0.35, Number(value.toFixed(2))));
+  return Math.min(2.0, Math.max(0.15, Number(value.toFixed(2))));
 }
 
 function getTopologyRowTop(rowIndex: number) {
@@ -857,6 +857,7 @@ function ResourceDetailSidebar({
 export default function K8sInfrastructurePage() {
   const topologyViewportRef = useRef<HTMLDivElement | null>(null);
   const topologyDragRef = useRef<{ active: boolean; startX: number; startY: number; scrollLeft: number; scrollTop: number }>({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
+  const userZoomedRef = useRef(false);
   const [data, setData] = useState<K8sInfrastructurePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -982,13 +983,16 @@ export default function K8sInfrastructurePage() {
   }, [namespaceSearch]);
 
   useEffect(() => {
+    userZoomedRef.current = false;
     setTopologyZoom(getFitTopologyZoom());
 
     const viewport = topologyViewportRef.current;
     if (!viewport) return;
 
     const observer = new ResizeObserver(() => {
-      setTopologyZoom(getFitTopologyZoom());
+      if (!userZoomedRef.current) {
+        setTopologyZoom(getFitTopologyZoom());
+      }
     });
     observer.observe(viewport);
 
@@ -1401,7 +1405,7 @@ export default function K8sInfrastructurePage() {
                             <button
                               type="button"
                               aria-label="축소"
-                              onClick={() => setTopologyZoom((v) => clampTopologyZoom(+(v - 0.15).toFixed(2)))}
+                              onClick={() => { userZoomedRef.current = true; setTopologyZoom((v) => clampTopologyZoom(+(v - 0.15).toFixed(2))); }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
                             >
                               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -1414,7 +1418,7 @@ export default function K8sInfrastructurePage() {
                             <button
                               type="button"
                               aria-label="확대"
-                              onClick={() => setTopologyZoom((v) => clampTopologyZoom(+(v + 0.15).toFixed(2)))}
+                              onClick={() => { userZoomedRef.current = true; setTopologyZoom((v) => clampTopologyZoom(+(v + 0.15).toFixed(2))); }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
                             >
                               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -1425,7 +1429,7 @@ export default function K8sInfrastructurePage() {
                             <button
                               type="button"
                               aria-label="화면 맞춤"
-                              onClick={() => setTopologyZoom(getFitTopologyZoom())}
+                              onClick={() => { userZoomedRef.current = false; setTopologyZoom(getFitTopologyZoom()); }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
                             >
                               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -1441,6 +1445,7 @@ export default function K8sInfrastructurePage() {
                             onWheel={(e) => {
                               if (!e.ctrlKey && !e.metaKey) return;
                               e.preventDefault();
+                              userZoomedRef.current = true;
                               setTopologyZoom((v) => clampTopologyZoom(+(v - e.deltaY * 0.001).toFixed(2)));
                             }}
                             onPointerDown={(e) => {
