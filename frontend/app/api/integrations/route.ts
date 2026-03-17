@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import { getIntegrations, getProjectById } from "@/lib/store";
 
@@ -11,7 +11,7 @@ interface BackendConnectorStatus {
 }
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const integrations = getIntegrations(auth.session.workspaceId);
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   try {
     const status = await getBackendJson<BackendConnectorStatus>(
       `/api/integrations/connectors/status?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     backendCoverage = {
       aws: Boolean(status.aws),

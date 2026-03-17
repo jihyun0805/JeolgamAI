@@ -10,12 +10,20 @@ type SeriesPoint = {
 };
 
 type RangePreset = "6h" | "24h" | "7d" | "30d" | "custom";
+type RefreshPreset = "off" | "15s" | "30s" | "1m" | "5m";
 
 const RANGE_PRESET_OPTIONS: Array<{ key: Exclude<RangePreset, "custom">; label: string; hours: number }> = [
   { key: "6h", label: "최근 6시간", hours: 6 },
   { key: "24h", label: "최근 24시간", hours: 24 },
   { key: "7d", label: "최근 7일", hours: 24 * 7 },
   { key: "30d", label: "최근 30일", hours: 24 * 30 },
+];
+const REFRESH_OPTIONS: Array<{ key: RefreshPreset; label: string; ms: number | null }> = [
+  { key: "off", label: "끄기", ms: null },
+  { key: "15s", label: "15초", ms: 15_000 },
+  { key: "30s", label: "30초", ms: 30_000 },
+  { key: "1m", label: "1분", ms: 60_000 },
+  { key: "5m", label: "5분", ms: 300_000 },
 ];
 
 interface PrometheusPayload {
@@ -221,16 +229,56 @@ function MetricTable({
   points: SeriesPoint[];
   unit: "percent" | "ms";
 }) {
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil(points.length / pageSize));
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [points]);
+
   if (points.length === 0) {
     return null;
   }
 
+  const currentPage = Math.min(page, totalPages);
+  const pagedPoints = points.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-      <table className="min-w-full divide-y divide-slate-200 text-xs dark:divide-slate-800">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-[#0F141C]">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          {points.length}개 포인트 중 {pagedPoints.length}개 표시
+        </p>
+        {totalPages > 1 ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              disabled={currentPage === 1}
+              className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+            >
+              이전
+            </button>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+            >
+              다음
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-xs dark:divide-slate-800">
         <thead className="bg-slate-50 dark:bg-[#0F141C]">
           <tr>
-            {points.map((point) => (
+            {pagedPoints.map((point) => (
               <th
                 key={`head-${point.label}`}
                 className="px-3 py-2 text-left font-semibold whitespace-nowrap text-slate-500 dark:text-slate-400"
@@ -242,7 +290,7 @@ function MetricTable({
         </thead>
         <tbody>
           <tr className="bg-white dark:bg-[#161B22]">
-            {points.map((point) => (
+            {pagedPoints.map((point) => (
               <td
                 key={`value-${point.label}`}
                 className="px-3 py-2 font-semibold whitespace-nowrap text-slate-700 dark:text-slate-200"
@@ -252,7 +300,8 @@ function MetricTable({
             ))}
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -292,14 +341,17 @@ export default function PrometheusPage() {
   const defaultRange = buildPresetRange("24h");
   const [data, setData] = useState<PrometheusPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedPreset, setSelectedPreset] = useState<RangePreset>("24h");
+  const [refreshPreset, setRefreshPreset] = useState<RefreshPreset>("30s");
   const [appliedRange, setAppliedRange] = useState({
     from: defaultRange.fromIso,
     to: defaultRange.toIso,
   });
   const [customFrom, setCustomFrom] = useState(defaultRange.fromInput);
   const [customTo, setCustomTo] = useState(defaultRange.toInput);
+  const [refreshTick, setRefreshTick] = useState(0);
   const warnings = data?.overview.warnings ?? [];
   const latencyUnavailable = hasMetricWarning(warnings, "latency");
   const errorRateUnavailable = hasMetricWarning(warnings, "error_rate");
@@ -308,8 +360,14 @@ export default function PrometheusPage() {
     let cancelled = false;
 
     async function loadOverview() {
-      setLoading(true);
-      setError("");
+      if (!cancelled) {
+        if (data) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+        setError("");
+      }
       try {
         const params = new URLSearchParams({
           from: appliedRange.from,
@@ -335,6 +393,7 @@ export default function PrometheusPage() {
       } finally {
         if (!cancelled) {
           setLoading(false);
+          setRefreshing(false);
         }
       }
     }
@@ -343,7 +402,31 @@ export default function PrometheusPage() {
     return () => {
       cancelled = true;
     };
-  }, [appliedRange.from, appliedRange.to]);
+  }, [appliedRange.from, appliedRange.to, refreshTick]);
+
+  useEffect(() => {
+    const selected = REFRESH_OPTIONS.find((option) => option.key === refreshPreset);
+    if (!selected?.ms) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (selectedPreset === "custom") {
+        setRefreshTick((value) => value + 1);
+        return;
+      }
+
+      const nextRange = buildPresetRange(selectedPreset);
+      setAppliedRange({
+        from: nextRange.fromIso,
+        to: nextRange.toIso,
+      });
+      setCustomFrom(nextRange.fromInput);
+      setCustomTo(nextRange.toInput);
+    }, selected.ms);
+
+    return () => window.clearInterval(intervalId);
+  }, [refreshPreset, selectedPreset]);
 
   function applyPresetRange(preset: Exclude<RangePreset, "custom">) {
     const nextRange = buildPresetRange(preset);
@@ -411,6 +494,10 @@ export default function PrometheusPage() {
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 조회 기간: {formatRangeText(data?.overview.timeRange?.from, data?.overview.timeRange?.to)}
               </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                자동 새로고침: {REFRESH_OPTIONS.find((option) => option.key === refreshPreset)?.label}
+                {refreshing ? " · 갱신 중" : ""}
+              </p>
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
@@ -440,7 +527,21 @@ export default function PrometheusPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto] xl:grid-cols-[auto_1fr_1fr_auto]">
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    자동 갱신
+                    <select
+                      value={refreshPreset}
+                      onChange={(event) => setRefreshPreset(event.target.value as RefreshPreset)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#0F141C] dark:text-slate-100"
+                    >
+                      {REFRESH_OPTIONS.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                     시작 시각
                     <input

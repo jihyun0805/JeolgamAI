@@ -6,47 +6,56 @@ interface BackendEnvelope<T> {
 }
 
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:8081";
-const DEFAULT_BACKEND_BASIC_USERNAME = "jeolgamai_local";
-const DEFAULT_BACKEND_BASIC_PASSWORD = "jeolgamai-local-dev-only";
 
-function getBackendBaseUrl(): string {
+export function getBackendBaseUrl(): string {
   return process.env.BACKEND_BASE_URL?.trim() || DEFAULT_BACKEND_BASE_URL;
 }
 
-function buildBackendAuthHeader(): string {
-  const username =
-    process.env.BACKEND_BASIC_USERNAME?.trim() || DEFAULT_BACKEND_BASIC_USERNAME;
-  const password =
-    process.env.BACKEND_BASIC_PASSWORD?.trim() || DEFAULT_BACKEND_BASIC_PASSWORD;
-  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+interface BackendRequestOptions {
+  accessToken?: string;
 }
 
 export async function postBackendJson<TResponse>(
   path: string,
   body: object,
+  options?: BackendRequestOptions,
 ): Promise<TResponse> {
-  return requestBackendJson<TResponse>(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  return requestBackendJson<TResponse>(
+    path,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    options,
+  );
 }
 
-export async function getBackendJson<TResponse>(path: string): Promise<TResponse> {
-  return requestBackendJson<TResponse>(path, {
-    method: "GET",
-  });
+export async function getBackendJson<TResponse>(
+  path: string,
+  options?: BackendRequestOptions,
+): Promise<TResponse> {
+  return requestBackendJson<TResponse>(
+    path,
+    {
+      method: "GET",
+    },
+    options,
+  );
 }
 
 async function requestBackendJson<TResponse>(
   path: string,
   init: RequestInit,
+  options?: BackendRequestOptions,
 ): Promise<TResponse> {
   const headers = new Headers(init.headers);
-  headers.set("Authorization", buildBackendAuthHeader());
   headers.set("Accept", "application/json");
+  if (options?.accessToken) {
+    headers.set("Authorization", `Bearer ${options.accessToken}`);
+  }
 
   const response = await fetch(`${getBackendBaseUrl()}${path}`, {
     ...init,

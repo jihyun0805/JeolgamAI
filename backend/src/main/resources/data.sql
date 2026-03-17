@@ -7,6 +7,15 @@ DELETE FROM resources;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+INSERT INTO users (id, login_id, email, password, name, created_at, updated_at) VALUES
+    (1, 'testuser', 'testuser@jeolgamai.local', '$2b$10$dHYK2gqqKIvHBhfeC1KXeuogI9vjeD39xsr3K7L5TBqSqJFhYb48y', '테스트 사용자', NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+    login_id = VALUES(login_id),
+    email = VALUES(email),
+    password = VALUES(password),
+    name = VALUES(name),
+    updated_at = NOW();
+
 INSERT INTO resources (id, team, service, region, created_at, updated_at) VALUES
     (1, 'search', 'ec2', 'ap-northeast-2', NOW(), NOW()),
     (2, 'payments', 'rds', 'ap-northeast-2', NOW(), NOW()),

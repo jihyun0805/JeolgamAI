@@ -20,6 +20,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -107,6 +108,11 @@ public class K8sApiSupport {
     public String describeConnectionFailure(IOException exception) {
         Throwable rootCause = rootCause(exception);
         String combinedMessage = exception.toString() + " " + rootCause;
+        if (containsIgnoreCase(combinedMessage, "No subject alternative names")
+                || containsIgnoreCase(combinedMessage, "No name matching")
+                || containsIgnoreCase(combinedMessage, "subject alternative names")) {
+            return "Kubernetes API 인증서의 호스트명과 입력한 URL이 일치하지 않습니다. IP 대신 kubeconfig의 server DNS endpoint를 사용하세요.";
+        }
         if (rootCause instanceof SSLHandshakeException
                 || containsIgnoreCase(combinedMessage, "PKIX")
                 || containsIgnoreCase(combinedMessage, "unable to find valid certification path")
@@ -130,9 +136,7 @@ public class K8sApiSupport {
     private SSLContext buildSslContext(String caCertPem) {
         try {
             CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            Collection<? extends Certificate> certificates = certificateFactory.generateCertificates(
-                    new ByteArrayInputStream(caCertPem.getBytes(StandardCharsets.UTF_8))
-            );
+            Collection<? extends Certificate> certificates = certificateFactory.generateCertificates(certificateInputStream(caCertPem));
             if (certificates.isEmpty()) {
                 throw new IllegalArgumentException("caCertPem에 유효한 X.509 인증서가 없습니다.");
             }
@@ -155,6 +159,22 @@ public class K8sApiSupport {
             return sslContext;
         } catch (GeneralSecurityException | IOException exception) {
             throw new IllegalArgumentException("caCertPem 처리에 실패했습니다. PEM 형식을 확인하세요.");
+        }
+    }
+
+    private ByteArrayInputStream certificateInputStream(String caCertPem) {
+        String trimmed = caCertPem.trim();
+        if (trimmed.contains("-----BEGIN CERTIFICATE-----")) {
+            return new ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8));
+        }
+
+        String normalized = trimmed
+                .replaceAll("(?m)^certificate-authority-data:\\s*", "")
+                .replaceAll("\\s+", "");
+        try {
+            return new ByteArrayInputStream(Base64.getDecoder().decode(normalized));
+        } catch (IllegalArgumentException exception) {
+            return new ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8));
         }
     }
 

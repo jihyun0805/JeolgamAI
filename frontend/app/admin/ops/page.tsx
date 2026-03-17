@@ -19,6 +19,9 @@ interface AuditEvent {
 export default function OpsPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -29,7 +32,11 @@ export default function OpsPage() {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch("/api/audit", { cache: "no-store" });
+        const params = new URLSearchParams({
+          page: String(page),
+          size: String(pageSize),
+        });
+        const response = await fetch(`/api/audit?${params.toString()}`, { cache: "no-store" });
         const payload = await response.json();
         if (!response.ok || !payload?.ok || !payload?.data) {
           throw new Error(payload?.error?.message ?? "운영 로그를 불러오지 못했습니다.");
@@ -38,6 +45,7 @@ export default function OpsPage() {
         if (!cancelled) {
           setEvents(payload.data.events ?? []);
           setCount(payload.data.count ?? 0);
+          setTotalPages(payload.data.totalPages ?? 1);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -54,7 +62,7 @@ export default function OpsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page, pageSize]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
@@ -87,6 +95,28 @@ export default function OpsPage() {
             ) : null}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  페이지 {page} / {totalPages}
+                </p>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  페이지 크기
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPage(1);
+                      setPageSize(Number(event.target.value));
+                    }}
+                    className="ml-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100"
+                  >
+                    {[10, 20, 50].map((size) => (
+                      <option key={size} value={size}>
+                        {size}개
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                 <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
                   <thead className="bg-slate-50 dark:bg-[#0B0E14]">
@@ -111,8 +141,13 @@ export default function OpsPage() {
                           </p>
                         </td>
                         <td className="px-4 py-3 font-semibold">{event.action}</td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                          {event.targetType} / {event.targetId}
+                        <td
+                          className="max-w-[320px] px-4 py-3 text-slate-500 dark:text-slate-400"
+                          title={`${event.targetType} / ${event.targetId}`}
+                        >
+                          <span className="block truncate">
+                            {event.targetType} / {event.targetId}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -123,6 +158,27 @@ export default function OpsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  disabled={page === 1}
+                  className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+                >
+                  이전
+                </button>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                  disabled={page === totalPages}
+                  className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+                >
+                  다음
+                </button>
               </div>
             </section>
           </div>

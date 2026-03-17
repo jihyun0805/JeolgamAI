@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireRole } from "@/lib/auth";
+import { requireBackendRole } from "@/lib/auth";
 import { postBackendJson } from "@/lib/backend-client";
 import { addAuditEvent } from "@/lib/store";
 
@@ -13,7 +13,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const auth = requireRole(request, ["system_admin", "company_admin"]);
+  const auth = requireBackendRole(request, ["system_admin", "company_admin"]);
   const { id } = await context.params;
 
   if (!auth.ok) {
@@ -48,6 +48,7 @@ export async function POST(
         action: body.action,
         note: body.note,
       },
+      { accessToken: auth.session.backendAccessToken },
     );
   } catch (error) {
     return fail(

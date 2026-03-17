@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSafeRedirectPath, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getRequestOrigin, getSafeRedirectPath, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getBackendBaseUrl } from "@/lib/backend-client";
 import {
   clearLoginFailures,
   getLoginRateLimitStatus,
   recordLoginFailure,
 } from "@/lib/rate-limit";
 import { isDemoAuthEnabled } from "@/lib/runtime-mode";
-import { verifyPassword } from "@/lib/security";
 import {
   addAuditEvent,
   createAuthUser,
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
     },
   });
 
-  const response = NextResponse.redirect(new URL(next, url.origin));
+  const response = NextResponse.redirect(new URL(next, getRequestOrigin(request)));
   setSessionCookie(response, session.token, url.protocol === "https:");
 
   return response;
@@ -100,6 +100,15 @@ interface LoginRequestBody {
   loginId?: string;
   password?: string;
   redirect?: string;
+}
+
+interface BackendAuthResponse {
+  userId: number;
+  loginId: string;
+  email: string;
+  name: string;
+  accessToken: string;
+  tokenType: string;
 }
 
 export async function POST(request: Request) {
@@ -136,15 +145,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = getAuthUserByLoginId(loginId);
-  if (
-    !user ||
-    !verifyPassword({
-      password,
-      passwordHash: user.passwordHash,
-      passwordSalt: user.passwordSalt,
-    })
-  ) {
+  let backendUser: BackendAuthResponse;
+  try {
+    const response = await fetch(`${getBackendBaseUrl()}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        loginId,
+        password,
+      }),
+      cache: "no-store",
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          isSuccess?: boolean;
+          message?: string;
+          data?: BackendAuthResponse;
+        }
+      | null;
+
+    if (!response.ok || !payload?.isSuccess || !payload.data?.accessToken) {
+      throw new Error(payload?.message ?? "backend 로그인에 실패했습니다.");
+    }
+
+    backendUser = payload.data;
+  } catch (error) {
     const throttled = recordLoginFailure(request, loginId);
     return NextResponse.json(
       {
@@ -153,7 +182,9 @@ export async function POST(request: Request) {
           code: throttled.blocked ? "TOO_MANY_ATTEMPTS" : "INVALID_CREDENTIALS",
           message: throttled.blocked
             ? `로그인 시도가 너무 많습니다. ${throttled.retryAfterSec}초 후 다시 시도해주세요.`
-            : "아이디 또는 비밀번호가 올바르지 않습니다.",
+            : error instanceof Error
+              ? error.message
+              : "아이디 또는 비밀번호가 올바르지 않습니다.",
         },
       },
       {
@@ -169,10 +200,26 @@ export async function POST(request: Request) {
 
   clearLoginFailures(request, loginId);
 
+  const existing = getAuthUserByLoginId(loginId);
+  const user = createAuthUser({
+    userId: existing?.userId ?? `backend_user_${backendUser.userId}`,
+    loginId,
+    password,
+    name: backendUser.name,
+    role: existing?.role ?? "company_admin",
+    backendUserId: String(backendUser.userId),
+    email: backendUser.email,
+  });
+
   const session = createSession({
     userId: user.userId,
     name: user.name,
     role: user.role,
+    backendUserId: String(backendUser.userId),
+    backendLoginId: backendUser.loginId,
+    backendEmail: backendUser.email,
+    backendAccessToken: backendUser.accessToken,
+    backendTokenType: backendUser.tokenType,
   });
 
   addAuditEvent({

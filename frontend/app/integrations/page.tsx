@@ -469,6 +469,30 @@ export default function IntegrationsPage() {
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />
               </label>
+
+              <label className="text-sm font-medium md:col-span-2">
+                CA Certificate
+                <textarea
+                  value={k8sForm.caCertPem}
+                  onChange={(event) =>
+                    setK8sForm((prev) => ({ ...prev, caCertPem: event.target.value }))
+                  }
+                  rows={5}
+                  placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n또는 kubeconfig의 certificate-authority-data"}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  사설 CA 클러스터라면 PEM 인증서 또는 kubeconfig의
+                  {" "}
+                  <code>certificate-authority-data</code>
+                  {" "}
+                  값을 넣으세요. API Server URL은 IP 대신 kubeconfig의
+                  {" "}
+                  <code>server</code>
+                  {" "}
+                  DNS endpoint를 권장합니다.
+                </p>
+              </label>
             </div>
 
             <div className="mt-4 flex justify-end">

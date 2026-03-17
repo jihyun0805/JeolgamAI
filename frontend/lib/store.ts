@@ -87,6 +87,8 @@ function createDefaultAuthUsers(): AuthUser[] {
     {
       userId: "user_test_account",
       loginId: TEST_ACCOUNT.loginId,
+      backendUserId: "1",
+      email: "testuser@jeolgamai.local",
       passwordHash: password.passwordHash,
       passwordSalt: password.passwordSalt,
       name: TEST_ACCOUNT.name,
@@ -134,6 +136,8 @@ function normalizeUsers(rawUsers: unknown): AuthUser[] {
         return {
           userId: user.userId ?? createId("user"),
           loginId: user.loginId!,
+          backendUserId: user.backendUserId,
+          email: user.email,
           passwordHash: user.passwordHash,
           passwordSalt: user.passwordSalt,
           defaultProjectId: user.defaultProjectId,
@@ -147,6 +151,8 @@ function normalizeUsers(rawUsers: unknown): AuthUser[] {
       return {
         userId: user.userId ?? createId("user"),
         loginId: user.loginId!,
+        backendUserId: user.backendUserId,
+        email: user.email,
         passwordHash: migrated.passwordHash,
         passwordSalt: migrated.passwordSalt,
         defaultProjectId: user.defaultProjectId,
@@ -505,6 +511,11 @@ export function createSession(params: {
   role: UserRole;
   workspaceId?: string;
   ttlHours?: number;
+  backendUserId?: string;
+  backendLoginId?: string;
+  backendEmail?: string;
+  backendAccessToken?: string;
+  backendTokenType?: string;
 }): UserSession {
   const store = getStore();
   const createdAt = new Date();
@@ -528,6 +539,11 @@ export function createSession(params: {
     name: params.name,
     role: params.role,
     workspaceId,
+    backendUserId: params.backendUserId,
+    backendLoginId: params.backendLoginId,
+    backendEmail: params.backendEmail,
+    backendAccessToken: params.backendAccessToken,
+    backendTokenType: params.backendTokenType,
     createdAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -590,19 +606,46 @@ export function getAuthUserById(userId: string): AuthUser | null {
 }
 
 export function createAuthUser(params: {
+  userId?: string;
   loginId: string;
   password: string;
   name: string;
   role: UserRole;
+  backendUserId?: string;
+  email?: string;
 }): AuthUser {
   const store = getStore();
   const existing = getAuthUserByLoginId(params.loginId);
-  if (existing) return existing;
+  if (existing) {
+    existing.name = params.name;
+    existing.role = params.role;
+    existing.email = params.email ?? existing.email;
+    existing.backendUserId = params.backendUserId ?? existing.backendUserId;
+    if (!existing.defaultProjectId || !getProjectById(existing.defaultProjectId)) {
+      const project = createProjectRecord({
+        name: createProjectName(params.name),
+        ownerUserId: existing.userId,
+      });
+      existing.defaultProjectId = project.id;
+      store.projects.unshift(project);
+      store.projectMemberships.unshift(
+        createMembershipRecord({
+          projectId: project.id,
+          userId: existing.userId,
+          role: existing.role,
+        }),
+      );
+    }
+    persistStore();
+    return existing;
+  }
 
   const password = hashPassword(params.password);
   const user: AuthUser = {
-    userId: createId("user"),
+    userId: params.userId ?? createId("user"),
     loginId: params.loginId,
+    backendUserId: params.backendUserId,
+    email: params.email,
     passwordHash: password.passwordHash,
     passwordSalt: password.passwordSalt,
     name: params.name,

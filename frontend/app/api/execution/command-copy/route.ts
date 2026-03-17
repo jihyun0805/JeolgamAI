@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import { addAuditEvent } from "@/lib/store";
 
@@ -9,7 +9,7 @@ interface CommandCopyBody {
 }
 
 export async function POST(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as CommandCopyBody;
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       `/api/optimization/recommendations/${encodeURIComponent(
         body.recommendationId,
       )}?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
     );
   } catch (error) {
     return fail(

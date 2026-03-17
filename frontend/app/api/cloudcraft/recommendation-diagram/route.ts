@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import {
   getIntegrations,
@@ -113,7 +113,7 @@ function getAffectedNodeIdsByDomain(domain: string): string[] {
 }
 
 export async function POST(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as DiagramBody;
@@ -136,6 +136,7 @@ export async function POST(request: Request) {
       `/api/optimization/analysis/${encodeURIComponent(
         body.analysisId,
       )}?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
     );
   } catch (error) {
     return fail(

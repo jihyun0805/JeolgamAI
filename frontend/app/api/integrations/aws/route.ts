@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireRole } from "@/lib/auth";
+import { requireBackendRole } from "@/lib/auth";
 import { postBackendJson } from "@/lib/backend-client";
 import { IntegrationConfig } from "@/lib/types";
 import {
@@ -60,7 +60,7 @@ function validateAccessKeyConfig(body: AwsIntegrationBody): string[] {
 }
 
 export async function POST(request: Request) {
-  const auth = requireRole(request, ["system_admin", "company_admin"]);
+  const auth = requireBackendRole(request, ["system_admin", "company_admin"]);
   if (!auth.ok) {
     if (auth.session) {
       addAuditEvent({
@@ -111,6 +111,7 @@ export async function POST(request: Request) {
         accessKeyId: body.accessKeyId,
         secretAccessKey: body.secretAccessKey,
       },
+      { accessToken: auth.session.backendAccessToken },
     );
   } catch (error) {
     return fail(

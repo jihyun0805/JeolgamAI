@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import { getProjectById } from "@/lib/store";
 
@@ -7,7 +7,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ analysisId: string }> },
 ) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const { analysisId } = await context.params;
@@ -26,6 +26,7 @@ export async function GET(
       )}&projectName=${encodeURIComponent(project?.name ?? "")}&awsRegion=${encodeURIComponent(
         project?.awsRegion ?? "",
       )}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     return ok(data);
   } catch (error) {

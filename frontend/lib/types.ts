@@ -233,6 +233,11 @@ export interface UserSession {
   name: string;
   role: UserRole;
   workspaceId: string;
+  backendUserId?: string;
+  backendLoginId?: string;
+  backendEmail?: string;
+  backendAccessToken?: string;
+  backendTokenType?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -240,6 +245,8 @@ export interface UserSession {
 export interface AuthUser {
   userId: string;
   loginId: string;
+  backendUserId?: string;
+  email?: string;
   passwordHash: string;
   passwordSalt: string;
   defaultProjectId?: string;

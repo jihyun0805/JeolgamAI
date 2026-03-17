@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import UserProfileChip from "@/app/components/user-profile-chip";
 
 function TopBarIcon({
@@ -73,6 +73,7 @@ export default function PageTopBar({
   actions?: ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [switchingProject, setSwitchingProject] = useState(false);
 
@@ -81,6 +82,10 @@ export default function PageTopBar({
 
     async function loadSession() {
       const response = await fetch("/api/auth/session", { cache: "no-store" });
+      if (response.status === 401) {
+        router.replace(`/login?redirect=${encodeURIComponent(pathname || "/dashboard")}`);
+        return;
+      }
       if (!response.ok) return;
 
       const payload = await response.json();

@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import {
   getIntegrations,
@@ -39,7 +39,7 @@ interface BackendAnalysisLatest {
 }
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
   const requestUrl = new URL(request.url);
   const from = requestUrl.searchParams.get("from");
@@ -72,6 +72,7 @@ export async function GET(request: Request) {
     });
     overview = await getBackendJson<BackendPrometheusOverview>(
       `/api/integrations/prometheus/overview?${backendParams.toString()}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     const latest = await getBackendJson<BackendAnalysisLatest>(
       `/api/optimization/analysis/latest?workspaceId=${encodeURIComponent(
@@ -79,6 +80,7 @@ export async function GET(request: Request) {
       )}&projectName=${encodeURIComponent(project.name)}&awsRegion=${encodeURIComponent(
         project.awsRegion,
       )}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     latestAnalysisId = latest.analysis?.id ?? null;
   } catch (error) {

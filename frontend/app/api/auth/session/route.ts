@@ -8,13 +8,17 @@ export async function GET(request: Request) {
     return fail("UNAUTHORIZED", "로그인이 필요합니다.", 401);
   }
 
+  const projects = getProjectsForUser(session.userId);
+  const activeProject = getProjectById(session.workspaceId) ?? projects[0] ?? null;
+
   return ok({
     userId: session.userId,
     name: session.name,
     role: session.role,
     workspaceId: session.workspaceId,
-    activeProject: getProjectById(session.workspaceId),
-    projects: getProjectsForUser(session.userId),
+    activeProject,
+    projects,
+    backendLinked: Boolean(session.backendAccessToken),
     expiresAt: session.expiresAt,
   });
 }

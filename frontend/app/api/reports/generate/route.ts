@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireRole, requireSession } from "@/lib/auth";
+import { requireBackendRole, requireBackendSession } from "@/lib/auth";
 import { getBackendJson, postBackendJson } from "@/lib/backend-client";
 import { addAuditEvent, getProjectById } from "@/lib/store";
 import { ReportTemplateType } from "@/lib/types";
@@ -11,7 +11,7 @@ interface GenerateReportBody {
 }
 
 export async function POST(request: Request) {
-  const auth = requireRole(request, ["system_admin", "company_admin"]);
+  const auth = requireBackendRole(request, ["system_admin", "company_admin"]);
   if (!auth.ok) {
     if (auth.session) {
       addAuditEvent({
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       createdBy: body.createdBy ?? auth.session.userId,
       projectName: project?.name,
       awsRegion: project?.awsRegion,
-    });
+    }, { accessToken: auth.session.backendAccessToken });
   } catch (error) {
     return fail(
       "BACKEND_REPORT_FAILED",
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
@@ -87,7 +87,9 @@ export async function GET(request: Request) {
       ...(project?.name ? { projectName: project.name } : {}),
       ...(project?.awsRegion ? { awsRegion: project.awsRegion } : {}),
     });
-    const data = await getBackendJson(`/api/optimization/reports?${query.toString()}`);
+    const data = await getBackendJson(`/api/optimization/reports?${query.toString()}`, {
+      accessToken: auth.session.backendAccessToken,
+    });
     return ok(data);
   } catch (error) {
     return fail(

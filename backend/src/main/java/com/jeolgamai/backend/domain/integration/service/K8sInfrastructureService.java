@@ -52,6 +52,9 @@ public class K8sInfrastructureService {
         EndpointPayload podsPayload = requestJson(httpClient, baseUrl, token, "/api/v1/pods?limit=300");
         EndpointPayload servicesPayload = requestJson(httpClient, baseUrl, token, "/api/v1/services?limit=200");
         EndpointPayload deploymentsPayload = requestJson(httpClient, baseUrl, token, "/apis/apps/v1/deployments?limit=200");
+        EndpointPayload replicaSetsPayload = requestJson(httpClient, baseUrl, token, "/apis/apps/v1/replicasets?limit=300");
+        EndpointPayload ingressesPayload = requestJson(httpClient, baseUrl, token, "/apis/networking.k8s.io/v1/ingresses?limit=200");
+        EndpointPayload endpointsPayload = requestJson(httpClient, baseUrl, token, "/api/v1/endpoints?limit=300");
 
         List<String> warnings = new ArrayList<>();
         collectWarning(warnings, nodesPayload);
@@ -59,12 +62,18 @@ public class K8sInfrastructureService {
         collectWarning(warnings, podsPayload);
         collectWarning(warnings, servicesPayload);
         collectWarning(warnings, deploymentsPayload);
+        collectWarning(warnings, replicaSetsPayload);
+        collectWarning(warnings, ingressesPayload);
+        collectWarning(warnings, endpointsPayload);
 
         if (nodesPayload.payload() == null
                 && namespacesPayload.payload() == null
                 && podsPayload.payload() == null
                 && servicesPayload.payload() == null
-                && deploymentsPayload.payload() == null) {
+                && deploymentsPayload.payload() == null
+                && replicaSetsPayload.payload() == null
+                && ingressesPayload.payload() == null
+                && endpointsPayload.payload() == null) {
             throw new IllegalArgumentException(
                     warnings.isEmpty()
                             ? "Kubernetes API 조회에 실패했습니다."
@@ -76,14 +85,15 @@ public class K8sInfrastructureService {
         List<K8sInfrastructureResponse.Pod> pods = parsePods(podsPayload.payload());
         List<K8sInfrastructureResponse.Service> services = parseServices(servicesPayload.payload());
         List<K8sInfrastructureResponse.Deployment> deployments = parseDeployments(deploymentsPayload.payload());
+        List<K8sInfrastructureResponse.ReplicaSet> replicaSets = parseReplicaSets(replicaSetsPayload.payload());
+        List<K8sInfrastructureResponse.Ingress> ingresses = parseIngresses(ingressesPayload.payload());
+        List<K8sInfrastructureResponse.Endpoint> endpoints = parseEndpoints(endpointsPayload.payload());
         List<K8sInfrastructureResponse.NamespaceSummary> namespaces = summarizeNamespaces(
                 namespacesPayload.payload(),
                 pods,
                 services,
                 deployments
         );
-
-        warnings.add("backend에서 Kubernetes API를 직접 조회한 결과입니다.");
 
         return new K8sInfrastructureResponse(
                 "live",
@@ -93,13 +103,19 @@ public class K8sInfrastructureService {
                         nodes.size(),
                         namespaces.size(),
                         deployments.size(),
+                        replicaSets.size(),
                         services.size(),
+                        ingresses.size(),
+                        endpoints.size(),
                         pods.size()
                 ),
                 nodes,
                 namespaces,
+                ingresses,
                 deployments,
+                replicaSets,
                 services,
+                endpoints,
                 pods,
                 warnings.stream().distinct().toList()
         );
@@ -175,6 +191,8 @@ public class K8sInfrastructureService {
                     item.path("metadata").path("name").asText("-"),
                     item.path("status").path("phase").asText("Unknown"),
                     item.path("spec").path("nodeName").asText("-"),
+                    readOwnerKind(item.path("metadata").path("ownerReferences")),
+                    readOwnerName(item.path("metadata").path("ownerReferences")),
                     totalCount > 0 ? readyCount + "/" + totalCount : "0/0",
                     restartCount,
                     readStringList(item.path("spec").path("containers"), "image"),
@@ -232,6 +250,136 @@ public class K8sInfrastructureService {
         deployments.sort(Comparator.comparing(K8sInfrastructureResponse.Deployment::namespace)
                 .thenComparing(K8sInfrastructureResponse.Deployment::name));
         return deployments;
+    }
+
+    private List<K8sInfrastructureResponse.ReplicaSet> parseReplicaSets(JsonNode payload) {
+        List<K8sInfrastructureResponse.ReplicaSet> replicaSets = new ArrayList<>();
+        if (payload == null) {
+            return replicaSets;
+        }
+        for (JsonNode item : payload.path("items")) {
+            replicaSets.add(new K8sInfrastructureResponse.ReplicaSet(
+                    item.path("metadata").path("namespace").asText("default"),
+                    item.path("metadata").path("name").asText("-"),
+                    item.path("spec").path("replicas").asInt(0),
+                    item.path("status").path("readyReplicas").asInt(0),
+                    readOwnerName(item.path("metadata").path("ownerReferences")),
+                    readStringList(item.path("spec").path("template").path("spec").path("containers"), "image"),
+                    readStringMap(item.path("spec").path("selector").path("matchLabels"))
+            ));
+        }
+        replicaSets.sort(Comparator.comparing(K8sInfrastructureResponse.ReplicaSet::namespace)
+                .thenComparing(K8sInfrastructureResponse.ReplicaSet::name));
+        return replicaSets;
+    }
+
+    private List<K8sInfrastructureResponse.Ingress> parseIngresses(JsonNode payload) {
+        List<K8sInfrastructureResponse.Ingress> ingresses = new ArrayList<>();
+        if (payload == null) {
+            return ingresses;
+        }
+        for (JsonNode item : payload.path("items")) {
+            List<String> hosts = new ArrayList<>();
+            List<String> serviceNames = new ArrayList<>();
+            JsonNode spec = item.path("spec");
+
+            if (spec.path("defaultBackend").path("service").isObject()) {
+                String serviceName = spec.path("defaultBackend").path("service").path("name").asText("");
+                if (!serviceName.isBlank()) {
+                    serviceNames.add(serviceName);
+                }
+            }
+
+            for (JsonNode rule : spec.path("rules")) {
+                String host = rule.path("host").asText("");
+                if (!host.isBlank()) {
+                    hosts.add(host);
+                }
+                for (JsonNode path : rule.path("http").path("paths")) {
+                    String serviceName = path.path("backend").path("service").path("name").asText("");
+                    if (!serviceName.isBlank() && !serviceNames.contains(serviceName)) {
+                        serviceNames.add(serviceName);
+                    }
+                }
+            }
+
+            String address = "-";
+            for (JsonNode ingressNode : item.path("status").path("loadBalancer").path("ingress")) {
+                String hostname = ingressNode.path("hostname").asText("");
+                String ip = ingressNode.path("ip").asText("");
+                if (!hostname.isBlank()) {
+                    address = hostname;
+                    break;
+                }
+                if (!ip.isBlank()) {
+                    address = ip;
+                    break;
+                }
+            }
+
+            String ingressClass = spec.path("ingressClassName").asText("");
+            if (ingressClass.isBlank()) {
+                ingressClass = item.path("metadata").path("annotations")
+                        .path("kubernetes.io/ingress.class")
+                        .asText("-");
+            }
+
+            ingresses.add(new K8sInfrastructureResponse.Ingress(
+                    item.path("metadata").path("namespace").asText("default"),
+                    item.path("metadata").path("name").asText("-"),
+                    ingressClass.isBlank() ? "-" : ingressClass,
+                    address,
+                    hosts.stream().distinct().toList(),
+                    serviceNames
+            ));
+        }
+        ingresses.sort(Comparator.comparing(K8sInfrastructureResponse.Ingress::namespace)
+                .thenComparing(K8sInfrastructureResponse.Ingress::name));
+        return ingresses;
+    }
+
+    private List<K8sInfrastructureResponse.Endpoint> parseEndpoints(JsonNode payload) {
+        List<K8sInfrastructureResponse.Endpoint> endpoints = new ArrayList<>();
+        if (payload == null) {
+            return endpoints;
+        }
+        for (JsonNode item : payload.path("items")) {
+            int readyAddressCount = 0;
+            int notReadyAddressCount = 0;
+            List<String> podTargets = new ArrayList<>();
+
+            for (JsonNode subset : item.path("subsets")) {
+                for (JsonNode address : subset.path("addresses")) {
+                    readyAddressCount += 1;
+                    String podName = address.path("targetRef").path("kind").asText("").equals("Pod")
+                            ? address.path("targetRef").path("name").asText("")
+                            : "";
+                    if (!podName.isBlank() && !podTargets.contains(podName)) {
+                        podTargets.add(podName);
+                    }
+                }
+                for (JsonNode address : subset.path("notReadyAddresses")) {
+                    notReadyAddressCount += 1;
+                    String podName = address.path("targetRef").path("kind").asText("").equals("Pod")
+                            ? address.path("targetRef").path("name").asText("")
+                            : "";
+                    if (!podName.isBlank() && !podTargets.contains(podName)) {
+                        podTargets.add(podName);
+                    }
+                }
+            }
+
+            endpoints.add(new K8sInfrastructureResponse.Endpoint(
+                    item.path("metadata").path("namespace").asText("default"),
+                    item.path("metadata").path("name").asText("-"),
+                    readyAddressCount,
+                    notReadyAddressCount,
+                    podTargets
+            ));
+        }
+        endpoints.sort(Comparator.comparing(K8sInfrastructureResponse.Endpoint::namespace)
+                .thenComparing(K8sInfrastructureResponse.Endpoint::name));
+        return endpoints;
     }
 
     private List<K8sInfrastructureResponse.NamespaceSummary> summarizeNamespaces(
@@ -294,6 +442,32 @@ public class K8sInfrastructureService {
             values.put(entry.getKey(), entry.getValue().asText(""));
         }
         return values;
+    }
+
+    private String readOwnerName(JsonNode ownerReferencesNode) {
+        if (!ownerReferencesNode.isArray()) {
+            return "-";
+        }
+        for (JsonNode owner : ownerReferencesNode) {
+            if (owner.path("controller").asBoolean(false)) {
+                return owner.path("name").asText("-");
+            }
+        }
+        JsonNode first = ownerReferencesNode.path(0);
+        return first.path("name").asText("-");
+    }
+
+    private String readOwnerKind(JsonNode ownerReferencesNode) {
+        if (!ownerReferencesNode.isArray()) {
+            return "-";
+        }
+        for (JsonNode owner : ownerReferencesNode) {
+            if (owner.path("controller").asBoolean(false)) {
+                return owner.path("kind").asText("-");
+            }
+        }
+        JsonNode first = ownerReferencesNode.path(0);
+        return first.path("kind").asText("-");
     }
 
     private record EndpointPayload(String path, JsonNode payload, String error) {

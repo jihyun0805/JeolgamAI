@@ -30,7 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalDouble;
 
-@Service
+@Service("backendPrometheusIntegrationService")
 public class PrometheusIntegrationService {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);

@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson, postBackendJson } from "@/lib/backend-client";
 
 interface ChatRequestBody {
@@ -9,7 +9,7 @@ interface ChatRequestBody {
 }
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       )}&analysisId=${encodeURIComponent(
         analysisId,
       )}&pinnedRecommendationId=${encodeURIComponent(pinnedRecommendationId ?? "")}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     return ok({ session });
   } catch (error) {
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as ChatRequestBody;
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       analysisId: body.analysisId,
       content: body.content,
       pinnedRecommendationId: body.pinnedRecommendationId,
-    });
+    }, { accessToken: auth.session.backendAccessToken });
     return ok(data);
   } catch (error) {
     return fail(

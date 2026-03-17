@@ -1,10 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import { getIntegrations } from "@/lib/store";
 
 export async function GET(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const hasK8sIntegration = getIntegrations(auth.session.workspaceId).some(
@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   try {
     const data = await getBackendJson(
       `/api/infrastructure/k8s?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
     );
     return ok(data);
   } catch (error) {

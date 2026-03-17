@@ -1,5 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireRole } from "@/lib/auth";
+import { requireBackendRole } from "@/lib/auth";
 import { postBackendJson } from "@/lib/backend-client";
 import { IntegrationConfig } from "@/lib/types";
 import {
@@ -32,7 +32,7 @@ interface BackendK8sValidationResponse {
 }
 
 export async function POST(request: Request) {
-  const auth = requireRole(request, ["system_admin", "company_admin"]);
+  const auth = requireBackendRole(request, ["system_admin", "company_admin"]);
   if (!auth.ok) {
     if (auth.session) {
       addAuditEvent({
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
         clusterName: body.clusterName,
         caCertPem: body.caCertPem,
       },
+      { accessToken: auth.session.backendAccessToken },
     );
   } catch (error) {
     return fail(

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getRequestOrigin,
   getSafeRedirectPath,
   getSessionFromRequest,
   SESSION_COOKIE_NAME,
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const response = NextResponse.redirect(new URL(next, url.origin));
+  const response = NextResponse.redirect(new URL(next, getRequestOrigin(request)));
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: "",
