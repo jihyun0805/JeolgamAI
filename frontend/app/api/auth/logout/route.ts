@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, getSessionFromRequest } from "@/lib/auth";
+import {
+  getRequestOrigin,
+  getSafeRedirectPath,
+  getSessionFromRequest,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth";
 import { addAuditEvent, removeSessionByToken } from "@/lib/store";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const next = url.searchParams.get("redirect") || "/";
+  const next = getSafeRedirectPath(url.searchParams.get("redirect"), "/");
   const session = getSessionFromRequest(request);
 
   const token = request.headers
@@ -22,6 +27,7 @@ export async function GET(request: Request) {
     addAuditEvent({
       actor: session.userId,
       actorRole: session.role,
+      workspaceId: session.workspaceId,
       action: "auth.logout",
       targetType: "auth",
       targetId: session.token,
@@ -29,14 +35,14 @@ export async function GET(request: Request) {
     });
   }
 
-  const response = NextResponse.redirect(new URL(next, url.origin));
+  const response = NextResponse.redirect(new URL(next, getRequestOrigin(request)));
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: "",
     path: "/",
     maxAge: 0,
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: url.protocol === "https:",
   });
 

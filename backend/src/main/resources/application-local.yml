@@ -6,11 +6,15 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     defer-datasource-initialization: true
   sql:
     init:
       mode: always
+  security:
+    user:
+      name: ${SPRING_SECURITY_USER_NAME:jeolgamai_local}
+      password: ${SPRING_SECURITY_USER_PASSWORD:jeolgamai-local-dev-only}
 
 management:
   tracing:

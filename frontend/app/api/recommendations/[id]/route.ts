@@ -1,20 +1,28 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
-import { getRecommendationById } from "@/lib/store";
+import { requireBackendSession } from "@/lib/auth";
+import { getBackendJson } from "@/lib/backend-client";
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
-  const recommendation = getRecommendationById(id);
-
-  if (!recommendation) {
-    return fail("NOT_FOUND", `recommendationId=${id}를 찾을 수 없습니다.`, 404);
+  try {
+    const recommendation = await getBackendJson(
+      `/api/optimization/recommendations/${encodeURIComponent(
+        id,
+      )}?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
+    );
+    return ok(recommendation);
+  } catch (error) {
+    return fail(
+      "BACKEND_FETCH_FAILED",
+      error instanceof Error ? error.message : "권고 상세를 backend에서 불러오지 못했습니다.",
+      404,
+    );
   }
-
-  return ok(recommendation);
 }

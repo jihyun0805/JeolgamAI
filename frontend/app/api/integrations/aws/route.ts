@@ -1,6 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireRole } from "@/lib/auth";
-import { validateAwsLive } from "@/lib/integration-validators";
+import { requireBackendRole } from "@/lib/auth";
+import { postBackendJson } from "@/lib/backend-client";
 import { IntegrationConfig } from "@/lib/types";
 import {
   addAuditEvent,
@@ -10,6 +10,18 @@ import {
   nowIso,
   upsertIntegration,
 } from "@/lib/store";
+
+interface ValidationCheck {
+  key: string;
+  passed: boolean;
+  message: string;
+}
+
+interface BackendAwsValidationResponse {
+  mode: "live";
+  status: "active" | "partial" | "failed";
+  checks: ValidationCheck[];
+}
 
 type AwsAuthMode = "role" | "access_key";
 
@@ -48,12 +60,13 @@ function validateAccessKeyConfig(body: AwsIntegrationBody): string[] {
 }
 
 export async function POST(request: Request) {
-  const auth = requireRole(request, ["system_admin", "company_admin"]);
+  const auth = requireBackendRole(request, ["system_admin", "company_admin"]);
   if (!auth.ok) {
     if (auth.session) {
       addAuditEvent({
         actor: auth.session.userId,
         actorRole: auth.session.role,
+        workspaceId: auth.session.workspaceId,
         action: "integration.create",
         targetType: "integration",
         targetId: "aws",
@@ -70,6 +83,14 @@ export async function POST(request: Request) {
     return fail("VALIDATION_ERROR", "region은 필수입니다.", 400);
   }
 
+  if (body.region !== "ap-northeast-2") {
+    return fail(
+      "UNSUPPORTED_REGION",
+      "현재 비용 분석은 AWS 서울 리전(ap-northeast-2)만 지원합니다.",
+      400,
+    );
+  }
+
   const errors =
     authMode === "role" ? validateRoleConfig(body) : validateAccessKeyConfig(body);
 
@@ -77,31 +98,35 @@ export async function POST(request: Request) {
     return fail("VALIDATION_ERROR", errors.join(" "), 400);
   }
 
+  let validation: BackendAwsValidationResponse;
+  try {
+    validation = await postBackendJson<BackendAwsValidationResponse>(
+      "/api/integrations/aws/validate",
+      {
+        workspaceId: auth.session.workspaceId,
+        authMode,
+        region: body.region,
+        roleArn: body.roleArn,
+        externalId: body.externalId,
+        accessKeyId: body.accessKeyId,
+        secretAccessKey: body.secretAccessKey,
+      },
+      { accessToken: auth.session.backendAccessToken },
+    );
+  } catch (error) {
+    return fail(
+      "BACKEND_VALIDATION_FAILED",
+      error instanceof Error ? error.message : "AWS backend 검증에 실패했습니다.",
+      400,
+    );
+  }
+
   const now = nowIso();
-  const liveValidation = await validateAwsLive({
-    authMode,
-    region: body.region,
-    roleArn: body.roleArn,
-    externalId: body.externalId,
-    accessKeyId: body.accessKeyId,
-    secretAccessKey: body.secretAccessKey,
-  });
-
-  const checks =
-    liveValidation?.checks ?? [
-      { key: "sts_assume_role", passed: true, message: "mock validation" },
-      { key: "cost_explorer_read", passed: true, message: "mock validation" },
-      { key: "ec2_read", passed: true, message: "mock validation" },
-      { key: "rds_read", passed: true, message: "mock validation" },
-      { key: "s3_read", passed: true, message: "mock validation" },
-    ];
-
-  const status = liveValidation?.status ?? "active";
   const integration: IntegrationConfig = {
     id: createId("int_aws"),
     type: "aws",
     name: body.name || "AWS Production",
-    status,
+    status: validation.status,
     workspaceId: auth.session.workspaceId,
     connectedAt: now,
     validatedAt: now,
@@ -114,8 +139,8 @@ export async function POST(request: Request) {
       secretAccessKey: body.secretAccessKey
         ? maskSecret(body.secretAccessKey)
         : "",
-      validationMode: liveValidation?.mode ?? "mock",
-      validation: checks
+      validationMode: validation.mode,
+      validation: validation.checks
         .map((item) => `${item.key}:${item.passed ? "ok" : "fail"}`)
         .join(", "),
     },
@@ -125,6 +150,7 @@ export async function POST(request: Request) {
   addAuditEvent({
     actor: auth.session.userId,
     actorRole: auth.session.role,
+    workspaceId: auth.session.workspaceId,
     action: "integration.create",
     targetType: "integration",
     targetId: integration.id,
@@ -149,11 +175,11 @@ export async function POST(request: Request) {
         : integration.status === "partial"
           ? "AWS 연동이 부분 완료되었습니다"
           : "AWS 연동 검증에 실패했습니다",
-    body: `${integration.name} (${body.region}) · mode=${liveValidation?.mode ?? "mock"}`,
+    body: `${integration.name} (${body.region}) · mode=${validation.mode}`,
   });
 
   return ok({
     integration,
-    checks,
+    checks: validation.checks,
   });
 }

@@ -37,6 +37,18 @@ spec:
               value: backend
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://jaeger.observability.svc.cluster.local:4318/v1/traces
+            - name: GMS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backend-runtime-secrets
+                  key: GMS_API_KEY
+                  optional: true
+            - name: CONNECTOR_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backend-runtime-secrets
+                  key: CONNECTOR_ENCRYPTION_KEY
+                  optional: true
           readinessProbe:
             tcpSocket:
               port: 8080

@@ -1,6 +1,5 @@
 package com.jeolgamai.backend.domain.auth.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,9 +12,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class LoginRequest {
 
-    @Email
     @NotBlank
-    private String email;
+    private String loginId;
 
     @NotBlank
     private String password;

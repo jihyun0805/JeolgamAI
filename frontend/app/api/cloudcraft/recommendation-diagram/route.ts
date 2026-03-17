@@ -1,9 +1,8 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireSession } from "@/lib/auth";
+import { requireBackendSession } from "@/lib/auth";
+import { getBackendJson } from "@/lib/backend-client";
 import {
-  getAnalysisById,
   getIntegrations,
-  getRecommendationsByAnalysis,
 } from "@/lib/store";
 import { isMockDataMode } from "@/lib/runtime-mode";
 
@@ -114,7 +113,7 @@ function getAffectedNodeIdsByDomain(domain: string): string[] {
 }
 
 export async function POST(request: Request) {
-  const auth = requireSession(request);
+  const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as DiagramBody;
@@ -123,12 +122,31 @@ export async function POST(request: Request) {
     return fail("VALIDATION_ERROR", "analysisId는 필수입니다.", 400);
   }
 
-  const analysis = getAnalysisById(body.analysisId);
-  if (!analysis) {
-    return fail("NOT_FOUND", `analysisId=${body.analysisId}를 찾을 수 없습니다.`, 404);
+  let bundle: {
+    analysis: { id: string };
+    recommendations: Array<{
+      id: string;
+      title: string;
+      targetResource: string;
+      domain: string;
+    }>;
+  };
+  try {
+    bundle = await getBackendJson(
+      `/api/optimization/analysis/${encodeURIComponent(
+        body.analysisId,
+      )}?workspaceId=${encodeURIComponent(auth.session.workspaceId)}`,
+      { accessToken: auth.session.backendAccessToken },
+    );
+  } catch (error) {
+    return fail(
+      "BACKEND_FETCH_FAILED",
+      error instanceof Error ? error.message : "analysis를 backend에서 불러오지 못했습니다.",
+      404,
+    );
   }
 
-  const hasAws = getIntegrations().some(
+  const hasAws = getIntegrations(auth.session.workspaceId).some(
     (integration) => integration.type === "aws" && integration.status !== "failed",
   );
 
@@ -140,7 +158,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const recommendations = getRecommendationsByAnalysis(analysis.id);
+  const recommendations = bundle.recommendations;
   const selectedRecommendation =
     recommendations.find(
       (recommendation) => recommendation.id === body.recommendationId,
@@ -220,7 +238,7 @@ export async function POST(request: Request) {
   });
 
   return ok({
-    diagramId: `cloudcraft-${analysis.id}`,
+    diagramId: `cloudcraft-${bundle.analysis.id}`,
     summary: "현재 아키텍처와 추천 아키텍처 비교 다이어그램",
     beforeImageDataUrl: toDataUrl(beforeSvg),
     afterImageDataUrl: toDataUrl(afterSvg),
