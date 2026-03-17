@@ -1006,9 +1006,9 @@ export default function K8sInfrastructurePage() {
           description="서비스가 어떤 워크로드와 pod, node로 이어지는지 시각적으로 확인합니다."
         />
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 md:p-8">
-          <div className="flex min-h-0 flex-1 flex-col gap-6">
-            <section className="shrink-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="w-full space-y-6">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div>
                 <div>
                   <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
@@ -1039,18 +1039,18 @@ export default function K8sInfrastructurePage() {
             </section>
 
             {error ? (
-              <section className="shrink-0 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+              <section className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
                 {error}
               </section>
             ) : null}
 
             {data?.warnings.length ? (
-              <section className="shrink-0 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
                 {data.warnings.join(" / ")}
               </section>
             ) : null}
 
-            <section className="shrink-0 grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <SummaryCard
                 label="Nodes"
                 value={loading ? "..." : String(data?.summary.nodeCount ?? 0)}
@@ -1074,7 +1074,7 @@ export default function K8sInfrastructurePage() {
             </section>
 
             {/* Namespace 가로 pill 선택기 */}
-            <section className="shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="whitespace-nowrap text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
                   Namespace
@@ -1130,7 +1130,7 @@ export default function K8sInfrastructurePage() {
             </section>
 
             {/* Live Resource Map – 전체 폭, 모든 deployment 한 번에 */}
-            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
@@ -1170,7 +1170,7 @@ export default function K8sInfrastructurePage() {
                 />
               </div>
 
-              <div className="mt-6 flex-1 space-y-5 overflow-y-auto">
+              <div className="mt-6 space-y-5">
                 {filteredDeployments.map((deployment) => {
                       const deploymentServices = namespaceServices.filter((service) => {
                         return (
