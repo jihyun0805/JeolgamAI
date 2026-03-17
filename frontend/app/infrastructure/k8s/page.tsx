@@ -1,6 +1,7 @@
 "use client";
 
 import { Children, ReactNode, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 
@@ -327,9 +328,35 @@ function SummaryCard({
   );
 }
 
+const K8S_ICON_PATHS: Partial<Record<GraphNodeKind, string>> = {
+  app: "/icons/k8s/namespace.svg",
+  ingress: "/icons/k8s/ingress.svg",
+  service: "/icons/k8s/service.svg",
+  endpoint: "/icons/k8s/endpoint.svg",
+  deployment: "/icons/k8s/deployment.svg",
+  replicaset: "/icons/k8s/replicaset.svg",
+  pod: "/icons/k8s/pod.svg",
+  node: "/icons/k8s/node.svg",
+};
+
 function GraphIcon({ kind }: { kind: GraphNodeKind }) {
+  const iconPath = K8S_ICON_PATHS[kind];
+
+  if (iconPath) {
+    return (
+      <Image
+        src={iconPath}
+        alt=""
+        aria-hidden
+        width={28}
+        height={28}
+        className="h-7 w-7 object-contain drop-shadow-[0_10px_24px_rgba(50,108,229,0.18)]"
+      />
+    );
+  }
+
   const baseProps = {
-    className: "h-5 w-5",
+    className: "h-6 w-6",
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
@@ -754,7 +781,6 @@ export default function K8sInfrastructurePage() {
   const topologyViewportRef = useRef<HTMLDivElement | null>(null);
   const [data, setData] = useState<K8sInfrastructurePayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedNamespace, setSelectedNamespace] = useState("");
   const [namespaceSearch, setNamespaceSearch] = useState("");
@@ -775,12 +801,8 @@ export default function K8sInfrastructurePage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadInfrastructure(options?: { silent?: boolean }) {
-      if (options?.silent) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+    async function loadInfrastructure() {
+      setLoading(true);
       setError("");
 
       try {
@@ -814,19 +836,14 @@ export default function K8sInfrastructurePage() {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setRefreshing(false);
         }
       }
     }
 
     loadInfrastructure().catch(() => {});
-    const intervalId = window.setInterval(() => {
-      loadInfrastructure({ silent: true }).catch(() => {});
-    }, 15000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -929,12 +946,9 @@ export default function K8sInfrastructurePage() {
                             ? "Progressing"
                             : clusterHealth === "degraded"
                               ? "Degraded"
-                              : "Unknown"
+                            : "Unknown"
                       }
                     />
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300">
-                      15s polling
-                    </span>
                   </div>
                   <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
                     선택한 namespace 안에서 서비스 진입점부터 deployment, pod, node 배치까지 이어지는 흐름을 보여줍니다.
@@ -944,10 +958,7 @@ export default function K8sInfrastructurePage() {
                 <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14] sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">마지막 갱신</p>
-                    <p className="mt-1 font-bold">
-                      {formatLastUpdated(lastUpdatedAt)}
-                      {refreshing ? " · 동기화 중" : ""}
-                    </p>
+                    <p className="mt-1 font-bold">{formatLastUpdated(lastUpdatedAt)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">현재 범위</p>

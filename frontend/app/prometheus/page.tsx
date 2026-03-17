@@ -10,20 +10,12 @@ type SeriesPoint = {
 };
 
 type RangePreset = "6h" | "24h" | "7d" | "30d" | "custom";
-type RefreshPreset = "off" | "15s" | "30s" | "1m" | "5m";
 
 const RANGE_PRESET_OPTIONS: Array<{ key: Exclude<RangePreset, "custom">; label: string; hours: number }> = [
   { key: "6h", label: "최근 6시간", hours: 6 },
   { key: "24h", label: "최근 24시간", hours: 24 },
   { key: "7d", label: "최근 7일", hours: 24 * 7 },
   { key: "30d", label: "최근 30일", hours: 24 * 30 },
-];
-const REFRESH_OPTIONS: Array<{ key: RefreshPreset; label: string; ms: number | null }> = [
-  { key: "off", label: "끄기", ms: null },
-  { key: "15s", label: "15초", ms: 15_000 },
-  { key: "30s", label: "30초", ms: 30_000 },
-  { key: "1m", label: "1분", ms: 60_000 },
-  { key: "5m", label: "5분", ms: 300_000 },
 ];
 
 interface PrometheusPayload {
@@ -345,17 +337,14 @@ export default function PrometheusPage() {
   const defaultRange = buildPresetRange("24h");
   const [data, setData] = useState<PrometheusPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedPreset, setSelectedPreset] = useState<RangePreset>("24h");
-  const [refreshPreset, setRefreshPreset] = useState<RefreshPreset>("30s");
   const [appliedRange, setAppliedRange] = useState({
     from: defaultRange.fromIso,
     to: defaultRange.toIso,
   });
   const [customFrom, setCustomFrom] = useState(defaultRange.fromInput);
   const [customTo, setCustomTo] = useState(defaultRange.toInput);
-  const [refreshTick, setRefreshTick] = useState(0);
   const warnings = data?.overview.warnings ?? [];
   const latencyUnavailable = hasMetricWarning(warnings, "latency");
   const errorRateUnavailable = hasMetricWarning(warnings, "error_rate");
@@ -365,11 +354,7 @@ export default function PrometheusPage() {
 
     async function loadOverview() {
       if (!cancelled) {
-        if (data) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
+        setLoading(true);
         setError("");
       }
       try {
@@ -397,7 +382,6 @@ export default function PrometheusPage() {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setRefreshing(false);
         }
       }
     }
@@ -407,31 +391,7 @@ export default function PrometheusPage() {
       cancelled = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedRange.from, appliedRange.to, refreshTick]);
-
-  useEffect(() => {
-    const selected = REFRESH_OPTIONS.find((option) => option.key === refreshPreset);
-    if (!selected?.ms) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      if (selectedPreset === "custom") {
-        setRefreshTick((value) => value + 1);
-        return;
-      }
-
-      const nextRange = buildPresetRange(selectedPreset);
-      setAppliedRange({
-        from: nextRange.fromIso,
-        to: nextRange.toIso,
-      });
-      setCustomFrom(nextRange.fromInput);
-      setCustomTo(nextRange.toInput);
-    }, selected.ms);
-
-    return () => window.clearInterval(intervalId);
-  }, [refreshPreset, selectedPreset]);
+  }, [appliedRange.from, appliedRange.to]);
 
   function applyPresetRange(preset: Exclude<RangePreset, "custom">) {
     const nextRange = buildPresetRange(preset);
@@ -497,11 +457,6 @@ export default function PrometheusPage() {
                   <span className="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     {formatRangeText(data?.overview.timeRange?.from, data?.overview.timeRange?.to)}
                   </span>
-                  {refreshing && (
-                    <span className="rounded-full bg-[#1c59f2]/10 px-2.5 py-1 text-xs font-semibold text-[#1c59f2]">
-                      갱신 중
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex flex-wrap items-end gap-3">
@@ -525,22 +480,6 @@ export default function PrometheusPage() {
                       );
                     })}
                   </div>
-
-                  {/* Auto refresh */}
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    <span className="mb-1 block">자동 갱신</span>
-                    <select
-                      value={refreshPreset}
-                      onChange={(event) => setRefreshPreset(event.target.value as RefreshPreset)}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#0F141C] dark:text-slate-100"
-                    >
-                      {REFRESH_OPTIONS.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
 
                   {/* Custom range */}
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
