@@ -867,6 +867,7 @@ export default function K8sInfrastructurePage() {
   const [workloadSearch, setWorkloadSearch] = useState("");
   const [topologyZoom, setTopologyZoom] = useState(0.85);
   const [topologyPage, setTopologyPage] = useState(0);
+  const [topologyFullscreen, setTopologyFullscreen] = useState(false);
   const [selectedResource, setSelectedResource] = useState<SidebarResource | null>(null);
 
   function getFitTopologyZoom() {
@@ -977,6 +978,13 @@ export default function K8sInfrastructurePage() {
     setSelectedResource(null);
     setTopologyPage(0);
   }, [selectedNamespace, workloadSearch]);
+
+  useEffect(() => {
+    if (!topologyFullscreen) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setTopologyFullscreen(false); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [topologyFullscreen]);
 
   useEffect(() => {
     setShowAllNamespaces(false);
@@ -1398,10 +1406,24 @@ export default function K8sInfrastructurePage() {
                       return (
                         <div
                           key={`${deployment.namespace}-${deployment.name}`}
-                          className="relative rounded-[32px] border border-slate-200 bg-slate-50/70 shadow-sm dark:border-slate-800 dark:bg-[#0B0E14]"
+                          className={topologyFullscreen ? "fixed inset-0 z-50 flex flex-col bg-[#0B0E14]" : "relative rounded-[32px] border border-slate-200 bg-slate-50/70 shadow-sm dark:border-slate-800 dark:bg-[#0B0E14]"}
                         >
+                          {/* fullscreen header */}
+                          {topologyFullscreen && (
+                            <div className="flex shrink-0 items-center justify-between border-b border-slate-800 px-5 py-3">
+                              <span className="text-sm font-bold text-white">{deployment.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setTopologyFullscreen(false)}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                              >
+                                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M15 5 L5 15 M5 5 L15 15" /></svg>
+                              </button>
+                            </div>
+                          )}
+
                           {/* zoom controls */}
-                          <div className="absolute right-5 bottom-5 z-10 flex items-center gap-1 rounded-2xl border border-slate-700/40 bg-slate-900/80 px-2 py-1.5 backdrop-blur-sm">
+                          <div className={`${topologyFullscreen ? "absolute right-5 bottom-5" : "absolute right-5 bottom-5"} z-10 flex items-center gap-1 rounded-2xl border border-slate-700/40 bg-slate-900/80 px-2 py-1.5 backdrop-blur-sm`}>
                             <button
                               type="button"
                               aria-label="축소"
@@ -1436,11 +1458,23 @@ export default function K8sInfrastructurePage() {
                                 <path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" />
                               </svg>
                             </button>
+                            <div className="mx-1 h-4 w-px bg-slate-600" />
+                            <button
+                              type="button"
+                              aria-label={topologyFullscreen ? "전체화면 종료" : "전체화면으로 보기"}
+                              onClick={() => { userZoomedRef.current = false; setTopologyFullscreen((v) => !v); }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                            >
+                              {topologyFullscreen
+                                ? <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M7 3H3v4M17 3h-4v4M3 13v4h4M13 17h4v-4" /></svg>
+                                : <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" /></svg>
+                              }
+                            </button>
                           </div>
 
                           <div
                             ref={topologyViewportRef}
-                            className="h-[560px] overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0B0E14]/70 p-6 select-none dark:border-slate-800"
+                            className={`${topologyFullscreen ? "flex-1" : "h-[560px]"} overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0B0E14]/70 p-6 select-none dark:border-slate-800`}
                             style={{ cursor: topologyDragRef.current.active ? "grabbing" : "grab" }}
                             onWheel={(e) => {
                               if (!e.ctrlKey && !e.metaKey) return;
@@ -1449,20 +1483,25 @@ export default function K8sInfrastructurePage() {
                               setTopologyZoom((v) => clampTopologyZoom(+(v - e.deltaY * 0.001).toFixed(2)));
                             }}
                             onPointerDown={(e) => {
-                              if ((e.target as HTMLElement).closest("button")) return;
-                              topologyDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, scrollLeft: e.currentTarget.scrollLeft, scrollTop: e.currentTarget.scrollTop };
-                              e.currentTarget.setPointerCapture(e.pointerId);
+                              if ((e.target as HTMLElement).closest("button,a")) return;
+                              topologyDragRef.current = { active: false, startX: e.clientX, startY: e.clientY, scrollLeft: e.currentTarget.scrollLeft, scrollTop: e.currentTarget.scrollTop };
                             }}
                             onPointerMove={(e) => {
-                              if (!topologyDragRef.current.active) return;
-                              const dx = e.clientX - topologyDragRef.current.startX;
-                              const dy = e.clientY - topologyDragRef.current.startY;
-                              e.currentTarget.scrollLeft = topologyDragRef.current.scrollLeft - dx;
-                              e.currentTarget.scrollTop = topologyDragRef.current.scrollTop - dy;
+                              const d = topologyDragRef.current;
+                              if (d.startX === 0 && d.startY === 0) return;
+                              const dist = Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY);
+                              if (!d.active && dist > 6) {
+                                d.active = true;
+                                e.currentTarget.setPointerCapture(e.pointerId);
+                              }
+                              if (d.active) {
+                                e.currentTarget.scrollLeft = d.scrollLeft - (e.clientX - d.startX);
+                                e.currentTarget.scrollTop = d.scrollTop - (e.clientY - d.startY);
+                              }
                             }}
                             onPointerUp={(e) => {
-                              topologyDragRef.current.active = false;
-                              e.currentTarget.releasePointerCapture(e.pointerId);
+                              if (topologyDragRef.current.active) e.currentTarget.releasePointerCapture(e.pointerId);
+                              topologyDragRef.current = { active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
                             }}
                           >
                             <div
