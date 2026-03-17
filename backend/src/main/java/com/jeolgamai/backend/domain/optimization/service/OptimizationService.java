@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
@@ -54,16 +53,9 @@ public class OptimizationService {
     private final K8sInfrastructureService k8sInfrastructureService;
     private final PrometheusIntegrationService prometheusIntegrationService;
     private final OptimizationLlmService optimizationLlmService;
+    private final OptimizationPersistenceService optimizationPersistenceService;
 
     private final ConcurrentMap<String, OptimizationModels.ProjectSummary> projects = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, ConcurrentLinkedDeque<OptimizationModels.AnalysisSnapshot>> analysesByWorkspace =
-            new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, OptimizationModels.AnalysisSnapshot> analysisById = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, List<OptimizationModels.Recommendation>> recommendationsByAnalysis =
-            new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, OptimizationModels.Recommendation> recommendationById = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, List<OptimizationModels.ApprovalLog>> approvalsByWorkspace =
-            new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MutableChatSession> chatSessions = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<OptimizationModels.ReportArtifact>> reportsByWorkspace =
             new ConcurrentHashMap<>();
@@ -73,13 +65,15 @@ public class OptimizationService {
             AwsInfrastructureService awsInfrastructureService,
             K8sInfrastructureService k8sInfrastructureService,
             PrometheusIntegrationService prometheusIntegrationService,
-            OptimizationLlmService optimizationLlmService
+            OptimizationLlmService optimizationLlmService,
+            OptimizationPersistenceService optimizationPersistenceService
     ) {
         this.connectorRegistryService = connectorRegistryService;
         this.awsInfrastructureService = awsInfrastructureService;
         this.k8sInfrastructureService = k8sInfrastructureService;
         this.prometheusIntegrationService = prometheusIntegrationService;
         this.optimizationLlmService = optimizationLlmService;
+        this.optimizationPersistenceService = optimizationPersistenceService;
     }
 
     public OptimizationModels.AnalysisBundle runAnalysis(OptimizationModels.RunAnalysisRequest request) {
@@ -110,26 +104,16 @@ public class OptimizationService {
             String awsRegion
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
-        OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
-        OptimizationModels.AnalysisSnapshot latest = analysesByWorkspace
-                .getOrDefault(normalizedWorkspaceId, new ConcurrentLinkedDeque<>())
-                .peekFirst();
-
-        if (latest == null) {
-            return new OptimizationModels.AnalysisBundle(
-                    normalizedWorkspaceId,
-                    project,
-                    null,
-                    List.of()
-            );
-        }
-
-        return new OptimizationModels.AnalysisBundle(
-                normalizedWorkspaceId,
-                project,
-                latest,
-                recommendationsByAnalysis.getOrDefault(latest.id(), List.of())
-        );
+        return optimizationPersistenceService.findLatestAnalysisBundle(normalizedWorkspaceId)
+                .orElseGet(() -> {
+                    OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
+                    return new OptimizationModels.AnalysisBundle(
+                            normalizedWorkspaceId,
+                            project,
+                            null,
+                            List.of()
+                    );
+                });
     }
 
     public OptimizationModels.AnalysisBundle getAnalysis(
@@ -139,41 +123,24 @@ public class OptimizationService {
             String awsRegion
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
-        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
-        if (analysis == null || !normalizedWorkspaceId.equals(analysis.workspaceId())) {
-            throw new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다.");
-        }
-
-        OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
-        return new OptimizationModels.AnalysisBundle(
-                normalizedWorkspaceId,
-                project,
-                analysis,
-                recommendationsByAnalysis.getOrDefault(analysis.id(), List.of())
-        );
+        return optimizationPersistenceService.findAnalysisBundle(normalizedWorkspaceId, analysisId)
+                .orElseThrow(() -> new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다."));
     }
 
     public OptimizationModels.RecommendationList getRecommendations(String workspaceId) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
-        OptimizationModels.AnalysisSnapshot latest = analysesByWorkspace
-                .getOrDefault(normalizedWorkspaceId, new ConcurrentLinkedDeque<>())
-                .peekFirst();
-        if (latest == null) {
-            return new OptimizationModels.RecommendationList(null, List.of());
-        }
-        return new OptimizationModels.RecommendationList(
-                latest.id(),
-                recommendationsByAnalysis.getOrDefault(latest.id(), List.of())
-        );
+        return optimizationPersistenceService.findLatestAnalysisBundle(normalizedWorkspaceId)
+                .map(bundle -> new OptimizationModels.RecommendationList(
+                        bundle.analysis() == null ? null : bundle.analysis().id(),
+                        bundle.recommendations()
+                ))
+                .orElseGet(() -> new OptimizationModels.RecommendationList(null, List.of()));
     }
 
     public OptimizationModels.Recommendation getRecommendation(String workspaceId, String recommendationId) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
-        OptimizationModels.Recommendation recommendation = recommendationById.get(recommendationId);
-        if (recommendation == null || !normalizedWorkspaceId.equals(recommendation.workspaceId())) {
-            throw new IllegalArgumentException("recommendationId=" + recommendationId + "를 찾을 수 없습니다.");
-        }
-        return recommendation;
+        return optimizationPersistenceService.findRecommendation(normalizedWorkspaceId, recommendationId)
+                .orElseThrow(() -> new IllegalArgumentException("recommendationId=" + recommendationId + "를 찾을 수 없습니다."));
     }
 
     public OptimizationModels.ApprovalResult approveRecommendation(
@@ -208,21 +175,20 @@ public class OptimizationService {
                 current.rationale()
         );
 
-        recommendationById.put(updated.id(), updated);
-        replaceRecommendationInAnalysis(updated);
+        OptimizationModels.Recommendation persistedRecommendation = optimizationPersistenceService.saveRecommendation(updated);
 
         OptimizationModels.ApprovalLog log = new OptimizationModels.ApprovalLog(
                 createId("approval"),
                 normalizedWorkspaceId,
-                updated.id(),
+                persistedRecommendation.id(),
                 trimToNull(request.actor()) == null ? "company_admin" : request.actor().trim(),
                 action,
                 trimToNull(request.note()) == null ? "" : request.note().trim(),
                 now
         );
-        approvalsByWorkspace.computeIfAbsent(normalizedWorkspaceId, key -> new ArrayList<>()).add(0, log);
+        OptimizationModels.ApprovalLog persistedLog = optimizationPersistenceService.saveApprovalLog(log);
 
-        return new OptimizationModels.ApprovalResult(updated, log);
+        return new OptimizationModels.ApprovalResult(persistedRecommendation, persistedLog);
     }
 
     public OptimizationModels.ChatSession getChatSession(
@@ -382,8 +348,7 @@ public class OptimizationService {
     }
 
     private void ensureAnalysisExists(String workspaceId, String analysisId) {
-        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
-        if (analysis == null || !workspaceId.equals(analysis.workspaceId())) {
+        if (!optimizationPersistenceService.analysisExists(workspaceId, analysisId)) {
             throw new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다.");
         }
     }
@@ -1352,12 +1317,11 @@ public class OptimizationService {
             String pinnedRecommendationId,
             List<OptimizationModels.ChatMessage> history
     ) {
-        OptimizationModels.AnalysisSnapshot analysis = analysisById.get(analysisId);
-        List<OptimizationModels.Recommendation> recommendations = recommendationsByAnalysis
-                .getOrDefault(analysisId, List.of())
-                .stream()
-                .filter(recommendation -> workspaceId.equals(recommendation.workspaceId()))
-                .toList();
+        OptimizationModels.AnalysisBundle bundle = optimizationPersistenceService
+                .findAnalysisBundle(workspaceId, analysisId)
+                .orElse(null);
+        OptimizationModels.AnalysisSnapshot analysis = bundle == null ? null : bundle.analysis();
+        List<OptimizationModels.Recommendation> recommendations = bundle == null ? List.of() : bundle.recommendations();
 
         OptimizationModels.Recommendation pinned = trimToNull(pinnedRecommendationId) == null
                 ? recommendations.stream().findFirst().orElse(null)
@@ -1370,7 +1334,8 @@ public class OptimizationService {
             return "아직 분석 결과가 없습니다. 먼저 프로젝트 비용 분석을 실행해 주세요.";
         }
 
-        OptimizationModels.ProjectSummary project = projects.getOrDefault(
+        OptimizationModels.ProjectSummary project = bundle == null
+                ? projects.getOrDefault(
                 workspaceId,
                 new OptimizationModels.ProjectSummary(
                         workspaceId,
@@ -1379,7 +1344,8 @@ public class OptimizationService {
                         analysis == null ? AWS_SEOUL_REGION : analysis.awsRegion(),
                         nowIso()
                 )
-        );
+        )
+                : bundle.project();
 
         String llmReply = optimizationLlmService.complete(
                 workspaceId,
@@ -1632,21 +1598,7 @@ public class OptimizationService {
     }
 
     private void saveAnalysisBundle(OptimizationModels.AnalysisBundle bundle) {
-        analysesByWorkspace.computeIfAbsent(bundle.workspaceId(), key -> new ConcurrentLinkedDeque<>())
-                .addFirst(bundle.analysis());
-        analysisById.put(bundle.analysis().id(), bundle.analysis());
-        recommendationsByAnalysis.put(bundle.analysis().id(), bundle.recommendations());
-        for (OptimizationModels.Recommendation recommendation : bundle.recommendations()) {
-            recommendationById.put(recommendation.id(), recommendation);
-        }
-    }
-
-    private void replaceRecommendationInAnalysis(OptimizationModels.Recommendation updated) {
-        recommendationsByAnalysis.computeIfPresent(updated.analysisId(), (key, existing) ->
-                existing.stream()
-                        .map(recommendation -> recommendation.id().equals(updated.id()) ? updated : recommendation)
-                        .toList()
-        );
+        optimizationPersistenceService.saveAnalysisBundle(bundle);
     }
 
     private String normalizeServiceCategory(String serviceName) {

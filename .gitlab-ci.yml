@@ -1,4 +1,5 @@
 stages:
+  - review
   - notify_start
   - prepare
   - build
@@ -7,6 +8,7 @@ stages:
 
 workflow:
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "master"'
     - when: never
 
@@ -17,10 +19,34 @@ variables:
   GAR_HOST: "asia-northeast3-docker.pkg.dev"
   NOTIFY_WEBHOOK_URL: "https://meeting.ssafy.com/hooks/9surx989wprdtrrzhgncq9t9qw"
   NOTIFY_BOT_NAME: "jeolgamai-cicd"
+  GMS_REVIEW_MODEL: "gpt-4o-mini"
+  GMS_REVIEW_MAX_DIFF_BYTES: "45000"
+
+.master_only_rules: &master_only_rules
+  - if: '$CI_COMMIT_BRANCH == "master"'
+  - when: never
+
+review_merge_request_changes:
+  stage: review
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - python3 scripts/ci/gms_mr_review.py
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - frontend/**/*
+        - backend/**/*
+        - scripts/ci/**/*
+        - .gitlab-ci.yml
+    - when: never
+  allow_failure: true
 
 notify_pipeline_start:
   stage: notify_start
   image: curlimages/curl:8.12.1
+  rules: *master_only_rules
   script:
     - |
       NOW_TS="$(date +%s)"
@@ -55,6 +81,7 @@ notify_pipeline_start:
 prepare_release:
   stage: prepare
   image: alpine:3.20
+  rules: *master_only_rules
   script:
     - IMAGE_TIMESTAMP="$(date -u +%Y-%m-%d-%H-%M)"
     - IMAGE_TAG="${IMAGE_TIMESTAMP}-${CI_COMMIT_SHORT_SHA}"
@@ -70,6 +97,7 @@ build_backend_image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
+  rules: *master_only_rules
   needs:
     - job: prepare_release
       artifacts: true
@@ -91,6 +119,7 @@ build_frontend_image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
+  rules: *master_only_rules
   needs:
     - job: prepare_release
       artifacts: true
@@ -112,6 +141,7 @@ update_gitops_manifests:
   image:
     name: alpine/git:2.47.2
     entrypoint: [""]
+  rules: *master_only_rules
   needs:
     - job: prepare_release
       artifacts: true
@@ -153,6 +183,7 @@ update_gitops_manifests:
 notify_pipeline_success:
   stage: notify_end
   image: curlimages/curl:8.12.1
+  rules: *master_only_rules
   script:
     - |
       NOW_TS="$(date +%s)"
@@ -186,6 +217,7 @@ notify_pipeline_success:
 notify_pipeline_failure:
   stage: notify_end
   image: curlimages/curl:8.12.1
+  rules: *master_only_rules
   script:
     - |
       NOW_TS="$(date +%s)"
