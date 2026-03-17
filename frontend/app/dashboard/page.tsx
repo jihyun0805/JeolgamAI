@@ -224,8 +224,8 @@ export default function DashboardPage() {
           }
         />
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="mx-auto w-full max-w-7xl space-y-5">
 
             {/* Hero — project header */}
             <section className="rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">

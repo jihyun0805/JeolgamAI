@@ -120,16 +120,16 @@ export default function OpsPage() {
           description="현재 프로젝트 범위의 감사 이벤트를 시간 역순으로 표시합니다."
         />
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 md:p-8">
+          <div className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col gap-4">
 
             {error ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+              <div className="shrink-0 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
                 {error}
               </div>
             ) : null}
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
 
               {/* toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
@@ -163,7 +163,7 @@ export default function OpsPage() {
               </div>
 
               {/* table */}
-              <div className="overflow-x-auto">
+              <div className="flex-1 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-[#0F141C]/60">

@@ -123,8 +123,8 @@ export default function InfrastructureAnalysisPage() {
           }
         />
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="mx-auto w-full max-w-7xl space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>

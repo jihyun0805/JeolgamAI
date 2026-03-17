@@ -390,7 +390,6 @@ export default function PrometheusPage() {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedRange.from, appliedRange.to]);
 
   function applyPresetRange(preset: Exclude<RangePreset, "custom">) {
@@ -439,8 +438,8 @@ export default function PrometheusPage() {
           description="현재 프로젝트의 Prometheus 지표를 프로젝트 스코프로 표시합니다."
         />
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="mx-auto w-full max-w-7xl space-y-5">
 
             {/* 프로젝트 + 시간 범위 컨트롤 – 한 줄 통합 */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
