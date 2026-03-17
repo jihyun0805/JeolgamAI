@@ -4,7 +4,6 @@ import { Children, ReactNode, useEffect, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 
-type ResourceTab = "deployments" | "services" | "pods";
 type HealthTone = "healthy" | "progressing" | "degraded" | "neutral";
 type GraphNodeKind =
   | "app"
@@ -16,6 +15,20 @@ type GraphNodeKind =
   | "pod"
   | "node";
 type NodeChip = { label: string; title?: string };
+
+type SidebarSection = {
+  label: string;
+  rows?: Array<{ key: string; value: string }>;
+  tags?: string[];
+};
+
+type SidebarResource = {
+  kind: GraphNodeKind;
+  title: string;
+  subtitle: string;
+  tone: HealthTone;
+  sections: SidebarSection[];
+};
 
 const TOPOLOGY_ROW_HEIGHT = 184;
 const TOPOLOGY_ROW_GAP = 24;
@@ -276,18 +289,6 @@ function getTopologyRowCenter(rowIndex: number) {
   return TOPOLOGY_HEADER_OFFSET + TOPOLOGY_ROW_HEIGHT / 2 + getTopologyRowTop(rowIndex);
 }
 
-function createCenteredRowIndices(count: number, rows: number) {
-  const safeCount = Math.max(1, count);
-  const safeRows = Math.max(safeCount, rows, 1);
-  if (safeCount === 1) {
-    return [Math.floor((safeRows - 1) / 2)];
-  }
-
-  return Array.from({ length: safeCount }, (_, index) => (
-    Math.round((index * (safeRows - 1)) / (safeCount - 1))
-  ));
-}
-
 function createSequentialRowIndices(count: number) {
   const safeCount = Math.max(1, count);
   return Array.from({ length: safeCount }, (_, index) => index);
@@ -421,6 +422,7 @@ function ResourceMapNode({
   tone,
   meta,
   chips,
+  onClick,
 }: {
   kind: GraphNodeKind;
   title: string;
@@ -428,9 +430,17 @@ function ResourceMapNode({
   tone: HealthTone;
   meta?: string;
   chips?: NodeChip[];
+  onClick?: () => void;
 }) {
   return (
-    <article className="relative mx-auto h-[176px] w-full max-w-[320px] overflow-hidden rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+    <article
+      className={`relative mx-auto h-[176px] w-full max-w-[320px] overflow-hidden rounded-[24px] border bg-white px-6 py-5 shadow-sm dark:bg-[#161B22] ${
+        onClick
+          ? "cursor-pointer border-slate-200 transition-all hover:border-[#1c59f2]/40 hover:shadow-md dark:border-slate-800 dark:hover:border-[#1c59f2]/40"
+          : "border-slate-200 dark:border-slate-800"
+      }`}
+      onClick={onClick}
+    >
       <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${cardAccentClass(tone)} opacity-70`} />
       <div className="relative flex h-full items-start gap-5">
         <div className={`flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] border ${toneClass(tone)}`}>
@@ -634,41 +644,109 @@ function BranchConnector({
   );
 }
 
-function Pager({
-  page,
-  totalPages,
-  onChange,
+
+function ResourceDetailSidebar({
+  resource,
+  onClose,
 }: {
-  page: number;
-  totalPages: number;
-  onChange: (page: number) => void;
+  resource: SidebarResource;
+  onClose: () => void;
 }) {
-  if (totalPages <= 1) {
-    return null;
-  }
+  const toneLabel =
+    resource.tone === "healthy"
+      ? "Healthy"
+      : resource.tone === "progressing"
+        ? "Progressing"
+        : resource.tone === "degraded"
+          ? "Degraded"
+          : "Idle";
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(1, page - 1))}
-        disabled={page === 1}
-        className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
-      >
-        이전
-      </button>
-      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-        {page} / {totalPages}
-      </span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(totalPages, page + 1))}
-        disabled={page === totalPages}
-        className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
-      >
-        다음
-      </button>
-    </div>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-20 bg-black/25 backdrop-blur-[1px]"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Slide-in panel */}
+      <div className="fixed right-0 top-0 z-30 flex h-full w-full max-w-[400px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#161B22]">
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 p-6 dark:border-slate-800">
+          <div className="min-w-0">
+            <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
+              {resource.subtitle}
+            </p>
+            <h2 className="mt-1.5 break-all text-xl font-black leading-tight tracking-tight">
+              {resource.title}
+            </h2>
+            <div className="mt-3">
+              <HealthBadge tone={resource.tone} label={toneLabel} />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="닫기"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+              aria-hidden
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
+            {resource.sections.map((section) => (
+              <div key={section.label}>
+                <p className="mb-3 text-xs font-bold tracking-[0.18em] text-slate-400 uppercase">
+                  {section.label}
+                </p>
+                {section.rows?.length ? (
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
+                    {section.rows.map((row) => (
+                      <div key={row.key}>
+                        <span className="block text-[11px] font-semibold text-slate-400">
+                          {row.key}
+                        </span>
+                        <span className="mt-0.5 block break-all text-sm text-slate-700 dark:text-slate-200">
+                          {row.value || "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {section.tags?.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {section.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        title={tag}
+                        className="break-all rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -680,12 +758,9 @@ export default function K8sInfrastructurePage() {
   const [error, setError] = useState("");
   const [selectedNamespace, setSelectedNamespace] = useState("");
   const [namespaceSearch, setNamespaceSearch] = useState("");
-  const [namespacePage, setNamespacePage] = useState(1);
   const [workloadSearch, setWorkloadSearch] = useState("");
-  const [topologyPage, setTopologyPage] = useState(1);
   const [topologyZoom, setTopologyZoom] = useState(0.85);
-  const [resourceTab, setResourceTab] = useState<ResourceTab>("deployments");
-  const [resourcePage, setResourcePage] = useState(1);
+  const [selectedResource, setSelectedResource] = useState<SidebarResource | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   function getFitTopologyZoom() {
@@ -760,13 +835,6 @@ export default function K8sInfrastructurePage() {
   const filteredNamespaces = (data?.namespaces ?? []).filter((item) => {
     return item.name.toLowerCase().includes(namespaceKeyword);
   });
-  const namespacePageSize = 8;
-  const namespaceTotalPages = Math.max(1, Math.ceil(filteredNamespaces.length / namespacePageSize));
-  const safeNamespacePage = Math.min(namespacePage, namespaceTotalPages);
-  const visibleNamespaces = filteredNamespaces.slice(
-    (safeNamespacePage - 1) * namespacePageSize,
-    safeNamespacePage * namespacePageSize,
-  );
   const activeNamespace =
     data?.namespaces.find((item) => item.name === selectedNamespace) ??
     filteredNamespaces[0] ??
@@ -807,57 +875,28 @@ export default function K8sInfrastructurePage() {
       item.node.toLowerCase().includes(workloadKeyword)
     );
   });
-  const topologyPageSize = 1;
-  const topologyTotalPages = Math.max(1, Math.ceil(filteredDeployments.length / topologyPageSize));
-  const safeTopologyPage = Math.min(topologyPage, topologyTotalPages);
-  const visibleTopologyDeployments = filteredDeployments.slice(
-    (safeTopologyPage - 1) * topologyPageSize,
-    safeTopologyPage * topologyPageSize,
-  );
-  const activeResourceItems =
-    resourceTab === "deployments"
-      ? filteredDeployments
-      : resourceTab === "services"
-        ? filteredServices
-        : filteredPods;
-  const resourcePageSize = 8;
-  const resourceTotalPages = Math.max(1, Math.ceil(activeResourceItems.length / resourcePageSize));
-  const safeResourcePage = Math.min(resourcePage, resourceTotalPages);
-  const visibleDeployments = filteredDeployments.slice(
-    (safeResourcePage - 1) * resourcePageSize,
-    safeResourcePage * resourcePageSize,
-  );
-  const visibleServices = filteredServices.slice(
-    (safeResourcePage - 1) * resourcePageSize,
-    safeResourcePage * resourcePageSize,
-  );
-  const visiblePods = filteredPods.slice(
-    (safeResourcePage - 1) * resourcePageSize,
-    safeResourcePage * resourcePageSize,
-  );
 
   useEffect(() => {
-    setNamespacePage(1);
-  }, [namespaceSearch]);
+    setSelectedResource(null);
+  }, [selectedNamespace, workloadSearch]);
 
   useEffect(() => {
-    setTopologyPage(1);
-    setResourcePage(1);
-  }, [selectedNamespace, workloadSearch, resourceTab]);
-
-  useEffect(() => {
-    const fitZoom = getFitTopologyZoom();
-    setTopologyZoom(fitZoom);
+    setTopologyZoom(getFitTopologyZoom());
 
     const viewport = topologyViewportRef.current;
-    if (!viewport) {
-      return;
-    }
+    if (!viewport) return;
+
+    const observer = new ResizeObserver(() => {
+      setTopologyZoom(getFitTopologyZoom());
+    });
+    observer.observe(viewport);
 
     requestAnimationFrame(() => {
       viewport.scrollTo({ left: 0, top: 0 });
     });
-  }, [topologyPage, selectedNamespace, workloadSearch]);
+
+    return () => observer.disconnect();
+  }, [selectedNamespace, workloadSearch]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
@@ -953,188 +992,101 @@ export default function K8sInfrastructurePage() {
               />
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-              <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
-                      Namespace
-                    </p>
-                    <h3 className="mt-2 text-xl font-black tracking-tight">보고 싶은 영역</h3>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300">
-                    {filteredNamespaces.length}
-                  </span>
-                </div>
-
+            {/* Namespace 가로 pill 선택기 */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="whitespace-nowrap text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
+                  Namespace
+                </span>
                 <input
                   value={namespaceSearch}
                   onChange={(event) => setNamespaceSearch(event.target.value)}
-                  placeholder="namespace 검색"
-                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
+                  placeholder="검색"
+                  className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
-
-                <div className="mt-4 space-y-2">
-                  {visibleNamespaces.map((namespace) => {
-                    const active = activeNamespace?.name === namespace.name;
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {filteredNamespaces.slice(0, 16).map((namespace) => {
+                    const isActive = activeNamespace?.name === namespace.name;
                     const tone = data ? namespaceTone(namespace, data) : "neutral";
-
+                    const dotClass =
+                      tone === "healthy"
+                        ? "bg-emerald-400"
+                        : tone === "progressing"
+                          ? "bg-amber-400"
+                          : tone === "degraded"
+                            ? "bg-rose-400"
+                            : "bg-slate-400";
                     return (
                       <button
                         key={namespace.name}
                         type="button"
                         onClick={() => setSelectedNamespace(namespace.name)}
-                        className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
-                          active
-                            ? "border-[#1c59f2]/20 bg-[#1c59f2]/5"
-                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-[#0B0E14] dark:hover:border-slate-700 dark:hover:bg-[#101621]"
+                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          isActive
+                            ? "border-[#1c59f2]/30 bg-[#1c59f2]/10 text-[#1c59f2]"
+                            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#101621]"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold" title={namespace.name}>
-                              {namespace.name}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              deploy {namespace.deploymentCount} · svc {namespace.serviceCount} · pod {namespace.podCount}
-                            </p>
-                          </div>
-                          <HealthBadge
-                            tone={tone}
-                            label={
-                              tone === "healthy"
-                                ? "Healthy"
-                                : tone === "progressing"
-                                  ? "Progressing"
-                                  : tone === "degraded"
-                                    ? "Degraded"
-                                    : "Idle"
-                            }
-                          />
-                        </div>
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
+                        <span className="max-w-[160px] truncate">{namespace.name}</span>
                       </button>
                     );
                   })}
+                  {filteredNamespaces.length > 16 && (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14]">
+                      +{filteredNamespaces.length - 16}
+                    </span>
+                  )}
+                  {!filteredNamespaces.length && (
+                    <span className="text-xs text-slate-400">일치하는 namespace 없음</span>
+                  )}
                 </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {filteredNamespaces.length}개 namespace
+              </div>
+            </section>
+
+            {/* Live Resource Map – 전체 폭, 모든 deployment 한 번에 */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
+                    Resource Topology
                   </p>
-                  <Pager
-                    page={safeNamespacePage}
-                    totalPages={namespaceTotalPages}
-                    onChange={setNamespacePage}
-                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                    <h3 className="text-2xl font-black tracking-tight">
+                      {activeNamespace?.name ?? "namespace 선택 중"}
+                    </h3>
+                    {activeNamespace && data ? (
+                      <HealthBadge
+                        tone={namespaceTone(activeNamespace, data)}
+                        label={
+                          namespaceTone(activeNamespace, data) === "healthy"
+                            ? "Healthy"
+                            : namespaceTone(activeNamespace, data) === "progressing"
+                              ? "Progressing"
+                              : namespaceTone(activeNamespace, data) === "degraded"
+                                ? "Degraded"
+                                : "Idle"
+                        }
+                      />
+                    ) : null}
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300">
+                      svc {filteredServices.length} · deploy {filteredDeployments.length} · pod {filteredPods.length}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    서비스 진입점부터 deployment, pod, node 배치까지 이어지는 흐름을 보여줍니다.
+                  </p>
                 </div>
-              </aside>
+                <input
+                  value={workloadSearch}
+                  onChange={(event) => setWorkloadSearch(event.target.value)}
+                  placeholder="service, deployment, pod 검색"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none xl:w-72 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </div>
 
-              <div className="space-y-6">
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div>
-                      <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
-                        Active Namespace
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <h3
-                          className="max-w-[420px] truncate text-2xl font-black tracking-tight"
-                          title={activeNamespace?.name ?? "선택된 namespace 없음"}
-                        >
-                          {activeNamespace?.name ?? "선택된 namespace 없음"}
-                        </h3>
-                        {activeNamespace && data ? (
-                          <HealthBadge
-                            tone={namespaceTone(activeNamespace, data)}
-                            label={
-                              namespaceTone(activeNamespace, data) === "healthy"
-                                ? "Healthy"
-                                : namespaceTone(activeNamespace, data) === "progressing"
-                                  ? "Progressing"
-                                  : namespaceTone(activeNamespace, data) === "degraded"
-                                    ? "Degraded"
-                                    : "Idle"
-                            }
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <input
-                      value={workloadSearch}
-                      onChange={(event) => setWorkloadSearch(event.target.value)}
-                      placeholder="service, deployment, pod 검색"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none xl:w-80 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
-                    />
-                  </div>
-
-                  <div className="mt-5 grid gap-4 md:grid-cols-3">
-                    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
-                      <p className="text-xs font-bold tracking-[0.16em] text-slate-400 uppercase">서비스 진입점</p>
-                      <p className="mt-3 text-3xl font-black text-cyan-500 dark:text-cyan-300">
-                        {filteredServices.length}
-                      </p>
-                    </article>
-                    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
-                      <p className="text-xs font-bold tracking-[0.16em] text-slate-400 uppercase">워크로드</p>
-                      <p className="mt-3 text-3xl font-black text-violet-500 dark:text-violet-300">
-                        {filteredDeployments.length}
-                      </p>
-                    </article>
-                    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
-                      <p className="text-xs font-bold tracking-[0.16em] text-slate-400 uppercase">실행 중인 Pod</p>
-                      <p className="mt-3 text-3xl font-black text-emerald-500 dark:text-emerald-300">
-                        {filteredPods.length}
-                      </p>
-                    </article>
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
-                        Resource Topology
-                      </p>
-                      <h3 className="mt-2 text-2xl font-black tracking-tight">Live Resource Map</h3>
-                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                        서비스가 어디로 연결되고, 어떤 pod가 어떤 node에 올라갔는지 흐름으로 보여줍니다.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300">
-                        {safeTopologyPage} / {topologyTotalPages} maps
-                      </span>
-                      <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0B0E14]">
-                        <button
-                          type="button"
-                          onClick={() => setTopologyZoom((current) => clampTopologyZoom(current - 0.1))}
-                          className="rounded-full px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-[#111824]"
-                        >
-                          -
-                        </button>
-                        <span className="min-w-[52px] text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {Math.round(topologyZoom * 100)}%
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setTopologyZoom((current) => clampTopologyZoom(current + 0.1))}
-                          className="rounded-full px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-[#111824]"
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTopologyZoom(getFitTopologyZoom())}
-                          className="rounded-full px-3 py-1 text-xs font-semibold text-[#1c59f2] transition hover:bg-white dark:hover:bg-[#111824]"
-                        >
-                          Fit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 space-y-5">
-                    {visibleTopologyDeployments.map((deployment) => {
+              <div className="mt-6 space-y-5">
+                {filteredDeployments.map((deployment) => {
                       const deploymentServices = namespaceServices.filter((service) => {
                         return (
                           selectorMatches(service.selector, deployment.selector) ||
@@ -1372,6 +1324,24 @@ export default function K8sInfrastructurePage() {
                                     tone="healthy"
                                     meta={`${ingress.ingressClass} · ${ingress.address}`}
                                     chips={(ingress.hosts.length ? ingress.hosts : ingress.serviceNames).map(toChip)}
+                                    onClick={() => setSelectedResource({
+                                      kind: "ingress",
+                                      title: ingress.name,
+                                      subtitle: "Ingress",
+                                      tone: "healthy",
+                                      sections: [
+                                        {
+                                          label: "Info",
+                                          rows: [
+                                            { key: "Namespace", value: ingress.namespace },
+                                            { key: "Class", value: ingress.ingressClass },
+                                            { key: "Address", value: ingress.address || "—" },
+                                          ],
+                                        },
+                                        ...(ingress.hosts.length ? [{ label: "Hosts", tags: ingress.hosts }] : []),
+                                        { label: "Backend Services", tags: ingress.serviceNames },
+                                      ],
+                                    })}
                                   />
                                 )) : (
                                   <ResourceMapNode
@@ -1406,18 +1376,48 @@ export default function K8sInfrastructurePage() {
                                       ? ` · endpoint ${endpoint.readyAddressCount}/${totalEndpointTargets} ready`
                                       : "";
 
+                                    const serviceTone = endpoint && endpoint.notReadyAddressCount > 0 ? "progressing" : "healthy";
                                     return (
                                   <ResourceMapNode
                                     key={`${deployment.name}-${service.name}`}
                                     kind="service"
                                     title={service.name}
                                     subtitle="Service"
-                                    tone={endpoint && endpoint.notReadyAddressCount > 0 ? "progressing" : "healthy"}
+                                    tone={serviceTone}
                                     meta={`${service.type} · ${service.ports[0] ?? "port 정보 없음"}${endpointSummary}`}
                                     chips={[
                                       ...service.ports.map((port) => toChip(port)),
                                       ...(endpoint ? [toChip(`targets ${endpoint.readyAddressCount}`)] : []),
                                     ]}
+                                    onClick={() => setSelectedResource({
+                                      kind: "service",
+                                      title: service.name,
+                                      subtitle: "Service",
+                                      tone: serviceTone,
+                                      sections: [
+                                        {
+                                          label: "Network",
+                                          rows: [
+                                            { key: "Namespace", value: service.namespace },
+                                            { key: "Type", value: service.type },
+                                            { key: "Cluster IP", value: service.clusterIP },
+                                          ],
+                                        },
+                                        ...(service.ports.length ? [{ label: "Ports", tags: service.ports }] : []),
+                                        ...(Object.keys(service.selector).length
+                                          ? [{ label: "Selector", tags: Object.entries(service.selector).map(([k, v]) => `${k}=${v}`) }]
+                                          : []),
+                                        ...(endpoint
+                                          ? [{
+                                              label: "Endpoints",
+                                              rows: [
+                                                { key: "Ready", value: String(endpoint.readyAddressCount) },
+                                                { key: "Not Ready", value: String(endpoint.notReadyAddressCount) },
+                                              ],
+                                            }]
+                                          : []),
+                                      ],
+                                    })}
                                   />
                                     );
                                   })()
@@ -1454,24 +1454,65 @@ export default function K8sInfrastructurePage() {
                                   chips={Object.entries(deployment.selector).map(([key, value]) =>
                                     toChip(`${key}=${value}`),
                                   )}
+                                  onClick={() => setSelectedResource({
+                                    kind: "deployment",
+                                    title: deployment.name,
+                                    subtitle: "Deployment",
+                                    tone: deploymentTone(deployment),
+                                    sections: [
+                                      {
+                                        label: "Status",
+                                        rows: [
+                                          { key: "Namespace", value: deployment.namespace },
+                                          { key: "Replicas", value: `${deployment.readyReplicas}/${deployment.replicas} ready` },
+                                        ],
+                                      },
+                                      ...(Object.keys(deployment.selector).length
+                                        ? [{ label: "Selector", tags: Object.entries(deployment.selector).map(([k, v]) => `${k}=${v}`) }]
+                                        : []),
+                                      ...(deployment.images.length ? [{ label: "Images", tags: deployment.images }] : []),
+                                    ],
+                                  })}
                                 />
-                                {relatedReplicaSets.map((replicaSet) => (
+                                {relatedReplicaSets.map((replicaSet) => {
+                                  const replicaSetTone =
+                                    replicaSet.readyReplicas === replicaSet.replicas
+                                      ? "healthy"
+                                      : replicaSet.readyReplicas > 0
+                                        ? "progressing"
+                                        : "degraded";
+                                  return (
                                   <ResourceMapNode
                                     key={`${deployment.name}-${replicaSet.name}`}
                                     kind="replicaset"
                                     title={replicaSet.name}
                                     subtitle="ReplicaSet"
-                                    tone={
-                                      replicaSet.readyReplicas === replicaSet.replicas
-                                        ? "healthy"
-                                        : replicaSet.readyReplicas > 0
-                                          ? "progressing"
-                                          : "degraded"
-                                    }
+                                    tone={replicaSetTone}
                                     meta={`${replicaSet.readyReplicas}/${replicaSet.replicas} replicas ready`}
                                     chips={replicaSet.images.map(formatImageChip)}
+                                    onClick={() => setSelectedResource({
+                                      kind: "replicaset",
+                                      title: replicaSet.name,
+                                      subtitle: "ReplicaSet",
+                                      tone: replicaSetTone,
+                                      sections: [
+                                        {
+                                          label: "Status",
+                                          rows: [
+                                            { key: "Namespace", value: replicaSet.namespace },
+                                            { key: "Replicas", value: `${replicaSet.readyReplicas}/${replicaSet.replicas} ready` },
+                                            { key: "Owner", value: replicaSet.ownerDeployment || "—" },
+                                          ],
+                                        },
+                                        ...(Object.keys(replicaSet.selector).length
+                                          ? [{ label: "Selector", tags: Object.entries(replicaSet.selector).map(([k, v]) => `${k}=${v}`) }]
+                                          : []),
+                                        ...(replicaSet.images.length ? [{ label: "Images", tags: replicaSet.images }] : []),
+                                      ],
+                                    })}
                                   />
-                                ))}
+                                  );
+                                })}
                               </StageColumn>
 
                               <BranchConnector
@@ -1496,6 +1537,37 @@ export default function K8sInfrastructurePage() {
                                     tone={statusTone(pod.phase)}
                                     meta={`${pod.ready} ready · restarts ${pod.restartCount} · node ${shortenMiddle(pod.node, 18, 10)}`}
                                     chips={[toChip(pod.node), ...pod.images.map(formatImageChip)]}
+                                    onClick={() => setSelectedResource({
+                                      kind: "pod",
+                                      title: pod.name,
+                                      subtitle: "Pod",
+                                      tone: statusTone(pod.phase),
+                                      sections: [
+                                        {
+                                          label: "Status",
+                                          rows: [
+                                            { key: "Namespace", value: pod.namespace },
+                                            { key: "Phase", value: pod.phase },
+                                            { key: "Ready", value: pod.ready },
+                                            { key: "Node", value: pod.node },
+                                            { key: "Restarts", value: String(pod.restartCount) },
+                                          ],
+                                        },
+                                        ...(pod.ownerKind
+                                          ? [{
+                                              label: "Owner",
+                                              rows: [
+                                                { key: "Kind", value: pod.ownerKind },
+                                                { key: "Name", value: pod.ownerName ?? "—" },
+                                              ],
+                                            }]
+                                          : []),
+                                        ...(pod.images.length ? [{ label: "Images", tags: pod.images }] : []),
+                                        ...(Object.keys(pod.labels).length
+                                          ? [{ label: "Labels", tags: Object.entries(pod.labels).map(([k, v]) => `${k}=${v}`) }]
+                                          : []),
+                                      ],
+                                    })}
                                   />
                                 )) : (
                                   <ResourceMapNode
@@ -1521,158 +1593,19 @@ export default function K8sInfrastructurePage() {
                         현재 필터에서 보여줄 deployment가 없습니다.
                       </div>
                     ) : null}
-                  </div>
-                  <div className="mt-5 flex items-center justify-end">
-                    <Pager
-                      page={safeTopologyPage}
-                      totalPages={topologyTotalPages}
-                      onChange={setTopologyPage}
-                    />
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
-                        Detail Inspector
-                      </p>
-                      <h3 className="mt-2 text-2xl font-black tracking-tight">세부 리소스 표</h3>
-                    </div>
-                    <div className="flex flex-wrap gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0B0E14]">
-                      {(["deployments", "services", "pods"] as ResourceTab[]).map((tab) => (
-                        <button
-                          key={tab}
-                          type="button"
-                          onClick={() => setResourceTab(tab)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-                            resourceTab === tab
-                              ? "bg-[#1c59f2] text-white"
-                              : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-                          }`}
-                        >
-                          {tab}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
-                      <thead className="bg-slate-50 dark:bg-[#0B0E14]">
-                        {resourceTab === "deployments" ? (
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold">Deployment</th>
-                            <th className="px-4 py-3 text-left font-semibold">Health</th>
-                            <th className="px-4 py-3 text-left font-semibold">Replicas</th>
-                            <th className="px-4 py-3 text-left font-semibold">Selector</th>
-                          </tr>
-                        ) : null}
-                        {resourceTab === "services" ? (
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold">Service</th>
-                            <th className="px-4 py-3 text-left font-semibold">Type</th>
-                            <th className="px-4 py-3 text-left font-semibold">Cluster IP</th>
-                            <th className="px-4 py-3 text-left font-semibold">Ports</th>
-                          </tr>
-                        ) : null}
-                        {resourceTab === "pods" ? (
-                          <tr>
-                            <th className="px-4 py-3 text-left font-semibold">Pod</th>
-                            <th className="px-4 py-3 text-left font-semibold">Phase</th>
-                            <th className="px-4 py-3 text-left font-semibold">Ready</th>
-                            <th className="px-4 py-3 text-left font-semibold">Node</th>
-                            <th className="px-4 py-3 text-left font-semibold">Restarts</th>
-                          </tr>
-                        ) : null}
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {resourceTab === "deployments" ? visibleDeployments.map((deployment) => (
-                          <tr key={`${deployment.namespace}-${deployment.name}`}>
-                            <td className="px-4 py-4 font-semibold">{deployment.name}</td>
-                            <td className="px-4 py-4">
-                              <HealthBadge
-                                tone={deploymentTone(deployment)}
-                                label={
-                                  deploymentTone(deployment) === "healthy"
-                                    ? "Healthy"
-                                    : deploymentTone(deployment) === "progressing"
-                                      ? "Progressing"
-                                      : deploymentTone(deployment) === "degraded"
-                                        ? "Degraded"
-                                        : "Idle"
-                                }
-                              />
-                            </td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">
-                              {deployment.readyReplicas}/{deployment.replicas}
-                            </td>
-                            <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
-                              {formatSelector(deployment.selector)}
-                            </td>
-                          </tr>
-                        )) : null}
-
-                        {resourceTab === "services" ? visibleServices.map((service) => (
-                          <tr key={`${service.namespace}-${service.name}`}>
-                            <td className="px-4 py-4 font-semibold">{service.name}</td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">{service.type}</td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">{service.clusterIP}</td>
-                            <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
-                              {service.ports.join(", ")}
-                            </td>
-                          </tr>
-                        )) : null}
-
-                        {resourceTab === "pods" ? visiblePods.map((pod) => (
-                          <tr key={`${pod.namespace}-${pod.name}`}>
-                            <td className="px-4 py-4 font-semibold">{pod.name}</td>
-                            <td className="px-4 py-4">
-                              <HealthBadge tone={statusTone(pod.phase)} label={pod.phase} />
-                            </td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">{pod.ready}</td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">{pod.node}</td>
-                            <td className="px-4 py-4 text-slate-500 dark:text-slate-400">{pod.restartCount}</td>
-                          </tr>
-                        )) : null}
-
-                        {resourceTab === "deployments" && !filteredDeployments.length ? (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                              표시할 deployment가 없습니다.
-                            </td>
-                          </tr>
-                        ) : null}
-                        {resourceTab === "services" && !filteredServices.length ? (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                              표시할 service가 없습니다.
-                            </td>
-                          </tr>
-                        ) : null}
-                        {resourceTab === "pods" && !filteredPods.length ? (
-                          <tr>
-                            <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                              표시할 pod가 없습니다.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="mt-4 flex items-center justify-end">
-                    <Pager
-                      page={safeResourcePage}
-                      totalPages={resourceTotalPages}
-                      onChange={setResourcePage}
-                    />
-                  </div>
-                </section>
               </div>
             </section>
+
           </div>
         </div>
       </main>
+
+      {selectedResource && (
+        <ResourceDetailSidebar
+          resource={selectedResource}
+          onClose={() => setSelectedResource(null)}
+        />
+      )}
     </div>
   );
 }
