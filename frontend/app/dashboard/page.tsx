@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 
@@ -54,41 +55,56 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-
+function formatCompactDateTime(value: string | null | undefined) {
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString("ko-KR", {
-    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
 function getCostBasisLabel(data: DashboardPayload | null) {
-  if (!data?.analysis) return "분석 없음";
-
-  if (data.analysis.sourceCoverage.aws) {
-    return "AWS 실측 비용 기반";
-  }
-
-  if (data.analysis.sourceCoverage.prometheus) {
-    return "Prometheus capacity 기반 추정";
-  }
-
-  return "연동 부족으로 제한된 분석";
+  if (!data?.analysis) return null;
+  if (data.analysis.sourceCoverage.aws) return "AWS 실측 기반";
+  if (data.analysis.sourceCoverage.prometheus) return "Prometheus 기반 추정";
+  return "제한적 분석";
 }
 
-function getSourcePillClass(enabled: boolean) {
-  return enabled
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
-    : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-400";
+function riskBadgeClass(riskLevel: string) {
+  switch (riskLevel.toLowerCase()) {
+    case "low":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300";
+    case "medium":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
+    case "high":
+    case "critical":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300";
+  }
+}
+
+function SparkleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="m12 3 1.6 3.8L17.5 8l-3.8 1.6L12 13.5 10.3 9.6 6.5 8l3.9-1.2L12 3Z" />
+      <path d="m18.5 13 1 2.3 2.5.7-2.5 1-1 2.3-1-2.3-2.5-1 2.5-.7 1-2.3Z" />
+    </svg>
+  );
 }
 
 export default function DashboardPage() {
@@ -96,7 +112,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [runningAnalysis, setRunningAnalysis] = useState(false);
-  const costBasisLabel = getCostBasisLabel(data);
 
   async function loadDashboard() {
     setLoading(true);
@@ -125,9 +140,7 @@ export default function DashboardPage() {
     try {
       const response = await fetch("/api/analysis/run", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lookbackDays: 30, triggeredBy: "manual" }),
       });
       const payload = await response.json();
@@ -145,10 +158,52 @@ export default function DashboardPage() {
   const topRecommendations = useMemo(
     () =>
       [...(data?.recommendations ?? [])]
-        .sort((left, right) => right.estMonthlySaving - left.estMonthlySaving)
+        .sort((a, b) => b.estMonthlySaving - a.estMonthlySaving)
         .slice(0, 4),
     [data],
   );
+
+  const costBasisLabel = getCostBasisLabel(data);
+  const analysisTime = formatCompactDateTime(data?.analysis?.createdAt);
+  const coverage = data?.analysis?.sourceCoverage;
+  const sources = [
+    { label: "AWS", enabled: Boolean(coverage?.aws) },
+    { label: "Prometheus", enabled: Boolean(coverage?.prometheus) },
+    { label: "K8s", enabled: Boolean(coverage?.k8s) },
+  ];
+
+  const metricCards = [
+    {
+      label: "총 월간 비용",
+      value: data?.analysis ? formatKrw(data.analysis.totalMonthlyCost) : "—",
+      sub: data?.analysis?.awsRegion ?? "ap-northeast-2",
+      accent: "text-slate-900 dark:text-white",
+      barClass: "bg-slate-300 dark:bg-slate-600",
+    },
+    {
+      label: "예상 월 절감",
+      value: data?.analysis ? formatKrw(data.analysis.potentialMonthlySaving) : "—",
+      sub: `연간 ${data?.analysis ? formatKrw(data.analysis.potentialAnnualSaving) : "—"}`,
+      accent: "text-emerald-600 dark:text-emerald-300",
+      barClass: "bg-emerald-400",
+    },
+    {
+      label: "낭비 비용",
+      value: data?.analysis ? formatKrw(data.analysis.wasteCost) : "—",
+      sub: "유휴·과할당 추정 포함",
+      accent: "text-amber-600 dark:text-amber-300",
+      barClass: "bg-amber-400",
+    },
+    {
+      label: "AI 점수",
+      value: data?.analysis ? `${data.analysis.score.totalScore}점` : "—",
+      sub: data?.analysis
+        ? `${data.analysis.score.grade} · 신뢰도 ${data.analysis.score.confidencePercent}%`
+        : "분석 없음",
+      accent: "text-[#1c59f2]",
+      barClass: "bg-[#1c59f2]",
+    },
+  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
@@ -156,73 +211,64 @@ export default function DashboardPage() {
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <PageTopBar
-          title="대시보드 개요"
-          description="프로젝트별 서울 리전 비용과 권고를 한 번에 확인합니다."
+          title="대시보드"
+          description="프로젝트 비용과 권고를 한눈에 확인합니다."
           actions={
             <button
-              className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:opacity-60"
-              disabled={runningAnalysis}
+              className="rounded-xl bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:opacity-60"
+              disabled={runningAnalysis || loading}
               onClick={onRunAnalysis}
             >
-              {runningAnalysis ? "분석 실행 중..." : "분석 다시 실행"}
+              {runningAnalysis ? "분석 중…" : "분석 실행"}
             </button>
           }
         />
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+          <div className="mx-auto max-w-7xl space-y-5">
+
+            {/* Hero — project header */}
+            <section className="rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold tracking-[0.26em] text-[#1c59f2] uppercase">
                     Active Project
                   </p>
-                  <h2 className="mt-2 text-3xl font-black tracking-tight">
-                    {data?.project?.name ?? "프로젝트 로딩 중"}
+                  <h2 className="mt-1 truncate text-2xl font-black tracking-tight">
+                    {loading ? "로딩 중…" : (data?.project?.name ?? "프로젝트 없음")}
                   </h2>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    AWS 비용 기준 리전: {data?.analysis?.awsRegion ?? "ap-northeast-2"}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {[
-                      {
-                        label: "AWS",
-                        enabled: Boolean(data?.analysis?.sourceCoverage.aws),
-                      },
-                      {
-                        label: "Prometheus",
-                        enabled: Boolean(data?.analysis?.sourceCoverage.prometheus),
-                      },
-                      {
-                        label: "K8s",
-                        enabled: Boolean(data?.analysis?.sourceCoverage.k8s),
-                      },
-                    ].map((source) => (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {sources.map((src) => (
                       <span
-                        key={source.label}
-                        className={`rounded-full border px-3 py-1 text-xs font-bold ${getSourcePillClass(source.enabled)}`}
+                        key={src.label}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                          src.enabled
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-500"
+                        }`}
                       >
-                        {source.label} {source.enabled ? "연동됨" : "미연동"}
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${src.enabled ? "bg-emerald-400" : "bg-slate-300 dark:bg-slate-600"}`}
+                        />
+                        {src.label}
                       </span>
                     ))}
                   </div>
                 </div>
-                <div className="space-y-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm dark:bg-[#0B0E14]">
-                  <div>
-                    <p className="text-slate-500 dark:text-slate-400">분석 기준</p>
-                    <p className="font-bold">{costBasisLabel}</p>
+                {(costBasisLabel || analysisTime) && (
+                  <div className="shrink-0 text-right">
+                    {costBasisLabel && (
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {costBasisLabel}
+                      </p>
+                    )}
+                    {analysisTime && (
+                      <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                        {analysisTime} 분석
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-slate-500 dark:text-slate-400">최근 분석 시각</p>
-                    <p className="font-bold">
-                      {formatDateTime(data?.analysis?.createdAt)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 dark:text-slate-400">보안 스코프</p>
-                    <p className="font-bold">현재 로그인 사용자의 프로젝트만 조회 가능</p>
-                  </div>
-                </div>
+                )}
               </div>
             </section>
 
@@ -232,97 +278,89 @@ export default function DashboardPage() {
               </section>
             ) : null}
 
-            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  label: "총 월간 비용",
-                  value: data?.analysis ? formatKrw(data.analysis.totalMonthlyCost) : "-",
-                  accent: "text-slate-900 dark:text-white",
-                  hint: costBasisLabel,
-                },
-                {
-                  label: "예상 월 절감",
-                  value: data?.analysis
-                    ? formatKrw(data.analysis.potentialMonthlySaving)
-                    : "-",
-                  accent: "text-emerald-600 dark:text-emerald-300",
-                  hint: "현재 연동 상태 기준 추정 절감액",
-                },
-                {
-                  label: "낭비 비용",
-                  value: data?.analysis ? formatKrw(data.analysis.wasteCost) : "-",
-                  accent: "text-amber-600 dark:text-amber-300",
-                  hint: "유휴 자원 및 과할당 추정 포함",
-                },
-                {
-                  label: "AI 점수",
-                  value: data?.analysis
-                    ? `${data.analysis.score.totalScore} / ${data.analysis.score.grade}`
-                    : "-",
-                  accent: "text-[#1c59f2]",
-                  hint: "연결된 소스와 신뢰도를 반영",
-                },
-              ].map((card) => (
+            {/* Metric cards */}
+            <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+              {metricCards.map((card) => (
                 <article
                   key={card.label}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+                  className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
                 >
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{card.label}</p>
-                  <p className={`mt-3 text-2xl font-black tracking-tight ${card.accent}`}>
-                    {loading ? "..." : card.value}
+                  <div className={`absolute top-0 left-0 right-0 h-[3px] ${card.barClass}`} />
+                  <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                    {card.label}
                   </p>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{card.hint}</p>
+                  <p className={`mt-3 text-2xl font-black tracking-tight ${card.accent}`}>
+                    {loading ? "…" : card.value}
+                  </p>
+                  <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    {card.sub}
+                  </p>
                 </article>
               ))}
             </section>
 
+            {/* AI Summary */}
             {data?.analysis?.executiveSummary ? (
-              <section className="rounded-2xl border border-[#1c59f2]/20 bg-[#1c59f2]/5 p-5 shadow-sm dark:border-[#1c59f2]/30 dark:bg-[#11234d]/30">
-                <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
-                  AI Analysis Summary
-                </p>
-                <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200">
+              <section className="rounded-2xl border border-[#1c59f2]/20 bg-[#1c59f2]/5 px-5 py-4 dark:border-[#1c59f2]/20 dark:bg-[#0e1c42]/40">
+                <div className="flex items-center gap-2 text-[#1c59f2]">
+                  <SparkleIcon />
+                  <p className="text-[10px] font-bold tracking-[0.22em] uppercase">AI Analysis Summary</p>
+                </div>
+                <p className="mt-2.5 text-sm leading-7 text-slate-700 dark:text-slate-200">
                   {data.analysis.executiveSummary}
                 </p>
               </section>
             ) : null}
 
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+            {/* Bottom grid */}
+            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
+
+              {/* Recommendations */}
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold">상위 절감 권고</h3>
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    프로젝트 기준
-                  </span>
+                  <h3 className="font-bold">상위 절감 권고</h3>
+                  <Link
+                    href="/ai-optimization"
+                    className="text-xs font-semibold text-[#1c59f2] transition hover:underline"
+                  >
+                    전체 보기 →
+                  </Link>
                 </div>
-                <div className="mt-4 space-y-4">
-                  {topRecommendations.map((recommendation) => (
-                    <div
-                      key={recommendation.id}
-                      className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h4 className="font-bold">{recommendation.title}</h4>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {recommendation.rationale ?? recommendation.description}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-[#1c59f2]/10 px-3 py-1 text-xs font-bold text-[#1c59f2]">
-                          {recommendation.riskLevel.toUpperCase()}
+                <div className="mt-4 space-y-2.5">
+                  {loading ? (
+                    [1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+                    ))
+                  ) : topRecommendations.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-slate-400">권고 없음</p>
+                  ) : (
+                    topRecommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-700/60"
+                      >
+                        <span
+                          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${riskBadgeClass(rec.riskLevel)}`}
+                        >
+                          {rec.riskLevel}
+                        </span>
+                        <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={rec.title}>
+                          {rec.title}
+                        </p>
+                        <span className="shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          ↓ {formatKrw(rec.estMonthlySaving)}
                         </span>
                       </div>
-                      <p className="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-300">
-                        예상 월 절감 {formatKrw(recommendation.estMonthlySaving)}
-                      </p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                <h3 className="text-lg font-bold">리스크 / 경고</h3>
-                <div className="mt-4 space-y-3">
+              {/* Warnings + confidence */}
+              <article className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+                <h3 className="font-bold">경고 및 신뢰도</h3>
+
+                <div className="space-y-2">
                   {(data?.analysis?.warnings ?? []).map((warning) => (
                     <div
                       key={warning}
@@ -332,25 +370,42 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   {!loading && (data?.analysis?.warnings.length ?? 0) === 0 ? (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
-                      현재 프로젝트에 치명적인 경고가 없습니다.
+                    <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                      치명적인 경고 없음
                     </div>
                   ) : null}
                 </div>
 
-                <div className="mt-6 rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14]">
-                  <p className="text-xs font-bold tracking-[0.24em] text-slate-500 uppercase">
-                    Confidence
-                  </p>
-                  <p className="mt-2 text-2xl font-black">
-                    {data?.analysis?.score.confidencePercent ?? 0}%
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    AWS 서울 리전 비용과 연결 상태를 반영한 신뢰도입니다.
+                <div className="mt-auto rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14]">
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                        Analysis Confidence
+                      </p>
+                      <p className={`mt-2 text-3xl font-black ${data?.analysis ? "text-[#1c59f2]" : "text-slate-400"}`}>
+                        {loading ? "…" : `${data?.analysis?.score.confidencePercent ?? 0}%`}
+                      </p>
+                    </div>
+                    {data?.analysis && (
+                      <span className="mb-1 rounded-full border border-[#1c59f2]/20 bg-[#1c59f2]/8 px-3 py-1 text-sm font-bold text-[#1c59f2]">
+                        {data.analysis.score.grade}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div
+                      className="h-full rounded-full bg-[#1c59f2] transition-all duration-700"
+                      style={{ width: `${data?.analysis?.score.confidencePercent ?? 0}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                    연동된 소스 수와 데이터 품질 기반
                   </p>
                 </div>
               </article>
             </section>
+
           </div>
         </div>
       </main>
