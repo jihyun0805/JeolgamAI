@@ -773,6 +773,7 @@ export default function K8sInfrastructurePage() {
   const [error, setError] = useState("");
   const [selectedNamespace, setSelectedNamespace] = useState("");
   const [namespaceSearch, setNamespaceSearch] = useState("");
+  const [showAllNamespaces, setShowAllNamespaces] = useState(false);
   const [workloadSearch, setWorkloadSearch] = useState("");
   const [topologyZoom, setTopologyZoom] = useState(0.85);
   const [selectedResource, setSelectedResource] = useState<SidebarResource | null>(null);
@@ -839,6 +840,7 @@ export default function K8sInfrastructurePage() {
   const filteredNamespaces = (data?.namespaces ?? []).filter((item) => {
     return item.name.toLowerCase().includes(namespaceKeyword);
   });
+  const visibleNamespaces = showAllNamespaces ? filteredNamespaces : filteredNamespaces.slice(0, 16);
   const activeNamespace =
     data?.namespaces.find((item) => item.name === selectedNamespace) ??
     filteredNamespaces[0] ??
@@ -883,6 +885,10 @@ export default function K8sInfrastructurePage() {
   useEffect(() => {
     setSelectedResource(null);
   }, [selectedNamespace, workloadSearch]);
+
+  useEffect(() => {
+    setShowAllNamespaces(false);
+  }, [namespaceSearch]);
 
   useEffect(() => {
     setTopologyZoom(getFitTopologyZoom());
@@ -992,7 +998,7 @@ export default function K8sInfrastructurePage() {
                   className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {filteredNamespaces.slice(0, 16).map((namespace) => {
+                  {visibleNamespaces.map((namespace) => {
                     const isActive = activeNamespace?.name === namespace.name;
                     const tone = data ? namespaceTone(namespace, data) : "neutral";
                     const dotClass =
@@ -1020,9 +1026,13 @@ export default function K8sInfrastructurePage() {
                     );
                   })}
                   {filteredNamespaces.length > 16 && (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14]">
-                      +{filteredNamespaces.length - 16}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllNamespaces((current) => !current)}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#101621]"
+                    >
+                      {showAllNamespaces ? "접기" : `+${filteredNamespaces.length - 16}`}
+                    </button>
                   )}
                   {!filteredNamespaces.length && (
                     <span className="text-xs text-slate-400">일치하는 namespace 없음</span>
