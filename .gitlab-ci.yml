@@ -94,14 +94,10 @@ build_backend_image:
         exit 1
       fi
     - |
-      if [ -z "${GCP_SA_KEY:-}" ]; then
-        echo "Missing required variable: GCP_SA_KEY"
-        exit 1
-      fi
-    - mkdir -p /kaniko/.docker
-    - |
-      GAR_AUTH="$(printf '_json_key:%s' "${GCP_SA_KEY}" | base64 | tr -d '\n')"
-      cat > /kaniko/.docker/config.json <<EOF
+      if [ -n "${GCP_SA_KEY:-}" ]; then
+        mkdir -p /kaniko/.docker
+        GAR_AUTH="$(printf '_json_key:%s' "${GCP_SA_KEY}" | base64 | tr -d '\n')"
+        cat > /kaniko/.docker/config.json <<EOF
       {
         "auths": {
           "${GAR_HOST}": { "auth": "${GAR_AUTH}" },
@@ -109,6 +105,14 @@ build_backend_image:
         }
       }
       EOF
+        echo "Using GAR auth from GCP_SA_KEY"
+      elif [ -f /kaniko/.docker/config.json ]; then
+        echo "Using existing /kaniko/.docker/config.json from runner environment"
+      elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] || [ -n "${GOOGLE_GHA_CREDS_PATH:-}" ]; then
+        echo "Using ambient Google application credentials from runner environment"
+      else
+        echo "GCP_SA_KEY not set; relying on runner ambient GAR authentication"
+      fi
     - BACKEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/backend"
     - /kaniko/executor --context "${CI_PROJECT_DIR}/backend" --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile" --build-arg "GMS_API_KEY=${GMS_RUNTIME_KEY}" --destination "${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${BACKEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
     - echo "BACKEND_IMAGE=${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" > backend.env
@@ -132,14 +136,10 @@ build_frontend_image:
         if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
     - |
-      if [ -z "${GCP_SA_KEY:-}" ]; then
-        echo "Missing required variable: GCP_SA_KEY"
-        exit 1
-      fi
-    - mkdir -p /kaniko/.docker
-    - |
-      GAR_AUTH="$(printf '_json_key:%s' "${GCP_SA_KEY}" | base64 | tr -d '\n')"
-      cat > /kaniko/.docker/config.json <<EOF
+      if [ -n "${GCP_SA_KEY:-}" ]; then
+        mkdir -p /kaniko/.docker
+        GAR_AUTH="$(printf '_json_key:%s' "${GCP_SA_KEY}" | base64 | tr -d '\n')"
+        cat > /kaniko/.docker/config.json <<EOF
       {
         "auths": {
           "${GAR_HOST}": { "auth": "${GAR_AUTH}" },
@@ -147,6 +147,14 @@ build_frontend_image:
         }
       }
       EOF
+        echo "Using GAR auth from GCP_SA_KEY"
+      elif [ -f /kaniko/.docker/config.json ]; then
+        echo "Using existing /kaniko/.docker/config.json from runner environment"
+      elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] || [ -n "${GOOGLE_GHA_CREDS_PATH:-}" ]; then
+        echo "Using ambient Google application credentials from runner environment"
+      else
+        echo "GCP_SA_KEY not set; relying on runner ambient GAR authentication"
+      fi
     - FRONTEND_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/frontend"
     - /kaniko/executor --context "${CI_PROJECT_DIR}/frontend" --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" --destination "${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" --destination "${FRONTEND_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
     - echo "FRONTEND_IMAGE=${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" > frontend.env
