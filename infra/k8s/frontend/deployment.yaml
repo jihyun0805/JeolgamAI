@@ -24,6 +24,8 @@ spec:
           env:
             - name: NODE_ENV
               value: production
+            - name: BACKEND_BASE_URL
+              value: http://backend:8080
             - name: MOCK_DATA_MODE
               value: "false"
             - name: LIVE_CONNECTOR_VALIDATION
