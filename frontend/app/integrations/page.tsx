@@ -385,8 +385,8 @@ export default function IntegrationsPage() {
           }
         />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
+        <main className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="grid w-full grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
 
             {/* ── left: forms ── */}
             <div className="space-y-6">
