@@ -856,6 +856,7 @@ function ResourceDetailSidebar({
 
 export default function K8sInfrastructurePage() {
   const topologyViewportRef = useRef<HTMLDivElement | null>(null);
+  const topologyDragRef = useRef<{ active: boolean; startX: number; startY: number; scrollLeft: number; scrollTop: number }>({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [data, setData] = useState<K8sInfrastructurePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1393,11 +1394,71 @@ export default function K8sInfrastructurePage() {
                       return (
                         <div
                           key={`${deployment.namespace}-${deployment.name}`}
-                          className="rounded-[32px] border border-slate-200 bg-slate-50/70 px-8 py-8 shadow-sm dark:border-slate-800 dark:bg-[#0B0E14]"
+                          className="relative rounded-[32px] border border-slate-200 bg-slate-50/70 shadow-sm dark:border-slate-800 dark:bg-[#0B0E14]"
                         >
+                          {/* zoom controls */}
+                          <div className="absolute right-5 bottom-5 z-10 flex items-center gap-1 rounded-2xl border border-slate-700/40 bg-slate-900/80 px-2 py-1.5 backdrop-blur-sm">
+                            <button
+                              type="button"
+                              aria-label="축소"
+                              onClick={() => setTopologyZoom((v) => clampTopologyZoom(+(v - 0.15).toFixed(2)))}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                            >
+                              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <circle cx="9" cy="9" r="6" /><path d="M15 15 L19 19" /><path d="M6 9 h6" />
+                              </svg>
+                            </button>
+                            <span className="min-w-[36px] text-center text-[11px] font-bold tabular-nums text-slate-300">
+                              {Math.round(topologyZoom * 100)}%
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="확대"
+                              onClick={() => setTopologyZoom((v) => clampTopologyZoom(+(v + 0.15).toFixed(2)))}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                            >
+                              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <circle cx="9" cy="9" r="6" /><path d="M15 15 L19 19" /><path d="M9 6 v6 M6 9 h6" />
+                              </svg>
+                            </button>
+                            <div className="mx-1 h-4 w-px bg-slate-600" />
+                            <button
+                              type="button"
+                              aria-label="화면 맞춤"
+                              onClick={() => setTopologyZoom(getFitTopologyZoom())}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                            >
+                              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                <path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" />
+                              </svg>
+                            </button>
+                          </div>
+
                           <div
                             ref={topologyViewportRef}
-                            className="overflow-auto rounded-[24px] border border-slate-200/70 bg-[#0B0E14]/70 p-6 dark:border-slate-800"
+                            className="h-[560px] overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0B0E14]/70 p-6 select-none dark:border-slate-800"
+                            style={{ cursor: topologyDragRef.current.active ? "grabbing" : "grab" }}
+                            onWheel={(e) => {
+                              if (!e.ctrlKey && !e.metaKey) return;
+                              e.preventDefault();
+                              setTopologyZoom((v) => clampTopologyZoom(+(v - e.deltaY * 0.001).toFixed(2)));
+                            }}
+                            onPointerDown={(e) => {
+                              if ((e.target as HTMLElement).closest("button")) return;
+                              topologyDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, scrollLeft: e.currentTarget.scrollLeft, scrollTop: e.currentTarget.scrollTop };
+                              e.currentTarget.setPointerCapture(e.pointerId);
+                            }}
+                            onPointerMove={(e) => {
+                              if (!topologyDragRef.current.active) return;
+                              const dx = e.clientX - topologyDragRef.current.startX;
+                              const dy = e.clientY - topologyDragRef.current.startY;
+                              e.currentTarget.scrollLeft = topologyDragRef.current.scrollLeft - dx;
+                              e.currentTarget.scrollTop = topologyDragRef.current.scrollTop - dy;
+                            }}
+                            onPointerUp={(e) => {
+                              topologyDragRef.current.active = false;
+                              e.currentTarget.releasePointerCapture(e.pointerId);
+                            }}
                           >
                             <div
                               className="mx-auto"
