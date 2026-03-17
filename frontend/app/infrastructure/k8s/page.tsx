@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, ReactNode, useEffect, useRef, useState } from "react";
+import { Children, ReactNode, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Image from "next/image";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
@@ -38,6 +38,10 @@ const TOPOLOGY_CANVAS_WIDTH = 1760;
 const TOPOLOGY_CANVAS_PADDING_X = 96;
 const TOPOLOGY_STAGE_TOP_INSET = 36;
 const TOPOLOGY_STAGE_BOTTOM_INSET = 28;
+const RESOURCE_DRAWER_MIN_WIDTH = 360;
+const RESOURCE_DRAWER_MAX_WIDTH = 760;
+const RESOURCE_DRAWER_DEFAULT_WIDTH = 400;
+const RESOURCE_DRAWER_STORAGE_KEY = "jeolgam-k8s-resource-drawer-width";
 
 interface K8sInfrastructurePayload {
   workspaceId: string;
@@ -668,14 +672,69 @@ function ResourceDetailSidebar({
   resource: SidebarResource;
   onClose: () => void;
 }) {
+  const [drawerWidth, setDrawerWidth] = useState(RESOURCE_DRAWER_DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(RESOURCE_DRAWER_DEFAULT_WIDTH);
   const toneLabel =
     resource.tone === "healthy"
       ? "Healthy"
       : resource.tone === "progressing"
         ? "Progressing"
-        : resource.tone === "degraded"
-          ? "Degraded"
-          : "Idle";
+      : resource.tone === "degraded"
+        ? "Degraded"
+        : "Idle";
+
+  useEffect(() => {
+    const savedWidth = window.localStorage.getItem(RESOURCE_DRAWER_STORAGE_KEY);
+    if (!savedWidth) {
+      return;
+    }
+
+    const parsed = Number(savedWidth);
+    if (Number.isFinite(parsed)) {
+      setDrawerWidth(Math.min(RESOURCE_DRAWER_MAX_WIDTH, Math.max(RESOURCE_DRAWER_MIN_WIDTH, parsed)));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) {
+      return;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      const deltaX = event.clientX - resizeStartXRef.current;
+      const nextWidth = resizeStartWidthRef.current - deltaX;
+      setDrawerWidth(Math.min(RESOURCE_DRAWER_MAX_WIDTH, Math.max(RESOURCE_DRAWER_MIN_WIDTH, nextWidth)));
+    }
+
+    function handlePointerUp() {
+      setIsResizing(false);
+    }
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [isResizing]);
+
+  useEffect(() => {
+    window.localStorage.setItem(RESOURCE_DRAWER_STORAGE_KEY, String(Math.round(drawerWidth)));
+  }, [drawerWidth]);
+
+  function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    resizeStartXRef.current = event.clientX;
+    resizeStartWidthRef.current = drawerWidth;
+    setIsResizing(true);
+  }
 
   return (
     <>
@@ -687,78 +746,107 @@ function ResourceDetailSidebar({
       />
 
       {/* Slide-in panel */}
-      <div className="fixed right-0 top-0 z-30 flex h-full w-full max-w-[400px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#161B22]">
-        {/* Header */}
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 p-6 dark:border-slate-800">
-          <div className="min-w-0">
-            <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
-              {resource.subtitle}
-            </p>
-            <h2 className="mt-1.5 break-all text-xl font-black leading-tight tracking-tight">
-              {resource.title}
-            </h2>
-            <div className="mt-3">
-              <HealthBadge tone={resource.tone} label={toneLabel} />
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label="닫기"
+      <div
+        className="fixed inset-y-0 right-0 z-30"
+        style={{ width: `min(100vw, ${drawerWidth}px)` }}
+      >
+        <button
+          type="button"
+          aria-label="상세 패널 너비 조절"
+          title="드래그해서 상세 패널 너비 조절"
+          onPointerDown={beginResize}
+          onDoubleClick={() => setDrawerWidth(RESOURCE_DRAWER_DEFAULT_WIDTH)}
+          className="group absolute bottom-0 left-[-18px] top-0 z-20 w-9 cursor-col-resize touch-none bg-transparent"
+        >
+          <span
+            className={`absolute left-1/2 top-1/2 flex h-16 w-4 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-full border shadow-lg backdrop-blur-sm transition ${
+              isResizing
+                ? "border-[#1c59f2]/40 bg-[#1c59f2]/16 shadow-[0_12px_40px_rgba(28,89,242,0.18)]"
+                : "border-slate-200/80 bg-white/88 opacity-0 group-hover:opacity-100 dark:border-slate-700/80 dark:bg-[#161B22]/88"
+            }`}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-              aria-hidden
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+            <span className="h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500" />
+            <span className="h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500" />
+            <span className="h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500" />
+          </span>
+        </button>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-6">
-            {resource.sections.map((section) => (
-              <div key={section.label}>
-                <p className="mb-3 text-xs font-bold tracking-[0.18em] text-slate-400 uppercase">
-                  {section.label}
-                </p>
-                {section.rows?.length ? (
-                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
-                    {section.rows.map((row) => (
-                      <div key={row.key}>
-                        <span className="block text-[11px] font-semibold text-slate-400">
-                          {row.key}
-                        </span>
-                        <span className="mt-0.5 block break-all text-sm text-slate-700 dark:text-slate-200">
-                          {row.value || "—"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {section.tags?.length ? (
-                  <div className="space-y-2">
-                    {section.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        title={tag}
-                        className="block w-full break-all rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
+        <div
+          className="flex h-full flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:bg-[#161B22]"
+          style={{ width: `min(100vw, ${drawerWidth}px)` }}
+        >
+          {/* Header */}
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 p-6 dark:border-slate-800">
+            <div className="min-w-0">
+              <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
+                {resource.subtitle}
+              </p>
+              <h2 className="mt-1.5 break-all text-xl font-black leading-tight tracking-tight">
+                {resource.title}
+              </h2>
+              <div className="mt-3">
+                <HealthBadge tone={resource.tone} label={toneLabel} />
               </div>
-            ))}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              aria-label="닫기"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+                aria-hidden
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6">
+              {resource.sections.map((section) => (
+                <div key={section.label}>
+                  <p className="mb-3 text-xs font-bold tracking-[0.18em] text-slate-400 uppercase">
+                    {section.label}
+                  </p>
+                  {section.rows?.length ? (
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
+                      {section.rows.map((row) => (
+                        <div key={row.key}>
+                          <span className="block text-[11px] font-semibold text-slate-400">
+                            {row.key}
+                          </span>
+                          <span className="mt-0.5 block break-all text-sm text-slate-700 dark:text-slate-200">
+                            {row.value || "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {section.tags?.length ? (
+                    <div className="space-y-2">
+                      {section.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          title={tag}
+                          className="block w-full break-all rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
