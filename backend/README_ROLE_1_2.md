@@ -198,6 +198,7 @@ GET /api/recommendations
 ## 5) LLM 키 관리
 
 - `GMS_API_KEY`는 코드에 하드코딩하지 말고 `backend/.env.local` 또는 systemd `EnvironmentFile`로 관리한다.
+- CI/CD에서는 GitLab masked variable `GMS_KEY`로 관리하고, 파이프라인이 Kubernetes Secret `backend-runtime-secrets`를 갱신하도록 둔다.
 - 로컬 실행:
 ```bash
 cp .env.local.example .env.local
@@ -207,3 +208,7 @@ bash scripts/run-local-backend.sh
 - systemd 예시:
   - 서비스 파일 템플릿: `deploy/systemd/jeolgamai-backend.service.example`
   - 환경 파일 템플릿: `deploy/systemd/backend.env.example`
+- GitLab CI/CD 예시:
+  - 필수 변수: `GMS_KEY`, `KUBE_CONFIG_B64`
+  - 선택 변수: `CONNECTOR_ENCRYPTION_KEY`, `BACKEND_RUNTIME_SECRET_NAME`, `BACKEND_RUNTIME_SECRET_NAMESPACE`
+  - 잡 위치: `.gitlab-ci.yml` 의 `sync_backend_runtime_secret`

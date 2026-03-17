@@ -38,6 +38,15 @@ def require_env(name: str) -> str:
     return value
 
 
+def require_any_env(*names: str) -> str:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    joined = ", ".join(names)
+    raise SystemExit(f"Missing required environment variable: one of {joined}")
+
+
 def run_git(*args: str) -> str:
     completed = subprocess.run(
         ["git", *args],
@@ -246,7 +255,7 @@ def upsert_mr_note(note_body: str) -> None:
 def main() -> None:
     dry_run = "--dry-run" in sys.argv
     target_branch = require_env("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
-    gms_key = require_env("GMS_KEY")
+    gms_key = require_any_env("GMS_KEY", "GMS_API_KEY")
     model = os.getenv("GMS_REVIEW_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     max_bytes = int(os.getenv("GMS_REVIEW_MAX_DIFF_BYTES", "45000"))
 
