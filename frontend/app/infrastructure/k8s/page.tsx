@@ -1179,9 +1179,10 @@ export default function K8sInfrastructurePage() {
                     type="button"
                     onClick={() => setTopologyPage((p) => Math.max(0, p - 1))}
                     disabled={topologyPage === 0}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
-                    ← 이전
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M10 12 L5 8 L10 4" /></svg>
+                    이전
                   </button>
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                     {topologyPage + 1} / {filteredDeployments.length}
@@ -1190,9 +1191,10 @@ export default function K8sInfrastructurePage() {
                     type="button"
                     onClick={() => setTopologyPage((p) => Math.min(filteredDeployments.length - 1, p + 1))}
                     disabled={topologyPage === filteredDeployments.length - 1}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
-                    다음 →
+                    다음
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M6 4 L11 8 L6 12" /></svg>
                   </button>
                 </div>
               )}
