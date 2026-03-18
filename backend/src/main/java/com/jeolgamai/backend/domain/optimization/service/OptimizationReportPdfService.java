@@ -48,6 +48,7 @@ public class OptimizationReportPdfService {
     private static final float F_SMALL = 8f;
     private static final float LH_BODY = 14.5f;
     private static final float LH_CODE = 12f;
+    private static final float SECTION_STACK_GAP = 32f;
 
     // ── palette ──────────────────────────────────────────────────────────────
     private static final Color BG_PAGE  = new Color(245, 247, 252);
@@ -202,23 +203,13 @@ public class OptimizationReportPdfService {
                 : report.payload().topRecommendations()) {
             if (shown >= 2) break;
             Color ac = riskColor(rec.riskLevel());
-            float cardTop = previewTop - shown * 68f;
+            float cardTop = previewTop - shown * 52f;
 
-            pen.fillRounded(M, cardTop, CW, 60f, R_CARD, BG_DCARD);
-            pen.strokeRounded(M, cardTop, CW, 60f, R_CARD, BG_DEDGE, 0.75f);
-            pen.fillRounded(M, cardTop, 5f, 60f, 3f, ac);
+            pen.fillRounded(M, cardTop, CW, 44f, R_CARD, BG_DCARD);
+            pen.strokeRounded(M, cardTop, CW, 44f, R_CARD, BG_DEDGE, 0.75f);
+            pen.fillRounded(M, cardTop, 5f, 44f, 3f, ac);
 
-            pen.text(rec.title(), M + 20f, cardTop - 18f, F_H2, C_WHITE);
-            // truncated rationale (1 line)
-            String rat = fallback(rec.rationale(), "—");
-            List<String> lines = pen.wrapLines(rat, CW - 48f, F_SMALL, false);
-            String preview = lines.isEmpty() ? rat : lines.get(0);
-            pen.text(preview, M + 20f, cardTop - 34f, F_SMALL, C_MUTED);
-
-            // right-side chips (absolute x from right)
-            float chipRY = cardTop - 18f;
-            float saveChipX = PW - M - pen.tw(krw(rec.monthlySaving()), F_SMALL) - 20f;
-            pen.chipDark(saveChipX - 4f, chipRY - 4f, krw(rec.monthlySaving()));
+            pen.text(rec.title(), M + 20f, cardTop - 26f, F_H2, C_WHITE);
 
             shown++;
         }
@@ -270,7 +261,7 @@ public class OptimizationReportPdfService {
         pen.text("EXECUTIVE SUMMARY", M + 22f, top - 20f, F_SMALL, C_PRI);
         pen.wrappedText(text, M + 22f, top - 36f, innerW, F_BODY, LH_BODY, C_TEXT, 0);
 
-        pen.advance(cardH + 14f);
+        pen.advance(cardH + SECTION_STACK_GAP);
     }
 
     // ── Section: Recommendations ──────────────────────────────────────────────
@@ -280,12 +271,21 @@ public class OptimizationReportPdfService {
 
         if (report.payload().topRecommendations().isEmpty()) { emptyCard(pen, "표시할 핵심 권고가 없습니다."); return; }
 
+        final float CARD_INSET_X = 22f;
+        final float TITLE_BASELINE_OFFSET = 20f;
+        final float CHIP_BASELINE_OFFSET = 40f;
+        final float BODY_TOP_OFFSET = 62f;
+        final float CARD_BOTTOM_PAD = 20f;
+        final float CARD_STACK_GAP = 14f;
+        final float CHIP_GAP = 7f;
+
         for (OptimizationModels.ReportRecommendationHighlight rec : report.payload().topRecommendations()) {
             String rat = fallback(rec.rationale(), "상세 근거가 없습니다.");
-            float ratH  = pen.wrapH(rat, CW - 50f, F_BODY, LH_BODY, 0);
-            float cardH = 24f + 20f + 12f + ratH + 18f;
+            float bodyW = CW - CARD_INSET_X * 2f - 6f;
+            float ratH  = pen.wrapH(rat, bodyW, F_BODY, LH_BODY, 0);
+            float cardH = BODY_TOP_OFFSET + ratH + CARD_BOTTOM_PAD;
 
-            pen.ensureSpace(cardH + 10f);
+            pen.ensureSpace(cardH + CARD_STACK_GAP);
             float top   = pen.curY;
             Color ac    = riskColor(rec.riskLevel());
 
@@ -293,16 +293,16 @@ public class OptimizationReportPdfService {
             pen.strokeRounded(M, top, CW, cardH, R_CARD, C_BORD, 0.75f);
             pen.fillRounded(M, top, 5f, cardH, 3f, ac);
 
-            pen.bold(rec.title(), M + 22f, top - 20f, F_H2, C_TEXT);
+            pen.bold(rec.title(), M + CARD_INSET_X, top - TITLE_BASELINE_OFFSET, F_H2, C_TEXT);
 
-            float chipY = top - 38f;
-            float nx = M + 22f;
-            nx = pen.chip(nx, chipY, rec.targetResource(),                                 C_CSOFT,            C_BORD,                     C_MID)   + 7f;
-            nx = pen.chip(nx, chipY, "리스크  " + rec.riskLevel().toUpperCase(),           mix(ac,C_WHITE,.84f),mix(ac,C_WHITE,.5f),        ac)      + 7f;
+            float chipY = top - CHIP_BASELINE_OFFSET;
+            float nx = M + CARD_INSET_X;
+            nx = pen.chip(nx, chipY, rec.targetResource(),                                 C_CSOFT,            C_BORD,                     C_MID)   + CHIP_GAP;
+            nx = pen.chip(nx, chipY, "리스크  " + rec.riskLevel().toUpperCase(),           mix(ac,C_WHITE,.84f),mix(ac,C_WHITE,.5f),        ac)      + CHIP_GAP;
             pen.chip(nx, chipY,      "월 절감  " + krw(rec.monthlySaving()),               C_ESOFT,            mix(C_EME,C_WHITE,.5f),     C_EME);
 
-            pen.wrappedText(rat, M + 22f, top - 56f, CW - 50f, F_BODY, LH_BODY, C_MID, 0);
-            pen.advance(cardH + 10f);
+            pen.wrappedText(rat, M + CARD_INSET_X, top - BODY_TOP_OFFSET, bodyW, F_BODY, LH_BODY, C_MID, 0);
+            pen.advance(cardH + CARD_STACK_GAP);
         }
     }
 
@@ -313,13 +313,25 @@ public class OptimizationReportPdfService {
 
         if (report.payload().topCostItems().isEmpty()) { emptyCard(pen, "비용 드라이버 데이터가 없습니다."); return; }
 
-        final float ROW_H = 46f;
-        final float SVC_W = 186f;
-        final float BAR_X = M + SVC_W + 14f;
-        final float BAR_W = CW - SVC_W - 106f;
-        final float AMT_X = M + CW - 92f;
+        final float HEADER_H = 34f;
+        final float ROW_H = 58f;
+        final float TABLE_INSET_X = 18f;
+        final float CELL_PAD_X = 14f;
+        final float TEXT_GAP = 6f;
+        final float BAR_H = 10f;
+        final float BAR_W_RATIO = 0.86f;
+        final float SERVICE_COL_RATIO = 0.46f;
+        final float RATIO_COL_RATIO = 0.32f;
+        final float INNER_X = M + TABLE_INSET_X;
+        final float INNER_W = CW - (TABLE_INSET_X * 2f);
+        final float COL1_W = INNER_W * SERVICE_COL_RATIO;
+        final float COL2_W = INNER_W * RATIO_COL_RATIO;
+        final float COL3_W = INNER_W - COL1_W - COL2_W;
+        final float COL1_X = INNER_X;
+        final float COL2_X = COL1_X + COL1_W;
+        final float COL3_X = COL2_X + COL2_W;
         int rows  = report.payload().topCostItems().size();
-        float cardH = 38f + rows * ROW_H + 8f;
+        float cardH = HEADER_H + rows * ROW_H + 12f;
 
         pen.ensureSpace(cardH + 12f);
         float top = pen.curY;
@@ -327,37 +339,55 @@ public class OptimizationReportPdfService {
         pen.fillRounded(M, top, CW, cardH, R_CARD, C_CARD);
         pen.strokeRounded(M, top, CW, cardH, R_CARD, C_BORD, 0.75f);
         pen.fillRounded(M, top, 5f, cardH, 3f, C_PRI);
+        pen.fillRect(M + 5f, top, CW - 5f, HEADER_H, C_CSOFT);
 
-        pen.text("서비스",    M + 22f, top - 20f, F_SMALL, C_MUTED);
-        pen.text("상대 비중",  BAR_X,   top - 20f, F_SMALL, C_MUTED);
-        pen.text("월 비용",   AMT_X,   top - 20f, F_SMALL, C_MUTED);
-        pen.hline(M + 5f, top - 30f, CW - 5f, C_BORD, 0.6f);
+        pen.text("서비스", COL1_X + (COL1_W - pen.tw("서비스", F_SMALL)) / 2f, top - 22f, F_SMALL, C_MUTED);
+        pen.text("상대 비중", COL2_X + (COL2_W - pen.tw("상대 비중", F_SMALL)) / 2f, top - 22f, F_SMALL, C_MUTED);
+        pen.text("월 비용", COL3_X + (COL3_W - pen.tw("월 비용", F_SMALL)) / 2f, top - 22f, F_SMALL, C_MUTED);
+        pen.hline(M + 5f, top - HEADER_H, CW - 5f, C_BORD, 0.6f);
+        pen.vline(COL2_X, top, cardH, C_BORD, 0.4f);
+        pen.vline(COL3_X, top, cardH, C_BORD, 0.4f);
 
         long maxCost = report.payload().topCostItems().stream()
                 .mapToLong(OptimizationModels.ReportCostHighlight::monthlyCost).max().orElse(1L);
 
-        float rowTop = top - 38f;
+        float titleLineH = pen.lineH(F_BODY);
+        float subtitleLineH = pen.lineH(F_SMALL);
+        float rowTop = top - HEADER_H;
         for (int i = 0; i < rows; i++) {
             OptimizationModels.ReportCostHighlight item = report.payload().topCostItems().get(i);
             float ratio = maxCost <= 0 ? 0f
                     : Math.min(1f, Math.max(0.04f, (float) item.monthlyCost() / maxCost));
+            float cellTop = rowTop;
+            float cellCenterY = cellTop - (ROW_H / 2f);
+            float serviceBlockH = titleLineH + TEXT_GAP + subtitleLineH;
+            float serviceBlockTop = cellCenterY + (serviceBlockH / 2f);
+            float titleBaseline = serviceBlockTop - pen.ascent(F_BODY);
+            float subtitleTop = serviceBlockTop - titleLineH - TEXT_GAP;
+            float subtitleBaseline = subtitleTop - pen.ascent(F_SMALL);
+            float amountBaseline = cellCenterY + (titleLineH / 2f) - pen.ascent(F_BODY);
+            float barWidth = COL2_W * BAR_W_RATIO;
+            float barTop = cellCenterY + (BAR_H / 2f);
+            String serviceMeta = item.usageType() + "  ·  " + item.resourceCount() + " res";
+            float serviceBlockX = COL1_X + CELL_PAD_X;
+            float amountX = COL3_X + (COL3_W - pen.tw(krw(item.monthlyCost()), F_BODY)) / 2f;
+            float trackX = COL2_X + (COL2_W - barWidth) / 2f;
 
-            pen.bold(item.service(),  M + 22f, rowTop - 6f,  F_BODY,  C_TEXT);
-            pen.text(item.usageType() + "  ·  " + item.resourceCount() + " res",
-                                      M + 22f, rowTop - 19f, F_SMALL, C_MUTED);
+            pen.bold(item.service(), serviceBlockX, titleBaseline, F_BODY, C_TEXT);
+            pen.text(serviceMeta, serviceBlockX, subtitleBaseline, F_SMALL, C_MUTED);
 
-            pen.fillRounded(BAR_X, rowTop - 3f, BAR_W,          9f, 4f, C_CSOFT);
-            pen.strokeRounded(BAR_X, rowTop - 3f, BAR_W,         9f, 4f, C_BORD,  0.5f);
+            pen.fillRounded(trackX, barTop, barWidth, BAR_H, 5f, C_CSOFT);
+            pen.strokeRounded(trackX, barTop, barWidth, BAR_H, 5f, C_BORD, 0.5f);
             if (ratio > 0.01f)
-                pen.fillRounded(BAR_X, rowTop - 3f, BAR_W * ratio, 9f, 4f, C_PRI);
+                pen.fillRounded(trackX, barTop, barWidth * ratio, BAR_H, 5f, C_PRI);
 
-            pen.text(krw(item.monthlyCost()), AMT_X, rowTop - 6f, F_BODY, C_TEXT);
+            pen.text(krw(item.monthlyCost()), amountX, amountBaseline, F_BODY, C_TEXT);
 
             if (i < rows - 1)
-                pen.hline(M + 5f, rowTop - ROW_H + 2f, CW - 5f, C_BORD, 0.4f);
+                pen.hline(M + 5f, rowTop - ROW_H, CW - 5f, C_BORD, 0.4f);
             rowTop -= ROW_H;
         }
-        pen.advance(cardH + 24f);
+        pen.advance(cardH + SECTION_STACK_GAP);
     }
 
     // ── Section: Execution Plan ───────────────────────────────────────────────
@@ -367,10 +397,37 @@ public class OptimizationReportPdfService {
 
         if (report.payload().executionPlan().isEmpty()) { emptyCard(pen, "실행 계획이 없습니다."); return; }
 
-        // Step circle badge radius
-        final float CR    = 14f;
-        final float BODY_X = M + CR * 2f + 12f;   // content starts after circle
-        final float BODY_W = CW - CR * 2f - 12f;
+        final float STEP_BADGE_RADIUS = 14f;
+        final float STEP_BADGE_FONT = 9.5f;
+        final float STEP_BADGE_NUMBER_BASELINE_ADJUST = 3.5f;
+        final float CARD_INSET_LEFT = 10f;
+        final float CARD_INSET_TOP = 8f;
+        final float CARD_INSET_RIGHT = 18f;
+        final float BADGE_TO_CONTENT_GAP = 18f;
+        final float TITLE_ROW_H = 22f;
+        final float CHIP_ROW_H = 26f;
+        final float TITLE_TO_PANEL_GAP = 22f;
+        final float TITLE_BASELINE_OFFSET = 18f;
+        final float CHIP_BASELINE_OFFSET = 44f;
+        final float PANEL_TOP_OFFSET = TITLE_ROW_H + CHIP_ROW_H + TITLE_TO_PANEL_GAP;
+        final float PANEL_PAD_X = 14f;
+        final float PANEL_PAD_Y = 16f;
+        final float PANEL_RADIUS = 8f;
+        final float CODE_BLOCK_GAP = 8f;
+        final float ROLLBACK_TO_RATIONALE_GAP = 20f;
+        final float RATIONALE_LABEL_H = 12f;
+        final float RATIONALE_TEXT_TOP_GAP = 8f;
+        final float RATIONALE_LABEL_TO_TEXT_GAP = 20f;
+        final float CARD_BOTTOM_PAD = 18f;
+        final float CARD_ADVANCE_GAP = 14f;
+        final float CHIP_GAP = 12f;
+        final float EXEC_CHIP_H = 20f;
+        final float EXEC_CHIP_PAD_X = 11f;
+        final float EXEC_CHIP_TEXT_SIZE = 8.5f;
+        final float EXEC_CHIP_RADIUS = 6f;
+
+        final float BODY_X = M + CARD_INSET_LEFT + STEP_BADGE_RADIUS * 2f + BADGE_TO_CONTENT_GAP;
+        final float BODY_W = CW - (BODY_X - M) - CARD_INSET_RIGHT;
 
         int idx = 1;
         for (OptimizationModels.ReportExecutionStep step : report.payload().executionPlan()) {
@@ -378,24 +435,33 @@ public class OptimizationReportPdfService {
             String rollback = fallback(step.rollbackSnippet(), "-");
             String rat      = fallback(step.rationale(), "실행 배경 설명이 없습니다.");
 
-            float cmdH  = pen.codeH(cmd,     BODY_W);
-            float rbH   = pen.codeH(rollback, BODY_W);
-            float ratH  = pen.wrapH(rat, BODY_W, F_BODY, LH_BODY, 0);
+            float panelX = M + CARD_INSET_LEFT;
+            float panelW = CW - CARD_INSET_LEFT - CARD_INSET_RIGHT;
+            float panelInnerX = panelX + PANEL_PAD_X;
+            float panelInnerW = panelW - PANEL_PAD_X * 2f;
 
-            // Layout (top-down from card top):
-            //  title row:  22pt
-            //  chips row:  22pt
-            //  gap:        16pt
-            //  cmd block:  cmdH   (label is inside header)
-            //  gap:        10pt
-            //  rb block:   rbH    (label is inside header)
-            //  gap:        12pt
-            //  rat label:  14pt
-            //  rat text:   ratH
-            //  bottom pad: 18pt
-            float cardH = 22f + 22f + 16f + cmdH + 10f + rbH + 12f + 14f + ratH + 18f;
+            float cmdH  = pen.codeH(cmd, panelInnerW);
+            float rbH   = pen.codeH(rollback, panelInnerW);
+            float ratH  = pen.wrapH(rat, panelInnerW, F_BODY, LH_BODY, 0);
 
-            pen.ensureSpace(cardH + 12f);
+            float panelH =
+                    PANEL_PAD_Y
+                    + cmdH
+                    + CODE_BLOCK_GAP
+                    + rbH
+                    + ROLLBACK_TO_RATIONALE_GAP
+                    + RATIONALE_LABEL_H
+                    + RATIONALE_TEXT_TOP_GAP
+                    + ratH
+                    + PANEL_PAD_Y;
+            float cardH =
+                    TITLE_ROW_H
+                    + CHIP_ROW_H
+                    + TITLE_TO_PANEL_GAP
+                    + panelH
+                    + CARD_BOTTOM_PAD;
+
+            pen.ensureSpace(cardH + CARD_ADVANCE_GAP);
             float top  = pen.curY;
             Color ac   = riskColor(step.riskLevel());
 
@@ -404,34 +470,37 @@ public class OptimizationReportPdfService {
             pen.strokeRounded(M, top, CW, cardH, R_CARD, C_BORD, 0.75f);
 
             // step circle badge (top-left, aligned with title row center)
-            float circleCX = M + CR + 2f;
-            float circleCY = top - 22f / 2f - 11f;   // center of circle = center of title row area
-            pen.circle(circleCX, circleCY, CR, ac);
+            float circleCX = M + CARD_INSET_LEFT + STEP_BADGE_RADIUS;
+            float circleCY = top - CARD_INSET_TOP - STEP_BADGE_RADIUS;
+            pen.circle(circleCX, circleCY, STEP_BADGE_RADIUS, ac);
             String numStr = String.format("%02d", idx);
-            float  numW   = pen.tw(numStr, 9.5f);
-            pen.text(numStr, circleCX - numW / 2f, circleCY - 3.5f, 9.5f, C_WHITE);
+            float  numW   = pen.tw(numStr, STEP_BADGE_FONT);
+            pen.text(numStr, circleCX - numW / 2f, circleCY - STEP_BADGE_NUMBER_BASELINE_ADJUST, STEP_BADGE_FONT, C_WHITE);
 
             // title
-            pen.bold(step.title(), BODY_X, top - 18f, F_H2, C_TEXT);
+            pen.bold(step.title(), BODY_X, top - TITLE_BASELINE_OFFSET - CARD_INSET_TOP, F_H2, C_TEXT);
 
             // chips
-            float chipY = top - 38f;
+            float chipY = top - CHIP_BASELINE_OFFSET - CARD_INSET_TOP;
             float nx = BODY_X;
-            nx = pen.chip(nx, chipY, step.targetResource(),                                C_CSOFT,            C_BORD,                 C_MID)   + 7f;
-            nx = pen.chip(nx, chipY, "리스크  " + step.riskLevel().toUpperCase(),          mix(ac,C_WHITE,.84f),mix(ac,C_WHITE,.5f),    ac)      + 7f;
-            pen.chip(nx, chipY,      "월 절감  " + krw(step.monthlySaving()),              C_ESOFT,            mix(C_EME,C_WHITE,.5f), C_EME);
+            nx = pen.chipSized(nx, chipY, step.targetResource(),                       C_CSOFT,            C_BORD,                 C_MID, EXEC_CHIP_H, EXEC_CHIP_PAD_X, EXEC_CHIP_TEXT_SIZE, EXEC_CHIP_RADIUS) + CHIP_GAP;
+            nx = pen.chipSized(nx, chipY, "리스크  " + step.riskLevel().toUpperCase(), mix(ac,C_WHITE,.84f),mix(ac,C_WHITE,.5f),    ac,    EXEC_CHIP_H, EXEC_CHIP_PAD_X, EXEC_CHIP_TEXT_SIZE, EXEC_CHIP_RADIUS) + CHIP_GAP;
+            pen.chipSized(nx, chipY,      "월 절감  " + krw(step.monthlySaving()),     C_ESOFT,            mix(C_EME,C_WHITE,.5f), C_EME, EXEC_CHIP_H, EXEC_CHIP_PAD_X, EXEC_CHIP_TEXT_SIZE, EXEC_CHIP_RADIUS);
 
-            // body – track Y from top downward
-            // title(22) + chips(22) + gap(16) = 60
-            float y = top - 60f;
+            float panelTop = top - PANEL_TOP_OFFSET - CARD_INSET_TOP;
+            pen.fillRounded(panelX, panelTop, panelW, panelH, PANEL_RADIUS, C_CSOFT);
+            pen.strokeRounded(panelX, panelTop, panelW, panelH, PANEL_RADIUS, C_BORD, 0.6f);
 
-            pen.codeBlock(BODY_X, y, BODY_W, "적용 명령", cmd,      C_PRI);  y -= cmdH + 10f;
-            pen.codeBlock(BODY_X, y, BODY_W, "롤백 명령", rollback, C_ROSE); y -= rbH + 12f;
+            // body – track Y from top downward inside panel
+            float y = panelTop - PANEL_PAD_Y;
 
-            pen.bold("실행 배경", BODY_X, y, F_SMALL, C_MID);          y -= 14f;
-            pen.wrappedText(rat, BODY_X, y, BODY_W, F_BODY, LH_BODY, C_TEXT, 0);
+            pen.codeBlock(panelInnerX, y, panelInnerW, "적용 명령", cmd,      C_PRI);  y -= cmdH + CODE_BLOCK_GAP;
+            pen.codeBlock(panelInnerX, y, panelInnerW, "롤백 명령", rollback, C_ROSE); y -= rbH + ROLLBACK_TO_RATIONALE_GAP;
 
-            pen.advance(cardH + 12f);
+            pen.bold("실행 배경", panelInnerX, y, F_SMALL, C_MID);          y -= RATIONALE_LABEL_TO_TEXT_GAP;
+            pen.wrappedText(rat, panelInnerX, y, panelInnerW, F_BODY, LH_BODY, C_TEXT, 0);
+
+            pen.advance(cardH + CARD_ADVANCE_GAP);
             idx++;
         }
     }
@@ -455,7 +524,7 @@ public class OptimizationReportPdfService {
 
         pen.bold("주의 사항", M + 22f, top - 20f, F_H2, C_AMB);
 
-        float ty = top - 36f;
+        float ty = top - 42f;
         for (String w : report.payload().warnings())
             ty = pen.wrappedText("• " + w, M + 22f, ty, CW - 42f, F_BODY, LH_BODY, C_TEXT, 0) - 4f;
 
@@ -590,6 +659,13 @@ public class OptimizationReportPdfService {
             cs.moveTo(x, y); cs.lineTo(x+w, y); cs.stroke();
         }
 
+        void vline(float x, float topY, float h, Color c, float lw) throws IOException {
+            cs.setStrokingColor(c); cs.setLineWidth(lw);
+            cs.moveTo(x, topY);
+            cs.lineTo(x, topY - h);
+            cs.stroke();
+        }
+
         // ── text ─────────────────────────────────────────────────────────────
 
         void text(String t, float x, float baselineY, float size, Color c) throws IOException {
@@ -647,6 +723,18 @@ public class OptimizationReportPdfService {
             return (font.getStringWidth(t) / 1000f) * size;
         }
 
+        float ascent(float size) {
+            return (font.getFontDescriptor().getAscent() / 1000f) * size;
+        }
+
+        float descent(float size) {
+            return Math.abs((font.getFontDescriptor().getDescent() / 1000f) * size);
+        }
+
+        float lineH(float size) {
+            return ascent(size) + descent(size);
+        }
+
         // ── chip ─────────────────────────────────────────────────────────────
 
         float chip(float x, float baselineY, String t,
@@ -657,6 +745,17 @@ public class OptimizationReportPdfService {
             fillRounded(x, chipTop, cw, H, R_CHIP, bg);
             strokeRounded(x, chipTop, cw, H, R_CHIP, border, 0.5f);
             text(t, x + 9f, baselineY, F_SMALL, textColor);
+            return x + cw;
+        }
+
+        float chipSized(float x, float baselineY, String t,
+                        Color bg, Color border, Color textColor,
+                        float height, float padX, float textSize, float radius) throws IOException {
+            float cw = tw(t, textSize) + padX * 2f;
+            float chipTop = baselineY + height - 4f;
+            fillRounded(x, chipTop, cw, height, radius, bg);
+            strokeRounded(x, chipTop, cw, height, radius, border, 0.5f);
+            text(t, x + padX, baselineY, textSize, textColor);
             return x + cw;
         }
 
