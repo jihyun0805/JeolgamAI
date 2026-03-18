@@ -17,7 +17,7 @@ spec:
       serviceAccountName: frontend-observer
       containers:
         - name: frontend
-          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/frontend:2026-03-17-08-44-c890f7d8
+          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/frontend:2026-03-18-04-24-cd984cb0
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
