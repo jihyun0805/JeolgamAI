@@ -171,7 +171,7 @@ const menuItems: Array<{
     coverageKey: "k8s",
   },
   { key: "chat", href: "/ai-optimization", label: "AI 최적화", icon: "auto_awesome" },
-  { key: "reports", href: "/reports/new", label: "리포트", icon: "description" },
+  { key: "reports", href: "/reports", label: "리포트", icon: "description" },
   { key: "ops", href: "/admin/ops", label: "운영 로그", icon: "settings" },
 ];
 

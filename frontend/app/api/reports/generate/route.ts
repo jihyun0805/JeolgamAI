@@ -1,6 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireBackendRole, requireBackendSession } from "@/lib/auth";
-import { getBackendJson, postBackendJson } from "@/lib/backend-client";
+import { getBackendBaseUrl, getBackendJson, postBackendJson } from "@/lib/backend-client";
 import { addAuditEvent, getProjectById } from "@/lib/store";
 import { ReportTemplateType } from "@/lib/types";
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   const project = getProjectById(auth.session.workspaceId);
-  const templateType = body.templateType ?? "executive";
+  const templateType = body.templateType ?? "combined";
   let report: unknown;
   try {
     report = await postBackendJson("/api/optimization/reports", {
@@ -76,6 +76,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const analysisId = searchParams.get("analysisId");
+  const reportId = searchParams.get("reportId");
   const format = searchParams.get("format");
   const project = getProjectById(auth.session.workspaceId);
 
@@ -83,10 +84,43 @@ export async function GET(request: Request) {
     const query = new URLSearchParams({
       workspaceId: auth.session.workspaceId,
       ...(analysisId ? { analysisId } : {}),
+      ...(reportId ? { reportId } : {}),
       ...(format ? { format } : {}),
       ...(project?.name ? { projectName: project.name } : {}),
       ...(project?.awsRegion ? { awsRegion: project.awsRegion } : {}),
     });
+    if (format?.toLowerCase() === "pdf") {
+      const response = await fetch(`${getBackendBaseUrl()}/api/optimization/reports?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/pdf",
+          Authorization: `Bearer ${auth.session.backendAccessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        return fail(
+          "BACKEND_REPORT_FAILED",
+          payload?.message ?? `backend 리포트 PDF 조회에 실패했습니다. status=${response.status}`,
+          response.status,
+        );
+      }
+
+      const body = await response.arrayBuffer();
+      const headers = new Headers();
+      headers.set("Content-Type", response.headers.get("content-type") ?? "application/pdf");
+      const contentDisposition = response.headers.get("content-disposition");
+      if (contentDisposition) {
+        headers.set("Content-Disposition", contentDisposition);
+      }
+      return new Response(body, {
+        status: 200,
+        headers,
+      });
+    }
+
     const data = await getBackendJson(`/api/optimization/reports?${query.toString()}`, {
       accessToken: auth.session.backendAccessToken,
     });

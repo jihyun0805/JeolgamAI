@@ -31,6 +31,7 @@ public class OptimizationService {
 
     private static final String AWS_SEOUL_REGION = "ap-northeast-2";
     private static final String TEMPLATE_EXECUTIVE = "executive";
+    private static final String TEMPLATE_COMBINED = "combined";
     private static final String DEFAULT_OWNER = "system";
     private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     private static final long ESTIMATED_EKS_CONTROL_PLANE_MONTHLY_KRW = 99_000L;
@@ -54,10 +55,9 @@ public class OptimizationService {
     private final PrometheusIntegrationService prometheusIntegrationService;
     private final OptimizationLlmService optimizationLlmService;
     private final OptimizationPersistenceService optimizationPersistenceService;
+    private final OptimizationReportPdfService optimizationReportPdfService;
 
     private final ConcurrentMap<String, OptimizationModels.ProjectSummary> projects = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, List<OptimizationModels.ReportArtifact>> reportsByWorkspace =
-            new ConcurrentHashMap<>();
 
     public OptimizationService(
             ConnectorRegistryService connectorRegistryService,
@@ -65,7 +65,8 @@ public class OptimizationService {
             K8sInfrastructureService k8sInfrastructureService,
             PrometheusIntegrationService prometheusIntegrationService,
             OptimizationLlmService optimizationLlmService,
-            OptimizationPersistenceService optimizationPersistenceService
+            OptimizationPersistenceService optimizationPersistenceService,
+            OptimizationReportPdfService optimizationReportPdfService
     ) {
         this.connectorRegistryService = connectorRegistryService;
         this.awsInfrastructureService = awsInfrastructureService;
@@ -73,6 +74,7 @@ public class OptimizationService {
         this.prometheusIntegrationService = prometheusIntegrationService;
         this.optimizationLlmService = optimizationLlmService;
         this.optimizationPersistenceService = optimizationPersistenceService;
+        this.optimizationReportPdfService = optimizationReportPdfService;
     }
 
     public OptimizationModels.AnalysisBundle runAnalysis(OptimizationModels.RunAnalysisRequest request) {
@@ -263,32 +265,78 @@ public class OptimizationService {
         );
 
         List<OptimizationModels.Recommendation> recommendations = analysisBundle.recommendations();
-        String templateType = trimToNull(request.templateType()) == null
-                ? TEMPLATE_EXECUTIVE
-                : request.templateType().trim();
+        String templateType = TEMPLATE_COMBINED;
+        String reportId = createId("report");
         OptimizationModels.ReportArtifact report = new OptimizationModels.ReportArtifact(
-                createId("report"),
+                reportId,
                 workspaceId,
                 analysisBundle.analysis().id(),
                 templateType,
                 trimToNull(request.createdBy()) == null ? "company_admin" : request.createdBy().trim(),
                 nowIso(),
-                "/reports/new?analysisId=" + analysisBundle.analysis().id() + "&reportId=preview-" + analysisBundle.analysis().id(),
-                "/api/reports/generate?analysisId=" + analysisBundle.analysis().id() + "&format=pdf",
+                "/reports?reportId=" + reportId,
+                "/api/reports/generate?reportId=" + reportId + "&format=pdf",
                 new OptimizationModels.ReportPayload(
                         analysisBundle.analysis().score().totalScore(),
                         analysisBundle.analysis().score().grade(),
+                        analysisBundle.analysis().totalMonthlyCost(),
+                        analysisBundle.analysis().wasteCost(),
                         analysisBundle.analysis().potentialMonthlySaving(),
                         analysisBundle.analysis().potentialAnnualSaving(),
+                        analysisBundle.analysis().executiveSummary(),
                         recommendations.stream()
                                 .limit(3)
                                 .map(OptimizationModels.Recommendation::title)
-                                .toList()
+                                .toList(),
+                        recommendations.stream()
+                                .limit(3)
+                                .map(recommendation -> new OptimizationModels.ReportRecommendationHighlight(
+                                        recommendation.id(),
+                                        recommendation.title(),
+                                        recommendation.targetResource(),
+                                        recommendation.riskLevel(),
+                                        recommendation.estMonthlySaving(),
+                                        recommendation.rationale()
+                                ))
+                                .toList(),
+                        analysisBundle.analysis().costBreakdown().stream()
+                                .sorted(Comparator.comparingLong(OptimizationModels.CostBreakdownItem::monthlyCost).reversed())
+                                .limit(4)
+                                .map(item -> new OptimizationModels.ReportCostHighlight(
+                                        item.service(),
+                                        item.usageType(),
+                                        item.monthlyCost(),
+                                        item.resourceCount()
+                                ))
+                                .toList(),
+                        recommendations.stream()
+                                .map(recommendation -> new OptimizationModels.ReportExecutionStep(
+                                        recommendation.id(),
+                                        recommendation.title(),
+                                        recommendation.targetResource(),
+                                        recommendation.riskLevel(),
+                                        recommendation.estMonthlySaving(),
+                                        recommendation.commandSnippet(),
+                                        recommendation.rollbackSnippet(),
+                                        recommendation.rationale()
+                                ))
+                                .toList(),
+                        analysisBundle.analysis().warnings()
                 )
         );
 
-        reportsByWorkspace.computeIfAbsent(workspaceId, key -> new ArrayList<>()).add(0, report);
-        return report;
+        OptimizationModels.ReportArtifact saved = optimizationPersistenceService.saveReport(report);
+        return new OptimizationModels.ReportArtifact(
+                saved.id(),
+                saved.workspaceId(),
+                saved.analysisId(),
+                saved.templateType(),
+                saved.createdBy(),
+                saved.createdAt(),
+                "/reports?reportId=" + saved.id(),
+                "/api/reports/generate?reportId=" + saved.id() + "&format=pdf",
+                saved.payload()
+        );
     }
 
     public OptimizationModels.ReportListResponse listReports(
@@ -299,45 +347,74 @@ public class OptimizationService {
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
         OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
-        List<OptimizationModels.ReportArtifact> reports = new ArrayList<>(
-                reportsByWorkspace.getOrDefault(normalizedWorkspaceId, List.of())
-        );
-        if (trimToNull(analysisId) != null) {
-            reports = reports.stream()
-                    .filter(report -> analysisId.equals(report.analysisId()))
-                    .toList();
-        }
+        List<OptimizationModels.ReportArtifact> reports = optimizationPersistenceService.listReports(
+                normalizedWorkspaceId,
+                trimToNull(analysisId)
+        ).stream()
+                .filter(report -> TEMPLATE_COMBINED.equals(report.templateType()))
+                .map(report -> new OptimizationModels.ReportArtifact(
+                report.id(),
+                report.workspaceId(),
+                report.analysisId(),
+                report.templateType(),
+                report.createdBy(),
+                report.createdAt(),
+                "/reports?reportId=" + report.id(),
+                "/api/reports/generate?reportId=" + report.id() + "&format=pdf",
+                report.payload()
+        )).toList();
 
         return new OptimizationModels.ReportListResponse(project, reports, reports.size());
     }
 
     public OptimizationModels.ReportExportPayload getReportExport(
             String workspaceId,
+            String reportId,
             String analysisId
     ) {
-        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
-        if (trimToNull(analysisId) == null) {
-            throw new IllegalArgumentException("format=pdf 요청에는 analysisId가 필요합니다.");
-        }
-
-        List<OptimizationModels.ReportArtifact> reports = reportsByWorkspace
-                .getOrDefault(normalizedWorkspaceId, List.of())
-                .stream()
-                .filter(report -> analysisId.equals(report.analysisId()))
-                .toList();
-
-        if (reports.isEmpty()) {
-            throw new IllegalArgumentException("analysisId=" + analysisId + " 리포트를 찾을 수 없습니다.");
-        }
-
-        OptimizationModels.ReportArtifact latest = reports.get(0);
+        OptimizationModels.ReportArtifact report = resolveReport(requireWorkspaceId(workspaceId), reportId, analysisId);
         return new OptimizationModels.ReportExportPayload(
-                latest.id(),
+                report.id(),
                 "application/pdf",
                 true,
                 "데모 환경에서는 PDF 바이너리 대신 리포트 메타데이터를 반환합니다.",
-                latest.payload()
+                report.payload()
         );
+    }
+
+    public byte[] downloadReportPdf(
+            String workspaceId,
+            String reportId,
+            String analysisId
+    ) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        OptimizationModels.ReportArtifact report = resolveReport(normalizedWorkspaceId, reportId, analysisId);
+        OptimizationModels.AnalysisBundle analysisBundle = optimizationPersistenceService
+                .findAnalysisBundle(normalizedWorkspaceId, report.analysisId())
+                .orElseThrow(() -> new IllegalArgumentException("analysisId=" + report.analysisId() + "를 찾을 수 없습니다."));
+        return optimizationReportPdfService.renderIntegratedReport(
+                analysisBundle.project(),
+                analysisBundle.analysis(),
+                report
+        );
+    }
+
+    private OptimizationModels.ReportArtifact resolveReport(
+            String workspaceId,
+            String reportId,
+            String analysisId
+    ) {
+        if (trimToNull(reportId) != null) {
+            return optimizationPersistenceService.findReport(workspaceId, reportId)
+                    .filter(candidate -> TEMPLATE_COMBINED.equals(candidate.templateType()))
+                    .orElseThrow(() -> new IllegalArgumentException("reportId=" + reportId + " 리포트를 찾을 수 없습니다."));
+        }
+        if (trimToNull(analysisId) != null) {
+            return optimizationPersistenceService.findLatestReportByAnalysis(workspaceId, analysisId)
+                    .filter(candidate -> TEMPLATE_COMBINED.equals(candidate.templateType()))
+                    .orElseThrow(() -> new IllegalArgumentException("analysisId=" + analysisId + " 리포트를 찾을 수 없습니다."));
+        }
+        throw new IllegalArgumentException("format=pdf 요청에는 reportId 또는 analysisId가 필요합니다.");
     }
 
     private void ensureAnalysisExists(String workspaceId, String analysisId) {
