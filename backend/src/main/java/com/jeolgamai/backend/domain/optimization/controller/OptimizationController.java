@@ -7,6 +7,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -189,21 +192,27 @@ public class OptimizationController {
 
     @GetMapping("/reports")
     @Operation(summary = "리포트 목록 또는 PDF 메타데이터 조회")
-    public ResponseEntity<BaseResponse<?>> getReports(
+    public ResponseEntity<?> getReports(
             @RequestParam String workspaceId,
             @RequestParam(required = false) String analysisId,
+            @RequestParam(required = false) String reportId,
             @RequestParam(required = false) String format,
             @RequestParam(required = false) String projectName,
             @RequestParam(required = false) String awsRegion
     ) {
         try {
             if ("pdf".equalsIgnoreCase(format)) {
-                return ResponseEntity.ok(
-                        BaseResponse.onSuccess(
-                                "리포트 PDF 메타데이터 조회 성공",
-                                optimizationService.getReportExport(workspaceId, analysisId)
+                String resolvedId = reportId != null && !reportId.isBlank() ? reportId : analysisId;
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .header(
+                                HttpHeaders.CONTENT_DISPOSITION,
+                                ContentDisposition.attachment()
+                                        .filename("jeolgamai-report-" + resolvedId + ".pdf")
+                                        .build()
+                                        .toString()
                         )
-                );
+                        .body(optimizationService.downloadReportPdf(workspaceId, reportId, analysisId));
             }
 
             return ResponseEntity.ok(
