@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import UserProfileChip from "@/app/components/user-profile-chip";
@@ -140,6 +141,7 @@ const menuItems: Array<{
   href: string;
   label: string;
   icon: SidebarIconName;
+  iconSrc?: string;
   coverageKey?: "aws" | "k8s" | "prometheus";
 }> = [
   { key: "dashboard", href: "/dashboard", label: "대시보드", icon: "dashboard" },
@@ -154,6 +156,7 @@ const menuItems: Array<{
     href: "/prometheus",
     label: "Prometheus",
     icon: "query_stats",
+    iconSrc: "/icons/sidebar/prometheus.png",
     coverageKey: "prometheus",
   },
   {
@@ -161,6 +164,7 @@ const menuItems: Array<{
     href: "/infrastructure/aws",
     label: "AWS 인프라",
     icon: "cloud",
+    iconSrc: "/icons/sidebar/aws.png",
     coverageKey: "aws",
   },
   {
@@ -168,6 +172,7 @@ const menuItems: Array<{
     href: "/infrastructure/k8s",
     label: "K8s 인프라",
     icon: "list_alt",
+    iconSrc: "/icons/sidebar/k8s.png",
     coverageKey: "k8s",
   },
   { key: "chat", href: "/ai-optimization", label: "AI 최적화", icon: "auto_awesome" },
@@ -189,13 +194,14 @@ interface CoveragePayload {
   prometheus: boolean;
 }
 
+let coverageCache: CoveragePayload | null = null;
+
 export default function MainSidebar({ active }: { active: SidebarKey }) {
   const [session, setSession] = useState<SessionPayload | null>(null);
-  const [coverage, setCoverage] = useState<CoveragePayload>({
-    aws: false,
-    k8s: false,
-    prometheus: false,
-  });
+  const [coverage, setCoverage] = useState<CoveragePayload>(
+    coverageCache ?? { aws: false, k8s: false, prometheus: false },
+  );
+  const [coverageLoaded, setCoverageLoaded] = useState(Boolean(coverageCache));
   const isSettingsActive = active === "integrations";
 
   useEffect(() => {
@@ -217,7 +223,10 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
       if (integrationResponse.ok) {
         const payload = await integrationResponse.json();
         if (payload?.ok && payload?.data?.coverage && !cancelled) {
-          setCoverage(payload.data.coverage as CoveragePayload);
+          const next = payload.data.coverage as CoveragePayload;
+          coverageCache = next;
+          setCoverage(next);
+          setCoverageLoaded(true);
         }
       }
     }
@@ -229,15 +238,15 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
   }, []);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0B0E14] md:flex">
-      <div className="flex flex-col gap-1 p-6">
-        <div className="flex items-center gap-2 text-[#1c59f2]">
-          <SidebarIcon name="query_stats" className="h-8 w-8" />
-          <h1 className="text-xl font-extrabold tracking-tight">JeolgamAI</h1>
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0f1218] md:flex">
+      <div className="flex items-stretch gap-3 p-6">
+        <div className="flex w-14 shrink-0 items-center justify-center">
+          <Image src="/logo.png" alt="JeolgamAI" width={48} height={48} className="h-full w-auto max-w-full object-contain" />
         </div>
-        <p className="ml-9 text-xs font-medium text-slate-500 dark:text-slate-400">
-          Cloud Cost Intelligence
-        </p>
+        <div className="flex flex-col justify-center gap-0.5">
+          <h1 className="text-xl font-extrabold tracking-tight text-[#2a6ef5]">JeolgamAI</h1>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cloud Cost Intelligence</p>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
@@ -246,21 +255,29 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
           const isDisabled = item.coverageKey ? !coverage[item.coverageKey] : false;
           const className = `flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
             isActive
-              ? "bg-[#1c59f2]/10 text-[#1c59f2]"
+              ? "bg-[#2a6ef5]/10 text-[#2a6ef5]"
               : isDisabled
-                ? "cursor-not-allowed text-slate-400 opacity-55 dark:text-slate-600"
+                ? "cursor-pointer text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           }`;
 
           if (isDisabled) {
             return (
-              <div key={item.key} className={className} aria-disabled="true">
-                <SidebarIcon name={item.icon} className="h-5 w-5" />
+              <Link key={item.key} className={className} href="/integrations">
+                {item.iconSrc ? (
+                  <img src={item.iconSrc} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                ) : (
+                  <SidebarIcon name={item.icon} className="h-5 w-5 shrink-0" />
+                )}
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                   <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
-                  <span className="text-[10px] font-bold uppercase">연동 필요</span>
+                  {coverageLoaded ? (
+                    <span className="shrink-0 rounded-md border border-[#2a6ef5]/40 bg-[#2a6ef5]/10 px-2 py-1 text-[10px] font-bold text-[#2a6ef5] dark:border-[#2a6ef5]/50 dark:bg-[#2a6ef5]/15">
+                      연동 필요 →
+                    </span>
+                  ) : null}
                 </div>
-              </div>
+              </Link>
             );
           }
 
@@ -270,7 +287,11 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
               className={className}
               href={item.href}
             >
-              <SidebarIcon name={item.icon} className="h-5 w-5" />
+              {item.iconSrc ? (
+                <img src={item.iconSrc} alt="" className="h-5 w-5 shrink-0 object-contain" />
+              ) : (
+                <SidebarIcon name={item.icon} className="h-5 w-5" />
+              )}
               <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
             </Link>
           );
@@ -278,16 +299,16 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
       </nav>
 
       <div className="space-y-1 border-t border-slate-200 p-4 dark:border-slate-800">
-        <Link
+<Link
           className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
             isSettingsActive
-              ? "bg-[#1c59f2]/10 text-[#1c59f2]"
+              ? "bg-[#2a6ef5]/10 text-[#2a6ef5]"
               : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           }`}
           href="/integrations"
         >
           <SidebarIcon name="settings" className="h-5 w-5" />
-          <span className="text-sm font-medium whitespace-nowrap">설정</span>
+          <span className="text-sm font-medium whitespace-nowrap">연동</span>
         </Link>
         <div className="mt-2 rounded-xl bg-slate-100 px-3 py-2.5 dark:bg-slate-800/50">
           <UserProfileChip
