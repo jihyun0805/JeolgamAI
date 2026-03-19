@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { ReportArtifact } from "@/lib/types";
@@ -95,6 +95,8 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const selectedReportIdRef = useRef<string | null>(null);
+  selectedReportIdRef.current = selectedReportId;
 
   function replaceReportQuery(reportId: string | null) {
     if (typeof window === "undefined") return;
@@ -108,7 +110,7 @@ export default function ReportsPage() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}`);
   }
 
-  async function loadPageData(nextSelectedReportId?: string | null) {
+  const loadPageData = useCallback(async (nextSelectedReportId?: string | null) => {
     setLoading(true);
     setError("");
     try {
@@ -130,7 +132,7 @@ export default function ReportsPage() {
 
       const nextAnalysisData = analysisPayload.data as AnalysisPayload;
       const nextReportsData = reportsPayload.data as ReportListPayload;
-      const requestedId = nextSelectedReportId ?? selectedReportId;
+      const requestedId = nextSelectedReportId ?? selectedReportIdRef.current;
       const resolvedSelectedId =
         (requestedId &&
         nextReportsData.reports.some((report) => report.id === requestedId)
@@ -147,7 +149,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     const reportId =
@@ -156,7 +158,7 @@ export default function ReportsPage() {
         : new URL(window.location.href).searchParams.get("reportId");
     setSelectedReportId(reportId);
     loadPageData(reportId).catch(() => {});
-  }, []);
+  }, [loadPageData]);
 
   const selectedReport = useMemo(
     () => reportsData?.reports.find((report) => report.id === selectedReportId) ?? null,
