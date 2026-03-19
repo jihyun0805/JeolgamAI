@@ -179,9 +179,46 @@ public final class OptimizationModels {
     public record ReportPayload(
             int totalScore,
             String grade,
+            long totalMonthlyCost,
+            long wasteCost,
             long monthlySaving,
             long annualSaving,
-            List<String> topRecommendationTitles
+            String executiveSummary,
+            List<String> topRecommendationTitles,
+            List<ReportRecommendationHighlight> topRecommendations,
+            List<ReportCostHighlight> topCostItems,
+            List<ReportExecutionStep> executionPlan,
+            List<String> warnings
+    ) {
+    }
+
+    public record ReportRecommendationHighlight(
+            String id,
+            String title,
+            String targetResource,
+            String riskLevel,
+            long monthlySaving,
+            String rationale
+    ) {
+    }
+
+    public record ReportCostHighlight(
+            String service,
+            String usageType,
+            long monthlyCost,
+            int resourceCount
+    ) {
+    }
+
+    public record ReportExecutionStep(
+            String recommendationId,
+            String title,
+            String targetResource,
+            String riskLevel,
+            long monthlySaving,
+            String commandSnippet,
+            String rollbackSnippet,
+            String rationale
     ) {
     }
 

@@ -66,6 +66,9 @@ dependencies {
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:costexplorer'
 
+	// PDF export
+	implementation 'org.apache.pdfbox:pdfbox:2.0.31'
+
 }
 
 dependencyManagement {

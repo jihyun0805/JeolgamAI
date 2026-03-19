@@ -1,5 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
+<<<<<<< HEAD
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { useEffect, useState } from "react";
@@ -571,4 +572,8 @@ export default function NewReportPage() {
       </div>
     </div>
   );
+=======
+export default function NewReportRedirectPage() {
+  redirect("/reports");
+>>>>>>> origin/develop
 }

@@ -9,11 +9,13 @@ import com.jeolgamai.backend.domain.optimization.entity.OptimizationApprovalLogR
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatMessageRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatSessionRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationRecommendationRecord;
+import com.jeolgamai.backend.domain.optimization.entity.OptimizationReportRecord;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationAnalysisRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationApprovalLogRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatMessageRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatSessionRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationRecommendationRecordRepository;
+import com.jeolgamai.backend.domain.optimization.repository.OptimizationReportRecordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,12 +43,15 @@ public class OptimizationPersistenceService {
     };
     private static final TypeReference<OptimizationModels.RuleTrace> RULE_TRACE_TYPE = new TypeReference<>() {
     };
+    private static final TypeReference<OptimizationModels.ReportPayload> REPORT_PAYLOAD_TYPE = new TypeReference<>() {
+    };
 
     private final OptimizationAnalysisRecordRepository analysisRepository;
     private final OptimizationRecommendationRecordRepository recommendationRepository;
     private final OptimizationApprovalLogRecordRepository approvalLogRepository;
     private final OptimizationChatSessionRecordRepository chatSessionRepository;
     private final OptimizationChatMessageRecordRepository chatMessageRepository;
+    private final OptimizationReportRecordRepository reportRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -92,6 +97,35 @@ public class OptimizationPersistenceService {
 
     public boolean analysisExists(String workspaceId, String analysisId) {
         return analysisRepository.existsByIdAndWorkspaceId(analysisId, workspaceId);
+    }
+
+    @Transactional
+    public OptimizationModels.ReportArtifact saveReport(OptimizationModels.ReportArtifact report) {
+        return toReport(reportRepository.save(toReportRecord(report)));
+    }
+
+    public List<OptimizationModels.ReportArtifact> listReports(String workspaceId, String analysisId) {
+        if (analysisId == null || analysisId.isBlank()) {
+            return reportRepository.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId)
+                    .stream()
+                    .map(this::toReport)
+                    .toList();
+        }
+
+        return reportRepository.findByWorkspaceIdAndAnalysisIdOrderByCreatedAtDesc(workspaceId, analysisId)
+                .stream()
+                .map(this::toReport)
+                .toList();
+    }
+
+    public Optional<OptimizationModels.ReportArtifact> findReport(String workspaceId, String reportId) {
+        return reportRepository.findByIdAndWorkspaceId(reportId, workspaceId)
+                .map(this::toReport);
+    }
+
+    public Optional<OptimizationModels.ReportArtifact> findLatestReportByAnalysis(String workspaceId, String analysisId) {
+        return reportRepository.findTopByWorkspaceIdAndAnalysisIdOrderByCreatedAtDesc(workspaceId, analysisId)
+                .map(this::toReport);
     }
 
     @Transactional
@@ -338,6 +372,34 @@ public class OptimizationPersistenceService {
                 record.getRole(),
                 record.getContent(),
                 record.getCreatedAt()
+        );
+    }
+
+    private OptimizationReportRecord toReportRecord(OptimizationModels.ReportArtifact report) {
+        OptimizationReportRecord record = new OptimizationReportRecord();
+        record.setId(report.id());
+        record.setWorkspaceId(report.workspaceId());
+        record.setAnalysisId(report.analysisId());
+        record.setTemplateType(report.templateType());
+        record.setCreatedBy(report.createdBy());
+        record.setCreatedAt(report.createdAt());
+        record.setPreviewUrl(report.previewUrl());
+        record.setExportUrl(report.exportUrl());
+        record.setPayloadJson(writeJson(report.payload()));
+        return record;
+    }
+
+    private OptimizationModels.ReportArtifact toReport(OptimizationReportRecord record) {
+        return new OptimizationModels.ReportArtifact(
+                record.getId(),
+                record.getWorkspaceId(),
+                record.getAnalysisId(),
+                record.getTemplateType(),
+                record.getCreatedBy(),
+                record.getCreatedAt(),
+                record.getPreviewUrl(),
+                record.getExportUrl(),
+                readJson(record.getPayloadJson(), REPORT_PAYLOAD_TYPE)
         );
     }
 

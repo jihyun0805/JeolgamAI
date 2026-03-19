@@ -23,7 +23,7 @@ export type RecommendationStatus =
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
-export type ReportTemplateType = "executive" | "execution";
+export type ReportTemplateType = "executive" | "execution" | "combined";
 
 export type AlertSeverity = "info" | "warning" | "critical";
 
@@ -186,9 +186,37 @@ export interface ReportArtifact {
   payload: {
     totalScore: number;
     grade: string;
+    totalMonthlyCost: number;
+    wasteCost: number;
     monthlySaving: number;
     annualSaving: number;
+    executiveSummary: string | null;
     topRecommendationTitles: string[];
+    topRecommendations: Array<{
+      id: string;
+      title: string;
+      targetResource: string;
+      riskLevel: RiskLevel;
+      monthlySaving: number;
+      rationale: string | null;
+    }>;
+    topCostItems: Array<{
+      service: string;
+      usageType: string;
+      monthlyCost: number;
+      resourceCount: number;
+    }>;
+    executionPlan: Array<{
+      recommendationId: string;
+      title: string;
+      targetResource: string;
+      riskLevel: RiskLevel;
+      monthlySaving: number;
+      commandSnippet: string;
+      rollbackSnippet: string;
+      rationale: string | null;
+    }>;
+    warnings: string[];
   };
 }
 
