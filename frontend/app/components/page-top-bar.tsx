@@ -150,7 +150,7 @@ export default function PageTopBar({
   }
 
   return (
-    <header className="sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur-md dark:border-slate-800 dark:bg-[#161B22]/90">
+    <header className="sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur-md dark:border-slate-800 dark:bg-[#1a2029]/90">
       <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-8">
 
         {/* left: title + description */}
@@ -161,18 +161,13 @@ export default function PageTopBar({
           </p>
         </div>
 
-        {/* right: actions + project + bell + user */}
+        {/* right: project + actions + bell + user */}
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
-
-          {/* page-level action buttons */}
-          {actions ? (
-            <div className="hidden items-center gap-2 xl:flex">{actions}</div>
-          ) : null}
 
           {/* project selector */}
           {session?.projects && session.projects.length > 0 ? (
             <select
-              className="hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition focus:border-[#1c59f2] focus:outline-none md:block dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-200"
+              className="hidden h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-0 text-xs font-semibold text-slate-700 transition focus:border-[#2a6ef5] focus:outline-none md:block dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-200"
               disabled={switchingProject}
               onChange={(e) => onSelectProject(e.target.value)}
               value={session.workspaceId}
@@ -185,6 +180,11 @@ export default function PageTopBar({
             </select>
           ) : null}
 
+          {/* page-level action buttons */}
+          {actions ? (
+            <div className="hidden items-center gap-2 xl:flex">{actions}</div>
+          ) : null}
+
           {/* notification bell */}
           <button
             type="button"
@@ -192,7 +192,7 @@ export default function PageTopBar({
             className="relative rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <BellIcon />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full border-2 border-white bg-rose-500 dark:border-[#161B22]" />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full border-2 border-white bg-rose-500 dark:border-[#1a2029]" />
           </button>
 
           {/* user menu */}
@@ -216,7 +216,7 @@ export default function PageTopBar({
                   {profileRole}
                 </p>
               </div>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#1c59f2]/30 bg-[#1c59f2]/15 text-xs font-bold text-[#1c59f2]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#2a6ef5]/30 bg-[#2a6ef5]/15 text-xs font-bold text-[#2a6ef5]">
                 {getInitial(profileName)}
               </div>
             </button>
@@ -225,7 +225,7 @@ export default function PageTopBar({
             {userMenuOpen ? (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-30 mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-[#161B22]"
+                className="absolute right-0 top-full z-30 mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-[#1a2029]"
               >
                 {/* user info */}
                 <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
