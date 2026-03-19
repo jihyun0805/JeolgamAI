@@ -105,7 +105,7 @@ export default function InfrastructureAnalysisPage() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#101522] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="analysis" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -114,7 +114,7 @@ export default function InfrastructureAnalysisPage() {
           description="AWS 서울 리전 비용을 기준으로 현재 프로젝트의 사용량과 권고를 분석합니다."
           actions={
             <button
-              className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:opacity-60"
+              className="rounded-lg bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:opacity-60"
               disabled={runningAnalysis}
               onClick={onRunAnalysis}
             >
@@ -123,12 +123,12 @@ export default function InfrastructureAnalysisPage() {
           }
         />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
           <div className="w-full space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="shadow-card rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+                  <p className="text-xs font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
                     Project Cost Scope
                   </p>
                   <h2 className="mt-2 text-3xl font-black tracking-tight">
@@ -139,15 +139,15 @@ export default function InfrastructureAnalysisPage() {
                     {analysis?.awsRegion ?? "ap-northeast-2"}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14]">
+                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-[#0f1218]">
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">월간 비용</p>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">월간 비용</p>
                     <p className="mt-1 text-xl font-black">
                       {analysis ? formatKrw(analysis.totalMonthlyCost) : "..."}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">월 절감 가능</p>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">월 절감 가능</p>
                     <p className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-300">
                       {analysis ? formatKrw(analysis.potentialMonthlySaving) : "..."}
                     </p>
@@ -163,7 +163,7 @@ export default function InfrastructureAnalysisPage() {
             ) : null}
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold">서비스별 비용 산정</h3>
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -172,7 +172,7 @@ export default function InfrastructureAnalysisPage() {
                 </div>
                 <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                   <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
-                    <thead className="bg-slate-50 dark:bg-[#0B0E14]">
+                    <thead className="bg-slate-50 dark:bg-[#0f1218]">
                       <tr>
                         <th className="px-4 py-3 text-left font-semibold">서비스</th>
                         <th className="px-4 py-3 text-left font-semibold">Usage Type</th>
@@ -205,7 +205,7 @@ export default function InfrastructureAnalysisPage() {
                 ) : null}
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
                 <h3 className="text-lg font-bold">상위 절감 권고</h3>
                 <div className="mt-4 space-y-3">
                   {recommendations.slice(0, 5).map((recommendation) => (
@@ -215,7 +215,7 @@ export default function InfrastructureAnalysisPage() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-semibold">{recommendation.title}</p>
-                        <span className="rounded-full bg-[#1c59f2]/10 px-2 py-1 text-xs font-bold text-[#1c59f2]">
+                        <span className="rounded-full bg-[#2a6ef5]/10 px-2 py-1 text-xs font-bold text-[#2a6ef5]">
                           {recommendation.riskLevel.toUpperCase()}
                         </span>
                       </div>
@@ -228,7 +228,7 @@ export default function InfrastructureAnalysisPage() {
               </article>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">리소스별 비용 Top</h3>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -244,7 +244,7 @@ export default function InfrastructureAnalysisPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-bold">{resource.name}</p>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                           {resource.type} · {resource.region ?? "ap-northeast-2"}
                         </p>
                       </div>
@@ -255,7 +255,7 @@ export default function InfrastructureAnalysisPage() {
                     <p className="mt-4 text-2xl font-black tracking-tight">
                       {formatKrw(resource.monthlyCost)}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                       리스크 {resource.riskLevel.toUpperCase()}
                     </p>
                   </div>

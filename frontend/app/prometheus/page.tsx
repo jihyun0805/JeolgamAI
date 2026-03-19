@@ -190,7 +190,7 @@ function LineChart({
   const hovered = hoveredIdx !== null ? coordinates[hoveredIdx] : null;
 
   return (
-    <div className="relative rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-[#0F141C]">
+    <div className="relative rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-[#131820]">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="h-52 w-full"
@@ -317,7 +317,7 @@ function MetricPanel({
   unit: "percent" | "ms";
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-bold">{title}</h3>
         {points.length > 0 ? (
@@ -429,7 +429,7 @@ export default function PrometheusPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="prometheus" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -442,11 +442,11 @@ export default function PrometheusPage() {
           <div className="w-full space-y-5">
 
             {/* 프로젝트 + 시간 범위 컨트롤 – 한 줄 통합 */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
-                    <p className="text-xs font-bold tracking-[0.22em] text-[#1c59f2] uppercase">
+                    <p className="text-xs font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
                       Active Project
                     </p>
                     <h2 className="mt-0.5 text-xl font-black tracking-tight">
@@ -460,7 +460,7 @@ export default function PrometheusPage() {
 
                 <div className="flex flex-wrap items-end gap-3">
                   {/* Range presets */}
-                  <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0F141C]">
+                  <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#131820]">
                     {RANGE_PRESET_OPTIONS.map((option) => {
                       const active = selectedPreset === option.key;
                       return (
@@ -470,7 +470,7 @@ export default function PrometheusPage() {
                           onClick={() => applyPresetRange(option.key)}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                             active
-                              ? "bg-[#1c59f2] text-white shadow-sm"
+                              ? "bg-[#2a6ef5] text-white shadow-sm"
                               : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
                           }`}
                         >
@@ -490,7 +490,7 @@ export default function PrometheusPage() {
                         setSelectedPreset("custom");
                         setCustomFrom(event.target.value);
                       }}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#0F141C] dark:text-slate-100"
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
                     />
                   </label>
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -502,7 +502,7 @@ export default function PrometheusPage() {
                         setSelectedPreset("custom");
                         setCustomTo(event.target.value);
                       }}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#0F141C] dark:text-slate-100"
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
                     />
                   </label>
                   <button
@@ -534,7 +534,7 @@ export default function PrometheusPage() {
                 {
                   label: "CPU 평균",
                   value: `${data?.overview.summary.cpuUsagePercent ?? 0}%`,
-                  color: "#1c59f2",
+                  color: "#2a6ef5",
                 },
                 {
                   label: "메모리 평균",
@@ -563,7 +563,7 @@ export default function PrometheusPage() {
               ].map((card) => (
                 <article
                   key={card.label}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]"
                 >
                   <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
                   <p
@@ -580,7 +580,7 @@ export default function PrometheusPage() {
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <MetricPanel
                 title="CPU Usage"
-                color="#1c59f2"
+                color="#2a6ef5"
                 points={data?.overview.series.cpuUsage ?? []}
                 unit="percent"
               />

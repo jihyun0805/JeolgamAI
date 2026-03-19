@@ -84,7 +84,7 @@ function SendIcon() {
 function TypingIndicator() {
   return (
     <div className="flex justify-start">
-      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3.5 dark:bg-[#0F141C]">
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3.5 dark:bg-[#131820]">
         <span
           className="h-2 w-2 rounded-full bg-slate-400 animate-bounce dark:bg-slate-500"
           style={{ animationDelay: "0ms" }}
@@ -261,7 +261,7 @@ export default function AiOptimizationPage() {
     recommendations.find((r) => r.id === selectedRecommendationId) ?? recommendations[0];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f4f7ff] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="chat" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -274,8 +274,8 @@ export default function AiOptimizationPage() {
           {/* Left panel */}
           <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto xl:w-80">
             {/* Analysis score */}
-            <article className="shrink-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-              <p className="text-[10px] font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+            <article className="shrink-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
+              <p className="text-[10px] font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
                 Analysis Score
               </p>
               <div className="mt-2 flex items-baseline gap-2.5">
@@ -296,7 +296,7 @@ export default function AiOptimizationPage() {
             </article>
 
             {/* Recommendations */}
-            <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="shrink-0 border-b border-slate-200 px-4 py-3.5 dark:border-slate-800">
                 <h3 className="text-sm font-bold">권고 목록</h3>
               </div>
@@ -317,7 +317,7 @@ export default function AiOptimizationPage() {
                       onClick={() => setSelectedRecommendationId(rec.id)}
                       className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
                         rec.id === selectedRecommendationId
-                          ? "border-[#1c59f2]/30 bg-[#1c59f2]/6 dark:bg-[#1c59f2]/8"
+                          ? "border-[#2a6ef5]/30 bg-[#2a6ef5]/6 dark:bg-[#2a6ef5]/8"
                           : "border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
                       }`}
                     >
@@ -345,7 +345,7 @@ export default function AiOptimizationPage() {
           </aside>
 
           {/* Chat panel */}
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
             {/* Chat header */}
             <div className="shrink-0 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
               <h3 className="font-bold">권고 대화</h3>
@@ -366,7 +366,7 @@ export default function AiOptimizationPage() {
 
               {!loading && messages.length === 0 && !submitting ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-[#0F141C]">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-[#131820]">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -398,8 +398,8 @@ export default function AiOptimizationPage() {
                       <div
                         className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                           message.role === "user"
-                            ? "rounded-br-sm bg-[#1c59f2] text-white"
-                            : "rounded-bl-sm bg-slate-100 text-slate-800 dark:bg-[#0F141C] dark:text-slate-100"
+                            ? "rounded-br-sm bg-[#2a6ef5] text-white"
+                            : "rounded-bl-sm bg-slate-100 text-slate-800 dark:bg-[#131820] dark:text-slate-100"
                         }`}
                       >
                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -418,10 +418,10 @@ export default function AiOptimizationPage() {
               onSubmit={sendMessage}
             >
               <div
-                className={`flex items-end gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#0F141C] ${
+                className={`flex items-end gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#131820] ${
                   submitting
                     ? "border-slate-200 dark:border-slate-700"
-                    : "border-slate-200 focus-within:border-[#1c59f2] focus-within:bg-white dark:border-slate-700 dark:focus-within:border-[#1c59f2] dark:focus-within:bg-[#111824]"
+                    : "border-slate-200 focus-within:border-[#2a6ef5] focus-within:bg-white dark:border-slate-700 dark:focus-within:border-[#2a6ef5] dark:focus-within:bg-[#151b24]"
                 }`}
               >
                 <textarea
@@ -441,7 +441,7 @@ export default function AiOptimizationPage() {
                 <button
                   type="submit"
                   disabled={submitting || !prompt.trim() || !analysisId}
-                  className="shrink-0 rounded-xl bg-[#1c59f2] p-2.5 text-white transition hover:bg-[#194fd8] disabled:opacity-40"
+                  className="shrink-0 rounded-xl bg-[#2a6ef5] p-2.5 text-white transition hover:bg-[#2262f0] disabled:opacity-40"
                   aria-label="전송"
                 >
                   <SendIcon />

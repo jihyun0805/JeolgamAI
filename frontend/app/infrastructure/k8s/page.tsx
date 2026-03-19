@@ -145,7 +145,7 @@ function toneClass(tone: HealthTone) {
     case "degraded":
       return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-[#111824] dark:text-slate-300";
+      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-[#151b24] dark:text-slate-300";
   }
 }
 
@@ -313,7 +313,7 @@ function SummaryCard({
   hint: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
       <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">{label}</p>
       <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
       <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
@@ -454,9 +454,9 @@ function ResourceMapNode({
 }) {
   return (
     <article
-      className={`relative mx-auto h-[176px] w-full max-w-[320px] overflow-hidden rounded-[24px] border bg-white px-6 py-5 shadow-sm dark:bg-[#161B22] ${
+      className={`relative mx-auto h-[176px] w-full max-w-[320px] overflow-hidden rounded-[24px] border bg-white px-6 py-5 shadow-sm dark:bg-[#1a2029] ${
         onClick
-          ? "cursor-pointer border-slate-200 transition-all hover:border-[#1c59f2]/40 hover:shadow-md dark:border-slate-800 dark:hover:border-[#1c59f2]/40"
+          ? "cursor-pointer border-slate-200 transition-all hover:border-[#2a6ef5]/40 hover:shadow-md dark:border-slate-800 dark:hover:border-[#2a6ef5]/40"
           : "border-slate-200 dark:border-slate-800"
       }`}
       onClick={onClick}
@@ -503,13 +503,13 @@ function ResourceMapNode({
                 <span
                   key={`${title}-${chip.title ?? chip.label}`}
                   title={chip.title ?? chip.label}
-                  className="inline-flex min-w-0 max-w-[128px] shrink rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300"
+                  className="inline-flex min-w-0 max-w-[128px] shrink rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300"
                 >
                   <span className="truncate">{chip.label}</span>
                 </span>
               ))}
               {chips.length > 2 ? (
-                <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-400">
+                <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400">
                   +{chips.length - 2}
                 </span>
               ) : null}
@@ -545,7 +545,7 @@ function StageColumn({
         ? "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300"
         : tone === "emerald"
           ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
-          : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-[#111824] dark:text-slate-300";
+          : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-[#151b24] dark:text-slate-300";
 
   return (
     <div className="space-y-6">
@@ -761,8 +761,8 @@ function ResourceDetailSidebar({
           <span
             className={`absolute left-1/2 top-1/2 flex h-16 w-4 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-full border shadow-lg backdrop-blur-sm transition ${
               isResizing
-                ? "border-[#1c59f2]/40 bg-[#1c59f2]/16 shadow-[0_12px_40px_rgba(28,89,242,0.18)]"
-                : "border-slate-200/80 bg-white/88 opacity-0 group-hover:opacity-100 dark:border-slate-700/80 dark:bg-[#161B22]/88"
+                ? "border-[#2a6ef5]/40 bg-[#2a6ef5]/16 shadow-[0_12px_40px_rgba(28,89,242,0.18)]"
+                : "border-slate-200/80 bg-white/88 opacity-0 group-hover:opacity-100 dark:border-slate-700/80 dark:bg-[#1a2029]/88"
             }`}
           >
             <span className="h-1 w-1 rounded-full bg-slate-400 dark:bg-slate-500" />
@@ -772,7 +772,7 @@ function ResourceDetailSidebar({
         </button>
 
         <div
-          className="flex h-full flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:bg-[#161B22]"
+          className="flex h-full flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:bg-[#1a2029]"
           style={{ width: `min(100vw, ${drawerWidth}px)` }}
         >
           {/* Header */}
@@ -818,7 +818,7 @@ function ResourceDetailSidebar({
                     {section.label}
                   </p>
                   {section.rows?.length ? (
-                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0B0E14]">
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#0f1218]">
                       {section.rows.map((row) => (
                         <div key={row.key}>
                           <span className="block text-[11px] font-semibold text-slate-400">
@@ -837,7 +837,7 @@ function ResourceDetailSidebar({
                         <span
                           key={tag}
                           title={tag}
-                          className="block w-full break-all rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300"
+                          className="block w-full break-all rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 font-semibold text-slate-600 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300"
                         >
                           {tag}
                         </span>
@@ -1012,7 +1012,7 @@ export default function K8sInfrastructurePage() {
   }, [selectedNamespace, workloadSearch]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="k8s_infra" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -1023,10 +1023,10 @@ export default function K8sInfrastructurePage() {
 
         <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
           <div className="w-full space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div>
                 <div>
-                  <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+                  <p className="text-xs font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
                     Live Cluster Canvas
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1089,7 +1089,7 @@ export default function K8sInfrastructurePage() {
             </section>
 
             {/* Namespace 가로 pill 선택기 */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="whitespace-nowrap text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
                   Namespace
@@ -1098,7 +1098,7 @@ export default function K8sInfrastructurePage() {
                   value={namespaceSearch}
                   onChange={(event) => setNamespaceSearch(event.target.value)}
                   placeholder="검색"
-                  className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
                 <div className="flex flex-wrap items-center gap-1.5">
                   {visibleNamespaces.map((namespace) => {
@@ -1119,8 +1119,8 @@ export default function K8sInfrastructurePage() {
                         onClick={() => setSelectedNamespace(namespace.name)}
                         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                           isActive
-                            ? "border-[#1c59f2]/30 bg-[#1c59f2]/10 text-[#1c59f2]"
-                            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#101621]"
+                            ? "border-[#2a6ef5]/30 bg-[#2a6ef5]/10 text-[#2a6ef5]"
+                            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#141b24]"
                         }`}
                       >
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
@@ -1132,7 +1132,7 @@ export default function K8sInfrastructurePage() {
                     <button
                       type="button"
                       onClick={() => setShowAllNamespaces((current) => !current)}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#101621]"
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#141b24]"
                     >
                       {showAllNamespaces ? "접기" : `+${filteredNamespaces.length - 16}`}
                     </button>
@@ -1145,7 +1145,7 @@ export default function K8sInfrastructurePage() {
             </section>
 
             {/* Live Resource Map – 전체 폭, 모든 deployment 한 번에 */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
@@ -1169,7 +1169,7 @@ export default function K8sInfrastructurePage() {
                         }
                       />
                     ) : null}
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300">
                       svc {filteredServices.length} · deploy {filteredDeployments.length} · pod {filteredPods.length}
                     </span>
                   </div>
@@ -1181,7 +1181,7 @@ export default function K8sInfrastructurePage() {
                   value={workloadSearch}
                   onChange={(event) => setWorkloadSearch(event.target.value)}
                   placeholder="service, deployment, pod 검색"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#1c59f2] focus:bg-white focus:outline-none xl:w-72 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#2a6ef5] focus:bg-white focus:outline-none xl:w-72 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
 
@@ -1406,7 +1406,7 @@ export default function K8sInfrastructurePage() {
                       return (
                         <div
                           key={`${deployment.namespace}-${deployment.name}`}
-                          className={topologyFullscreen ? "fixed inset-0 z-50 flex flex-col bg-[#0B0E14]" : "relative rounded-[32px] border border-slate-200 bg-slate-50/70 shadow-sm dark:border-slate-800 dark:bg-[#0B0E14]"}
+                          className={topologyFullscreen ? "fixed inset-0 z-50 flex flex-col bg-[#0f1218]" : "relative rounded-[32px] border border-slate-200 bg-slate-50/70 shadow-sm dark:border-slate-800 dark:bg-[#0f1218]"}
                         >
                           {/* fullscreen header */}
                           {topologyFullscreen && (
@@ -1474,7 +1474,7 @@ export default function K8sInfrastructurePage() {
 
                           <div
                             ref={topologyViewportRef}
-                            className={`${topologyFullscreen ? "flex-1" : "h-[560px]"} overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0B0E14]/70 p-6 select-none dark:border-slate-800`}
+                            className={`${topologyFullscreen ? "flex-1" : "h-[560px]"} overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0f1218]/70 p-6 select-none dark:border-slate-800`}
                             style={{ cursor: topologyDragRef.current.active ? "grabbing" : "grab" }}
                             onWheel={(e) => {
                               if (!e.ctrlKey && !e.metaKey) return;
@@ -1807,7 +1807,7 @@ export default function K8sInfrastructurePage() {
                       );
                     })}
                     {!filteredDeployments.length && (
-                      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-400">
+                      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400">
                         현재 필터에서 보여줄 deployment가 없습니다.
                       </div>
                     )}

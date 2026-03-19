@@ -285,7 +285,7 @@ export default function NewReportPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="reports" />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -295,13 +295,13 @@ export default function NewReportPage() {
         />
 
         <main className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-          <section className="scrollbar-hide flex-1 space-y-8 overflow-y-auto bg-[#f5f6f8] p-6 dark:bg-[#0B0E14]">
+          <section className="scrollbar-hide flex-1 space-y-8 overflow-y-auto bg-[#f5f6f8] p-6 dark:bg-[#0f1218]">
             <div className="mx-auto max-w-3xl space-y-8">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
                   리포트 구성 옵션
                 </h3>
-                <button className="flex items-center gap-2 rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-300 dark:bg-[#161B26] dark:text-white dark:hover:bg-[#2D3139]">
+                <button className="flex items-center gap-2 rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-300 dark:bg-[#1a2029] dark:text-white dark:hover:bg-[#2D3139]">
                   <ReportIcon name="edit" className="h-4 w-4" />
                   데이터 수정
                 </button>
@@ -312,14 +312,14 @@ export default function NewReportPage() {
                   보고서 템플릿 선택
                 </h3>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="group relative cursor-pointer rounded-xl border-2 border-[#1c59f2] bg-white p-5 shadow-sm dark:bg-[#161B26]">
+                  <div className="group relative cursor-pointer rounded-xl border-2 border-[#2a6ef5] bg-white p-5 shadow-sm dark:bg-[#1a2029]">
                     <div className="mb-4 flex items-start justify-between">
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-[#1c59f2] text-white">
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-[#2a6ef5] text-white">
                         <ReportIcon name="summarize" className="h-5 w-5" />
                       </div>
                       <ReportIcon
                         name="check_circle"
-                        className="h-5 w-5 text-[#1c59f2]"
+                        className="h-5 w-5 text-[#2a6ef5]"
                       />
                     </div>
                     <h4 className="mb-1 text-lg font-bold text-slate-900 dark:text-white">
@@ -331,9 +331,9 @@ export default function NewReportPage() {
                     </p>
                   </div>
 
-                  <div className="group relative cursor-pointer rounded-xl border-2 border-transparent bg-white p-5 shadow-sm transition-all hover:border-slate-300 dark:bg-[#161B26] dark:hover:border-slate-700">
+                  <div className="group relative cursor-pointer rounded-xl border-2 border-transparent bg-white p-5 shadow-sm transition-all hover:border-slate-300 dark:bg-[#1a2029] dark:hover:border-slate-700">
                     <div className="mb-4 flex items-start justify-between">
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-[#0B0E14]">
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-[#0f1218]">
                         <ReportIcon name="monitoring" className="h-5 w-5" />
                       </div>
                     </div>
@@ -352,13 +352,13 @@ export default function NewReportPage() {
                 <h3 className="mb-4 text-sm font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
                   ROI 시뮬레이션 결과
                 </h3>
-                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 dark:border-[#2D3139] dark:bg-[#161B26]">
+                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 dark:border-[#2D3139] dark:bg-[#1a2029]">
                   <div className="mb-8 grid grid-cols-2 gap-8">
                     <div>
                       <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                         6개월 예상 누적 절감액
                       </p>
-                      <h5 className="text-2xl font-extrabold text-[#1c59f2]">
+                      <h5 className="text-2xl font-extrabold text-[#2a6ef5]">
                         ₩42,850,000
                       </h5>
                     </div>
@@ -380,17 +380,17 @@ export default function NewReportPage() {
                       <div className="w-full border-b border-slate-900 dark:border-white" />
                     </div>
 
-                    <div className="group relative h-[20%] flex-1 rounded-t-lg bg-[#1c59f2]/20 transition-all hover:bg-[#1c59f2]/40">
+                    <div className="group relative h-[20%] flex-1 rounded-t-lg bg-[#2a6ef5]/20 transition-all hover:bg-[#2a6ef5]/40">
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 rounded bg-slate-900 px-2 py-1 text-[10px] whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100">
                         M1: ₩5.2M
                       </div>
                     </div>
-                    <div className="h-[35%] flex-1 rounded-t-lg bg-[#1c59f2]/25 transition-all hover:bg-[#1c59f2]/45" />
-                    <div className="h-[45%] flex-1 rounded-t-lg bg-[#1c59f2]/30 transition-all hover:bg-[#1c59f2]/50" />
-                    <div className="h-[55%] flex-1 rounded-t-lg bg-[#1c59f2]/40 transition-all hover:bg-[#1c59f2]/60" />
-                    <div className="h-[70%] flex-1 rounded-t-lg bg-[#1c59f2]/50 transition-all hover:bg-[#1c59f2]/70" />
-                    <div className="relative h-[80%] flex-1 rounded-t-lg bg-[#1c59f2]/60 transition-all hover:bg-[#1c59f2]/80">
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 rounded bg-slate-900 px-2 py-1 text-[10px] font-bold whitespace-nowrap text-white shadow-lg dark:bg-[#1c59f2]">
+                    <div className="h-[35%] flex-1 rounded-t-lg bg-[#2a6ef5]/25 transition-all hover:bg-[#2a6ef5]/45" />
+                    <div className="h-[45%] flex-1 rounded-t-lg bg-[#2a6ef5]/30 transition-all hover:bg-[#2a6ef5]/50" />
+                    <div className="h-[55%] flex-1 rounded-t-lg bg-[#2a6ef5]/40 transition-all hover:bg-[#2a6ef5]/60" />
+                    <div className="h-[70%] flex-1 rounded-t-lg bg-[#2a6ef5]/50 transition-all hover:bg-[#2a6ef5]/70" />
+                    <div className="relative h-[80%] flex-1 rounded-t-lg bg-[#2a6ef5]/60 transition-all hover:bg-[#2a6ef5]/80">
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 rounded bg-slate-900 px-2 py-1 text-[10px] font-bold whitespace-nowrap text-white shadow-lg dark:bg-[#2a6ef5]">
                         6개월 목표 달성
                       </div>
                     </div>
@@ -411,13 +411,13 @@ export default function NewReportPage() {
               </div>
 
             <div className="flex items-center justify-end gap-4 border-t border-slate-200 pt-6 dark:border-[#2D3139]">
-              <button className="rounded-lg border border-slate-300 px-6 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-100 dark:border-[#2D3139] dark:text-white dark:hover:bg-[#161B26]">
+              <button className="rounded-lg border border-slate-300 px-6 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-100 dark:border-[#2D3139] dark:text-white dark:hover:bg-[#1a2029]">
                 PDF 취소
               </button>
               <button
                 onClick={generateReport}
                 disabled={generating || !analysisId}
-                className="flex items-center gap-2 rounded-lg bg-[#1c59f2] px-8 py-3 font-bold text-white shadow-lg shadow-[#1c59f2]/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-[#2a6ef5] px-8 py-3 font-bold text-white shadow-lg shadow-[#2a6ef5]/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ReportIcon name="picture_as_pdf" className="h-5 w-5" />
                 {generating ? "리포트 생성 중..." : "최종 리포트 생성"}
@@ -436,8 +436,8 @@ export default function NewReportPage() {
           </div>
         </section>
 
-          <section className="flex w-full flex-col border-l border-slate-300 bg-slate-200 dark:border-[#2D3139] dark:bg-[#0B0E14] lg:w-[480px] xl:w-[560px]">
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-300 bg-white px-6 dark:border-[#2D3139] dark:bg-[#161B26]">
+          <section className="flex w-full flex-col border-l border-slate-300 bg-slate-200 dark:border-[#2D3139] dark:bg-[#0f1218] lg:w-[480px] xl:w-[560px]">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-300 bg-white px-6 dark:border-[#2D3139] dark:bg-[#1a2029]">
               <span className="text-xs font-bold tracking-widest text-slate-500 uppercase dark:text-slate-400">
                 프리뷰: 경영 요약 (Page 1/4)
               </span>
@@ -460,11 +460,11 @@ export default function NewReportPage() {
 
             <div className="scrollbar-hide flex flex-1 flex-col items-center gap-8 overflow-y-auto bg-slate-100 p-10 dark:bg-[#080B11]">
               <div className="pdf-shadow relative origin-top scale-95 overflow-hidden rounded-sm bg-white p-10 text-slate-900 transition-transform [aspect-ratio:1/1.414] w-[420px]">
-                <div className="absolute top-0 left-0 h-1.5 w-full bg-[#1c59f2]" />
+                <div className="absolute top-0 left-0 h-1.5 w-full bg-[#2a6ef5]" />
 
                 <div className="mb-12 flex items-start justify-between">
                   <div>
-                    <h5 className="mb-1 text-[10px] font-extrabold tracking-tighter text-[#1c59f2] uppercase">
+                    <h5 className="mb-1 text-[10px] font-extrabold tracking-tighter text-[#2a6ef5] uppercase">
                       JeolgamAI Financial Insight
                     </h5>
                     <h1 className="text-2xl font-black text-slate-900">경영 요약 보고서</h1>
@@ -478,7 +478,7 @@ export default function NewReportPage() {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="rounded border-l-4 border-[#1c59f2] bg-slate-50 p-4">
+                  <div className="rounded border-l-4 border-[#2a6ef5] bg-slate-50 p-4">
                     <h6 className="mb-2 text-[10px] font-bold text-slate-500">
                       핵심 진단 (Key Findings)
                     </h6>
@@ -500,7 +500,7 @@ export default function NewReportPage() {
                       <p className="mb-1 text-[8px] font-bold text-slate-400 uppercase">
                         최적화 후 지출
                       </p>
-                      <p className="text-lg font-black text-[#1c59f2]">₩14.2M</p>
+                      <p className="text-lg font-black text-[#2a6ef5]">₩14.2M</p>
                     </div>
                   </div>
 
@@ -510,26 +510,26 @@ export default function NewReportPage() {
                     </h6>
                     <div className="flex items-center gap-3">
                       <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full w-[45%] bg-[#1c59f2]" />
-                        <div className="h-full w-[25%] bg-[#1c59f2]/60" />
-                        <div className="h-full w-[30%] bg-[#1c59f2]/30" />
+                        <div className="h-full w-[45%] bg-[#2a6ef5]" />
+                        <div className="h-full w-[25%] bg-[#2a6ef5]/60" />
+                        <div className="h-full w-[30%] bg-[#2a6ef5]/30" />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="flex items-center gap-1.5">
-                        <div className="size-1.5 rounded-full bg-[#1c59f2]" />
+                        <div className="size-1.5 rounded-full bg-[#2a6ef5]" />
                         <span className="text-[7px] font-bold text-slate-600">
                           인스턴스 정리
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <div className="size-1.5 rounded-full bg-[#1c59f2]/60" />
+                        <div className="size-1.5 rounded-full bg-[#2a6ef5]/60" />
                         <span className="text-[7px] font-bold text-slate-600">
                           RI 최적화
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <div className="size-1.5 rounded-full bg-[#1c59f2]/30" />
+                        <div className="size-1.5 rounded-full bg-[#2a6ef5]/30" />
                         <span className="text-[7px] font-bold text-slate-600">
                           스토리지 티어링
                         </span>
@@ -551,12 +551,12 @@ export default function NewReportPage() {
               <div className="mb-10 w-[420px] rounded-sm border border-white/20 bg-white/40 [aspect-ratio:1/1.414] dark:bg-white/5" />
             </div>
 
-            <div className="flex h-16 shrink-0 items-center justify-center gap-4 border-t border-slate-300 bg-white px-6 dark:border-[#2D3139] dark:bg-[#161B26]">
+            <div className="flex h-16 shrink-0 items-center justify-center gap-4 border-t border-slate-300 bg-white px-6 dark:border-[#2D3139] dark:bg-[#1a2029]">
               <button className="p-2 text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-white">
                 <ReportIcon name="arrow_back_ios" className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-1">
-                <span className="rounded bg-slate-100 px-2 py-1 text-xs font-black text-slate-900 dark:bg-[#0B0E14] dark:text-white">
+                <span className="rounded bg-slate-100 px-2 py-1 text-xs font-black text-slate-900 dark:bg-[#0f1218] dark:text-white">
                   1
                 </span>
                 <span className="mx-1 text-xs font-bold text-slate-400">/</span>
