@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import {
   AnalysisSnapshot,
   AppNotification,
@@ -29,7 +30,6 @@ export interface AppState {
   chatSessions: ChatSession[];
   notifications: AppNotification[];
   authUsers: AuthUser[];
-  sessions: UserSession[];
   audits: AuditEvent[];
 }
 
@@ -53,7 +53,6 @@ function createInitialState(): AppState {
     chatSessions: [],
     notifications: [],
     authUsers: [],
-    sessions: [],
     audits: [],
   };
 }
@@ -300,14 +299,6 @@ function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
     chatSessions: raw?.chatSessions ?? [],
     notifications: raw?.notifications ?? [],
     authUsers,
-    sessions: (raw?.sessions ?? []).map((session) => ({
-      ...session,
-      workspaceId:
-        normalizedProjects.projects.find((project) => project.id === session.workspaceId)?.id ??
-        authUsers.find((user) => user.userId === session.userId)?.defaultProjectId ??
-        normalizedProjects.projects[0]?.id ??
-        legacyWorkspaceId,
-    })),
     audits: (raw?.audits ?? []).map((audit) => ({
       ...audit,
       workspaceId: audit.workspaceId ?? legacyWorkspaceId,
@@ -534,7 +525,7 @@ export function createSession(params: {
     store.workspaceId;
 
   const session: UserSession = {
-    token: createId("sess"),
+    token: randomBytes(16).toString("base64url"),
     userId: params.userId,
     name: params.name,
     role: params.role,
@@ -548,47 +539,7 @@ export function createSession(params: {
     expiresAt: expiresAt.toISOString(),
   };
 
-  store.sessions = [
-    session,
-    ...store.sessions.filter((item) => item.userId !== session.userId),
-  ];
-  persistStore();
-
   return session;
-}
-
-export function setSessionWorkspace(token: string, workspaceId: string): UserSession | null {
-  const store = getStore();
-  const session = store.sessions.find((item) => item.token === token) ?? null;
-  if (!session) return null;
-
-  if (!getProjectForUser(session.userId, workspaceId)) {
-    return null;
-  }
-
-  session.workspaceId = workspaceId;
-  persistStore();
-  return session;
-}
-
-export function getSessionByToken(token: string): UserSession | null {
-  const store = getStore();
-  const session = store.sessions.find((item) => item.token === token) ?? null;
-  if (!session) return null;
-
-  if (new Date(session.expiresAt).getTime() < Date.now()) {
-    store.sessions = store.sessions.filter((item) => item.token !== token);
-    persistStore();
-    return null;
-  }
-
-  return session;
-}
-
-export function removeSessionByToken(token: string): void {
-  const store = getStore();
-  store.sessions = store.sessions.filter((item) => item.token !== token);
-  persistStore();
 }
 
 export function getAuthUserByLoginId(loginId: string): AuthUser | null {
