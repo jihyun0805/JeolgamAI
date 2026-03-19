@@ -36,8 +36,65 @@ body {
   border-radius: 10px;
 }
 
+/* K8s 토폴로지 뷰포트: 다크 테마에 맞는 얇은 둥근 스크롤바 (Chrome/Edge WebKit, Firefox) */
+.topology-viewport-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(71 85 105) rgba(15 23 42 / 0.4);
+}
+.topology-viewport-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 4px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105);
+  border-radius: 4px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139);
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgb(148 163 184);
+}
+.dark .topology-viewport-scrollbar {
+  scrollbar-color: rgb(71 85 105) rgba(15 23 42 / 0.6);
+}
+.dark .topology-viewport-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
 .pdf-shadow {
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+/* 카드 대비용: 은은한 그림자 + 콘텐츠 영역 배경 */
+.shadow-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px -2px rgba(0, 0, 0, 0.06);
+}
+.dark .shadow-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 4px 12px -2px rgba(0, 0, 0, 0.15);
+}
+
+.content-area-subtle {
+  background: radial-gradient(
+    ellipse 100% 60% at 50% 0%,
+    rgba(0, 0, 0, 0.025) 0%,
+    transparent 55%
+  );
+}
+.dark .content-area-subtle {
+  background: radial-gradient(
+    ellipse 100% 60% at 50% 0%,
+    rgba(255, 255, 255, 0.02) 0%,
+    transparent 55%
+  );
 }
 
 .code-block {

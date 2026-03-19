@@ -230,13 +230,42 @@ public class ConnectorRegistryService {
 
     public record AwsConnectorConfig(
             String workspaceId,
+            String integrationName,
             String authMode,
             String region,
             String roleArn,
             String externalId,
             String accessKeyId,
-            String secretAccessKey
+            String secretAccessKey,
+            String accountId,
+            String callerArn,
+            String status,
+            String validatedAt
     ) {
+        public AwsConnectorConfig(
+                String workspaceId,
+                String authMode,
+                String region,
+                String roleArn,
+                String externalId,
+                String accessKeyId,
+                String secretAccessKey
+        ) {
+            this(
+                    workspaceId,
+                    null,
+                    authMode,
+                    region,
+                    roleArn,
+                    externalId,
+                    accessKeyId,
+                    secretAccessKey,
+                    null,
+                    null,
+                    "active",
+                    null
+            );
+        }
     }
 
     public record K8sConnectorConfig(

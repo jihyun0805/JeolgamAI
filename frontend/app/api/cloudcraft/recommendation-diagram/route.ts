@@ -1,10 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
+import { isMockDataMode } from "@/lib/runtime-mode";
 import {
   getIntegrations,
 } from "@/lib/store";
-import { isMockDataMode } from "@/lib/runtime-mode";
 
 interface DiagramBody {
   analysisId?: string;

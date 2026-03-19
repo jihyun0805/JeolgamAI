@@ -1,5 +1,6 @@
 package com.jeolgamai.backend.domain.awsintegration.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -15,7 +16,12 @@ import lombok.Setter;
 public class AwsIntegrationCreateRequest {
 
     @NotBlank
+    @Size(max = 191)
+    private String workspaceId;
+
+    @NotBlank
     @Size(max = 100)
+    @JsonAlias("name")
     private String integrationName;
 
     @NotBlank
@@ -23,10 +29,7 @@ public class AwsIntegrationCreateRequest {
     private String region;
 
     @NotBlank
-    @Pattern(
-            regexp = "^(Cross-account IAM Role|Access Key \\(fallback\\))$",
-            message = "authMethod must be either 'Cross-account IAM Role' or 'Access Key (fallback)'"
-    )
+    @JsonAlias("authMode")
     private String authMethod;
 
     @Pattern(regexp = "^arn:aws:iam::\\d{12}:role/.+$", message = "Invalid IAM Role ARN format")

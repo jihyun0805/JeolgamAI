@@ -5,7 +5,7 @@ interface BackendEnvelope<T> {
   data: T;
 }
 
-const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:8081";
+const DEFAULT_BACKEND_BASE_URL = "http://localhost:8081";
 
 export function getBackendBaseUrl(): string {
   return process.env.BACKEND_BASE_URL?.trim() || DEFAULT_BACKEND_BASE_URL;

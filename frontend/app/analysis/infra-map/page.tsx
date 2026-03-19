@@ -219,7 +219,7 @@ function ViewModeTab({
       onClick={onClick}
       className={`rounded-md border px-2.5 py-1.5 text-[11px] font-bold transition ${
         active
-          ? "border-[#1c59f2] bg-[#1c59f2]/15 text-[#1c59f2]"
+          ? "border-[#2a6ef5] bg-[#2a6ef5]/15 text-[#2a6ef5]"
           : "border-slate-300 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
@@ -275,7 +275,7 @@ function ResourceTypeIcon({ kind }: { kind: ResourceKind }) {
 
 function getResourceToneClass(tone: ResourceTone, active: boolean): string {
   if (active) {
-    return "border-[#1c59f2] bg-[#1c59f2]/10";
+    return "border-[#2a6ef5] bg-[#2a6ef5]/10";
   }
 
   if (tone === "healthy") {
@@ -835,7 +835,7 @@ export default function InfrastructureMapPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="infrastructure" />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -845,7 +845,7 @@ export default function InfrastructureMapPage() {
           actions={
             <button
               onClick={() => loadSnapshot().catch(() => undefined)}
-              className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white hover:bg-[#1c59f2]/90"
+              className="rounded-lg bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white hover:bg-[#2a6ef5]/90"
             >
               새로고침
             </button>
@@ -854,7 +854,7 @@ export default function InfrastructureMapPage() {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mx-auto max-w-[1600px] space-y-4">
-            <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-wrap items-center gap-2">
                 <ToolBadge
                   label={`mode:${snapshot?.mode ?? "-"}`}
@@ -918,7 +918,7 @@ export default function InfrastructureMapPage() {
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
               <div className="space-y-4">
                 {showK8s ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-3 text-sm font-bold">Namespace 필터</h3>
                     <select
                       value={namespaceFilter}
@@ -936,7 +936,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showDocker ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-3 text-sm font-bold">Docker Containers</h3>
                     <div className="max-h-52 space-y-2 overflow-auto">
                       {snapshot?.deploymentSignals.docker.containers.length ? (
@@ -948,7 +948,7 @@ export default function InfrastructureMapPage() {
                             }
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "docker" && selected.name === container.name
-                                ? "border-[#1c59f2] bg-[#1c59f2]/5"
+                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -964,7 +964,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showDocker ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-3 text-sm font-bold">Docker Networks</h3>
                     <div className="max-h-52 space-y-2 overflow-auto">
                       {snapshot?.deploymentSignals.docker.networks.length ? (
@@ -974,7 +974,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "network", name: network.name })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "network" && selected.name === network.name
-                                ? "border-[#1c59f2] bg-[#1c59f2]/5"
+                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -992,7 +992,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showDocker ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-3 text-sm font-bold">Docker Volumes</h3>
                     <div className="max-h-52 space-y-2 overflow-auto">
                       {snapshot?.deploymentSignals.docker.volumes.length ? (
@@ -1002,7 +1002,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "volume", name: volume.name })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "volume" && selected.name === volume.name
-                                ? "border-[#1c59f2] bg-[#1c59f2]/5"
+                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -1018,7 +1018,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showDocker ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-3 text-sm font-bold">Host Processes</h3>
                     <div className="max-h-52 space-y-2 overflow-auto">
                       {snapshot?.deploymentSignals.process.processes.length ? (
@@ -1028,7 +1028,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "process", pid: processItem.pid })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "process" && selected.pid === processItem.pid
-                                ? "border-[#1c59f2] bg-[#1c59f2]/5"
+                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -1044,7 +1044,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showK8s ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs dark:border-slate-800 dark:bg-[#1a2029]">
                     <h3 className="mb-2 text-sm font-bold">노드 상태</h3>
                     <div className="space-y-2">
                       {snapshot?.deploymentSignals.kubernetes.nodes.length ? (
@@ -1069,7 +1069,7 @@ export default function InfrastructureMapPage() {
 
               <div className="space-y-4">
                 {showK8s ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-sm font-bold">Kubernetes Topology</h3>
                     <div className="flex items-center gap-2">
@@ -1118,7 +1118,7 @@ export default function InfrastructureMapPage() {
                               key={namespace.name}
                               className={`rounded-xl border p-4 ${
                                 selectedNamespace === namespace.name
-                                  ? "border-[#1c59f2]/50 bg-[#1c59f2]/5"
+                                  ? "border-[#2a6ef5]/50 bg-[#2a6ef5]/5"
                                   : "border-slate-200 dark:border-slate-700"
                               }`}
                             >
@@ -1255,7 +1255,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {showDocker ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#1a2029]">
                     <div className="mb-4 flex items-center justify-between">
                       <h3 className="text-sm font-bold">Docker Runtime Topology</h3>
                       <div className="flex items-center gap-2">
@@ -1294,7 +1294,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "docker" &&
                                     selected.name === container.name
-                                      ? "border-[#1c59f2] bg-[#1c59f2]/10"
+                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1326,7 +1326,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "network" &&
                                     selected.name === network.name
-                                      ? "border-[#1c59f2] bg-[#1c59f2]/10"
+                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1356,7 +1356,7 @@ export default function InfrastructureMapPage() {
                                   }
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "volume" && selected.name === volume.name
-                                      ? "border-[#1c59f2] bg-[#1c59f2]/10"
+                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1388,7 +1388,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "process" &&
                                     selected.pid === processItem.pid
-                                      ? "border-[#1c59f2] bg-[#1c59f2]/10"
+                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1410,7 +1410,7 @@ export default function InfrastructureMapPage() {
                 ) : null}
 
                 {!showK8s && !showDocker ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-[#161B22]">
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-[#1a2029]">
                     표시 가능한 인프라 모드가 없습니다.
                   </div>
                 ) : null}
@@ -1534,7 +1534,7 @@ export default function InfrastructureMapPage() {
                         () => undefined,
                       )
                     }
-                    className="mt-2 w-full rounded-lg bg-[#1c59f2] px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 w-full rounded-lg bg-[#2a6ef5] px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {executingAction === "restartDeployment"
                       ? "Rollout Restart 중..."

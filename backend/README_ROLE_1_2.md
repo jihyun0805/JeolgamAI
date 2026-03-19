@@ -171,7 +171,7 @@ docker compose up -d
 
 또는 로컬 env 파일을 두고 실행
 ```bash
-cp .env.local.example .env.local
+cp .env.local.local.example .env.local.local
 bash scripts/run-local-backend.sh
 ```
 
@@ -201,8 +201,8 @@ GET /api/recommendations
 - CI/CD에서는 GitLab masked variable `GMS_KEY`로 관리하고, 파이프라인이 Kubernetes Secret `backend-runtime-secrets`를 갱신하도록 둔다.
 - 로컬 실행:
 ```bash
-cp .env.local.example .env.local
-vi .env.local
+cp .env.local.local.example .env.local.local
+vi .env.local.local
 bash scripts/run-local-backend.sh
 ```
 - systemd 예시:

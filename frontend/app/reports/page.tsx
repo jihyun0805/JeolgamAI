@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { ReportArtifact } from "@/lib/types";
@@ -45,6 +45,20 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
 
+function riskBadgeClass(riskLevel: string) {
+  switch (riskLevel.toLowerCase()) {
+    case "low":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300";
+    case "medium":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
+    case "high":
+    case "critical":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300";
+  }
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "2-digit",
@@ -81,6 +95,8 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const selectedReportIdRef = useRef<string | null>(null);
+  selectedReportIdRef.current = selectedReportId;
 
   function replaceReportQuery(reportId: string | null) {
     if (typeof window === "undefined") return;
@@ -94,7 +110,7 @@ export default function ReportsPage() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}`);
   }
 
-  async function loadPageData(nextSelectedReportId?: string | null) {
+  const loadPageData = useCallback(async (nextSelectedReportId?: string | null) => {
     setLoading(true);
     setError("");
     try {
@@ -116,7 +132,7 @@ export default function ReportsPage() {
 
       const nextAnalysisData = analysisPayload.data as AnalysisPayload;
       const nextReportsData = reportsPayload.data as ReportListPayload;
-      const requestedId = nextSelectedReportId ?? selectedReportId;
+      const requestedId = nextSelectedReportId ?? selectedReportIdRef.current;
       const resolvedSelectedId =
         (requestedId &&
         nextReportsData.reports.some((report) => report.id === requestedId)
@@ -133,7 +149,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     const reportId =
@@ -142,7 +158,7 @@ export default function ReportsPage() {
         : new URL(window.location.href).searchParams.get("reportId");
     setSelectedReportId(reportId);
     loadPageData(reportId).catch(() => {});
-  }, []);
+  }, [loadPageData]);
 
   const selectedReport = useMemo(
     () => reportsData?.reports.find((report) => report.id === selectedReportId) ?? null,
@@ -243,7 +259,7 @@ export default function ReportsPage() {
               type="button"
               onClick={handleGenerateReport}
               disabled={generating || !analysisData?.analysis}
-              className="rounded-lg bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-8 items-center rounded-xl bg-[#2a6ef5] px-4 py-0 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generating ? "리포트 생성 중..." : "통합 리포트 생성"}
             </button>
@@ -307,31 +323,31 @@ export default function ReportsPage() {
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
               <div className="space-y-6">
-                <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
                         Report Action
                       </p>
-                      <h3 className="mt-2 text-xl font-black">통합 리포트 생성</h3>
+                      <h3 className="mt-1.5 whitespace-nowrap text-xl font-black">통합 리포트 생성</h3>
                     </div>
-                    <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                      analysis {analysisData?.analysis?.id ?? "none"}
+                    <span className="shrink-0 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                      {analysisData?.analysis?.id ?? "none"}
                     </span>
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-[#0F141C]">
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-[#0F141C]">
                     <p className="text-sm font-bold">경영 요약 + 실행 계획</p>
                     <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
                       총 비용, 낭비 비용, 절감 효과, 주요 비용 드라이버와 함께 실행 순서, 명령어, 롤백 가이드까지 한 번에 묶어서 생성합니다.
                     </p>
                   </div>
 
-                  <div className="mt-5 flex flex-col gap-3">
+                  <div className="mt-4 flex flex-col gap-2">
                     {!analysisData?.analysis ? (
                       <Link
                         href="/analysis/infrastructure"
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-[#0F141C]"
+                        className="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-[#0F141C]"
                       >
                         먼저 분석 실행하기
                       </Link>
@@ -339,20 +355,20 @@ export default function ReportsPage() {
                   </div>
                 </article>
 
-                <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
                         Report History
                       </p>
-                      <h3 className="mt-2 text-xl font-black">생성된 리포트</h3>
+                      <h3 className="mt-1.5 text-xl font-black">생성된 리포트</h3>
                     </div>
-                    <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <span className="shrink-0 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
                       {reportsData?.count ?? 0}건
                     </span>
                   </div>
 
-                  <div className="mt-5 space-y-3">
+                  <div className="mt-4 space-y-2">
                     {reportsData?.reports.length ? (
                       reportsData.reports.map((report) => {
                         const active = report.id === selectedReportId;
@@ -466,7 +482,7 @@ export default function ReportsPage() {
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm font-bold">{item.title}</p>
-                                <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskBadgeClass(item.riskLevel)}`}>
                                   {item.riskLevel}
                                 </span>
                               </div>
@@ -541,7 +557,7 @@ export default function ReportsPage() {
                                   {item.targetResource} · risk {item.riskLevel} · saving {formatKrw(item.monthlySaving)}
                                 </p>
                               </div>
-                              <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskBadgeClass(item.riskLevel)}`}>
                                 {item.riskLevel}
                               </span>
                             </div>
@@ -550,7 +566,7 @@ export default function ReportsPage() {
                               {item.rationale || "실행 배경 설명이 없습니다."}
                             </p>
 
-                            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                            <div className="mt-4 grid grid-cols-1 gap-3">
                               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-[#0F141C]">
                                 <p className="text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:text-slate-400">
                                   Apply

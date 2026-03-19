@@ -68,7 +68,7 @@ export default function AwsInfrastructurePage() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="aws_infra" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -79,8 +79,8 @@ export default function AwsInfrastructurePage() {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-              <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
+              <p className="text-xs font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
                 AWS Seoul
               </p>
               <h2 className="mt-2 text-3xl font-black tracking-tight">
@@ -124,7 +124,7 @@ export default function AwsInfrastructurePage() {
               ].map((card) => (
                 <article
                   key={card.label}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]"
                 >
                   <p className="text-sm text-slate-500 dark:text-slate-400">{card.label}</p>
                   <p className="mt-3 text-2xl font-black tracking-tight">
@@ -135,7 +135,7 @@ export default function AwsInfrastructurePage() {
             </section>
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
                 <h3 className="text-lg font-bold">Cost By Service</h3>
                 <div className="mt-4 space-y-3">
                   {(data?.costByService ?? []).map((item) => (
@@ -157,7 +157,7 @@ export default function AwsInfrastructurePage() {
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
                 <h3 className="text-lg font-bold">Resources</h3>
                 <div className="mt-4 overflow-x-auto">
                   <table className="min-w-full text-sm">

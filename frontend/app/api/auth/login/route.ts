@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRequestOrigin, getSafeRedirectPath, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getRequestOrigin, getSafeRedirectPath, setEncryptedSessionCookie } from "@/lib/auth";
 import { getBackendBaseUrl } from "@/lib/backend-client";
 import {
   clearLoginFailures,
@@ -28,18 +28,6 @@ function getSafeRole(raw: string | null): UserRole {
     return raw as UserRole;
   }
   return "company_admin";
-}
-
-function setSessionCookie(response: NextResponse, token: string, secure: boolean) {
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: token,
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    secure,
-    maxAge: 60 * 60 * 8,
-  });
 }
 
 export async function GET(request: Request) {
@@ -91,7 +79,7 @@ export async function GET(request: Request) {
   });
 
   const response = NextResponse.redirect(new URL(next, getRequestOrigin(request)));
-  setSessionCookie(response, session.token, url.protocol === "https:");
+  setEncryptedSessionCookie(response, session, url.protocol === "https:");
 
   return response;
 }
@@ -248,6 +236,6 @@ export async function POST(request: Request) {
       })),
     },
   });
-  setSessionCookie(response, session.token, url.protocol === "https:");
+  setEncryptedSessionCookie(response, session, url.protocol === "https:");
   return response;
 }

@@ -5,23 +5,12 @@ import {
   getSessionFromRequest,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth";
-import { addAuditEvent, removeSessionByToken } from "@/lib/store";
+import { addAuditEvent } from "@/lib/store";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const next = getSafeRedirectPath(url.searchParams.get("redirect"), "/");
-  const session = getSessionFromRequest(request);
-
-  const token = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${SESSION_COOKIE_NAME}=`))
-    ?.split("=")[1];
-
-  if (token) {
-    removeSessionByToken(decodeURIComponent(token));
-  }
+  const { session } = getSessionFromRequest(request);
 
   if (session) {
     addAuditEvent({

@@ -46,32 +46,36 @@ class AuthServiceTest {
 
     @Test
     void signUpCreatesUserAndReturnsToken() {
-        SignUpRequest request = new SignUpRequest("USER@EXAMPLE.COM", "password123", "Alice");
-        UserAccount saved = new UserAccount("user@example.com", "encoded", "Alice");
+        SignUpRequest request = new SignUpRequest("alice", "USER@EXAMPLE.COM", "password123", "Alice");
+        UserAccount saved = new UserAccount("alice", "user@example.com", "encoded", "Alice");
         saved.setId(1L);
 
+        when(userAccountRepository.existsByLoginId("alice")).thenReturn(false);
         when(userAccountRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenReturn(saved);
-        when(jwtTokenProvider.generateToken(1L, "user@example.com")).thenReturn("token");
+        when(jwtTokenProvider.generateToken(1L, "user@example.com", "alice")).thenReturn("token");
 
         AuthResponse response = authService.signUp(request);
 
         assertEquals(1L, response.getUserId());
+        assertEquals("alice", response.getLoginId());
         assertEquals("user@example.com", response.getEmail());
         assertEquals("Alice", response.getName());
         assertEquals("token", response.getAccessToken());
         assertEquals("Bearer", response.getTokenType());
+        verify(userAccountRepository).existsByLoginId("alice");
         verify(userAccountRepository).existsByEmail("user@example.com");
         verify(passwordEncoder).encode("password123");
     }
 
     @Test
     void signUpThrowsWhenEmailExists() {
+        when(userAccountRepository.existsByLoginId("alice")).thenReturn(false);
         when(userAccountRepository.existsByEmail("user@example.com")).thenReturn(true);
 
         try {
-            authService.signUp(new SignUpRequest("user@example.com", "password123", "Alice"));
+            authService.signUp(new SignUpRequest("alice", "user@example.com", "password123", "Alice"));
             fail("Expected ResponseStatusException");
         } catch (ResponseStatusException e) {
             assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
@@ -81,31 +85,32 @@ class AuthServiceTest {
 
     @Test
     void loginReturnsTokenWhenCredentialsValid() {
-        UserAccount user = new UserAccount("user@example.com", "encoded", "Alice");
+        UserAccount user = new UserAccount("alice", "user@example.com", "encoded", "Alice");
         user.setId(7L);
 
-        when(userAccountRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(userAccountRepository.findByLoginId("alice")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(eq("password123"), eq("encoded"))).thenReturn(true);
-        when(jwtTokenProvider.generateToken(7L, "user@example.com")).thenReturn("token-7");
+        when(jwtTokenProvider.generateToken(7L, "user@example.com", "alice")).thenReturn("token-7");
 
-        AuthResponse response = authService.login(new LoginRequest("user@example.com", "password123"));
+        AuthResponse response = authService.login(new LoginRequest("alice", "password123"));
 
         assertEquals(7L, response.getUserId());
+        assertEquals("alice", response.getLoginId());
         assertEquals("token-7", response.getAccessToken());
     }
 
     @Test
     void loginThrowsWhenPasswordMismatch() {
-        UserAccount user = new UserAccount("user@example.com", "encoded", "Alice");
-        when(userAccountRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        UserAccount user = new UserAccount("alice", "user@example.com", "encoded", "Alice");
+        when(userAccountRepository.findByLoginId("alice")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(eq("wrong"), eq("encoded"))).thenReturn(false);
 
         try {
-            authService.login(new LoginRequest("user@example.com", "wrong"));
+            authService.login(new LoginRequest("alice", "wrong"));
             fail("Expected ResponseStatusException");
         } catch (ResponseStatusException e) {
             assertEquals(HttpStatus.UNAUTHORIZED, e.getStatusCode());
-            assertTrue(e.getReason().contains("Invalid email or password"));
+            assertTrue(e.getReason().contains("Invalid login ID or password"));
         }
     }
 }
