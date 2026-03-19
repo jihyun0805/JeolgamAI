@@ -672,7 +672,14 @@ function ResourceDetailSidebar({
   resource: SidebarResource;
   onClose: () => void;
 }) {
-  const [drawerWidth, setDrawerWidth] = useState(RESOURCE_DRAWER_DEFAULT_WIDTH);
+  const [drawerWidth, setDrawerWidth] = useState(() => {
+    if (typeof window === "undefined") return RESOURCE_DRAWER_DEFAULT_WIDTH;
+    const saved = window.localStorage.getItem(RESOURCE_DRAWER_STORAGE_KEY);
+    if (!saved) return RESOURCE_DRAWER_DEFAULT_WIDTH;
+    const parsed = Number(saved);
+    if (!Number.isFinite(parsed)) return RESOURCE_DRAWER_DEFAULT_WIDTH;
+    return Math.min(RESOURCE_DRAWER_MAX_WIDTH, Math.max(RESOURCE_DRAWER_MIN_WIDTH, parsed));
+  });
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(RESOURCE_DRAWER_DEFAULT_WIDTH);
@@ -684,18 +691,6 @@ function ResourceDetailSidebar({
       : resource.tone === "degraded"
         ? "Degraded"
         : "Idle";
-
-  useEffect(() => {
-    const savedWidth = window.localStorage.getItem(RESOURCE_DRAWER_STORAGE_KEY);
-    if (!savedWidth) {
-      return;
-    }
-
-    const parsed = Number(savedWidth);
-    if (Number.isFinite(parsed)) {
-      setDrawerWidth(Math.min(RESOURCE_DRAWER_MAX_WIDTH, Math.max(RESOURCE_DRAWER_MIN_WIDTH, parsed)));
-    }
-  }, []);
 
   useEffect(() => {
     if (!isResizing) {
@@ -865,9 +860,10 @@ export default function K8sInfrastructurePage() {
   const [namespaceSearch, setNamespaceSearch] = useState("");
   const [showAllNamespaces, setShowAllNamespaces] = useState(false);
   const [workloadSearch, setWorkloadSearch] = useState("");
-  const [topologyZoom, setTopologyZoom] = useState(0.85);
+  const [topologyZoom, setTopologyZoom] = useState(0.8);
   const [topologyPage, setTopologyPage] = useState(0);
   const [topologyFullscreen, setTopologyFullscreen] = useState(false);
+  const fullscreenScrollRestoreRef = useRef<{ scrollLeft: number; scrollTop: number } | null>(null);
   const [selectedResource, setSelectedResource] = useState<SidebarResource | null>(null);
 
   function getFitTopologyZoom() {
@@ -932,10 +928,16 @@ export default function K8sInfrastructurePage() {
   const filteredNamespaces = (data?.namespaces ?? []).filter((item) => {
     return item.name.toLowerCase().includes(namespaceKeyword);
   });
-  const visibleNamespaces = showAllNamespaces ? filteredNamespaces : filteredNamespaces.slice(0, 16);
+  const toneOrder: Record<HealthTone, number> = { healthy: 0, progressing: 1, neutral: 2, degraded: 3 };
+  const sortedNamespaces = [...filteredNamespaces].sort((a, b) => {
+    const aTone = data ? namespaceTone(a, data) : "neutral";
+    const bTone = data ? namespaceTone(b, data) : "neutral";
+    return toneOrder[aTone] - toneOrder[bTone];
+  });
+  const visibleNamespaces = showAllNamespaces ? sortedNamespaces : sortedNamespaces.slice(0, 16);
   const activeNamespace =
     data?.namespaces.find((item) => item.name === selectedNamespace) ??
-    filteredNamespaces[0] ??
+    sortedNamespaces[0] ??
     data?.namespaces[0] ??
     null;
 
@@ -981,9 +983,35 @@ export default function K8sInfrastructurePage() {
 
   useEffect(() => {
     if (!topologyFullscreen) return;
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setTopologyFullscreen(false); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        const viewport = topologyViewportRef.current;
+        if (viewport) {
+          fullscreenScrollRestoreRef.current = { scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+        }
+        setTopologyFullscreen(false);
+      }
+    }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [topologyFullscreen]);
+
+  useEffect(() => {
+    if (topologyFullscreen) return;
+    const saved = fullscreenScrollRestoreRef.current;
+    if (!saved) return;
+    fullscreenScrollRestoreRef.current = null;
+    const viewport = topologyViewportRef.current;
+    if (!viewport) return;
+    const { scrollLeft, scrollTop } = saved;
+    const restore = () => {
+      if (viewport.scrollLeft !== scrollLeft || viewport.scrollTop !== scrollTop) {
+        viewport.scrollTo(scrollLeft, scrollTop);
+      }
+    };
+    requestAnimationFrame(restore);
+    const t = window.setTimeout(restore, 80);
+    return () => window.clearTimeout(t);
   }, [topologyFullscreen]);
 
   useEffect(() => {
@@ -992,14 +1020,14 @@ export default function K8sInfrastructurePage() {
 
   useEffect(() => {
     userZoomedRef.current = false;
-    setTopologyZoom(getFitTopologyZoom());
+    setTopologyZoom(0.8);
 
     const viewport = topologyViewportRef.current;
     if (!viewport) return;
 
     const observer = new ResizeObserver(() => {
       if (!userZoomedRef.current) {
-        setTopologyZoom(getFitTopologyZoom());
+        setTopologyZoom(0.8);
       }
     });
     observer.observe(viewport);
@@ -1414,7 +1442,13 @@ export default function K8sInfrastructurePage() {
                               <span className="text-sm font-bold text-white">{deployment.name}</span>
                               <button
                                 type="button"
-                                onClick={() => setTopologyFullscreen(false)}
+                                onClick={() => {
+                                  const viewport = topologyViewportRef.current;
+                                  if (viewport) {
+                                    fullscreenScrollRestoreRef.current = { scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+                                  }
+                                  setTopologyFullscreen(false);
+                                }}
                                 className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
                               >
                                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M15 5 L5 15 M5 5 L15 15" /></svg>
@@ -1451,18 +1485,25 @@ export default function K8sInfrastructurePage() {
                             <button
                               type="button"
                               aria-label="화면 맞춤"
-                              onClick={() => { userZoomedRef.current = false; setTopologyZoom(getFitTopologyZoom()); }}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                              onClick={() => { userZoomedRef.current = true; setTopologyZoom(getFitTopologyZoom()); }}
+                              className="flex h-7 min-w-[2rem] items-center justify-center rounded-lg px-2 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
                             >
-                              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                <path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" />
-                              </svg>
+                              Fit
                             </button>
                             <div className="mx-1 h-4 w-px bg-slate-600" />
                             <button
                               type="button"
                               aria-label={topologyFullscreen ? "전체화면 종료" : "전체화면으로 보기"}
-                              onClick={() => { userZoomedRef.current = false; setTopologyFullscreen((v) => !v); }}
+                              onClick={() => {
+                                if (topologyFullscreen) {
+                                  const viewport = topologyViewportRef.current;
+                                  if (viewport) {
+                                    fullscreenScrollRestoreRef.current = { scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+                                  }
+                                }
+                                userZoomedRef.current = false;
+                                setTopologyFullscreen((v) => !v);
+                              }}
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-700 hover:text-white"
                             >
                               {topologyFullscreen
@@ -1474,7 +1515,7 @@ export default function K8sInfrastructurePage() {
 
                           <div
                             ref={topologyViewportRef}
-                            className={`${topologyFullscreen ? "flex-1" : "h-[560px]"} overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0f1218]/70 p-6 select-none dark:border-slate-800`}
+                            className={`topology-viewport-scrollbar ${topologyFullscreen ? "flex-1" : "h-[560px]"} overflow-auto rounded-[32px] border border-slate-200/70 bg-[#0f1218]/70 p-6 select-none dark:border-slate-800`}
                             style={{ cursor: topologyDragRef.current.active ? "grabbing" : "grab" }}
                             onWheel={(e) => {
                               if (!e.ctrlKey && !e.metaKey) return;

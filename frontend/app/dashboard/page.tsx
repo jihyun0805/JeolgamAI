@@ -211,8 +211,8 @@ export default function DashboardPage() {
       label: "낭비 비용",
       value: data?.analysis ? formatKrw(data.analysis.wasteCost) : "—",
       sub: "유휴·과할당 추정 포함",
-      accent: "text-amber-600 dark:text-amber-300",
-      barClass: "bg-amber-400",
+      accent: "text-[#b41a2a] dark:text-[#e63946]",
+      barClass: "bg-[#b41a2a]",
     },
     {
       label: "AI 점수",
@@ -244,8 +244,8 @@ export default function DashboardPage() {
           }
         />
 
-        <div className="content-area-subtle min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="w-full space-y-5 pb-2 md:pb-4">
+        <div className="content-area-subtle min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-8 md:pb-10 md:pt-8">
+          <div className="w-full space-y-5">
 
             {/* Hero — project header */}
             <section className="shadow-card rounded-3xl border border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-[#1a2029]">

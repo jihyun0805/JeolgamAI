@@ -121,7 +121,7 @@ function LineChart({
 
   const width = 640;
   const height = 220;
-  const padding = { top: 20, right: 20, bottom: 30, left: 20 };
+  const padding = { top: 20, right: 72, bottom: 30, left: 20 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const values = points.map((point) => point.value);
@@ -217,7 +217,7 @@ function LineChart({
               strokeDasharray="4 6"
             />
             <text
-              x={width - padding.right}
+              x={width - 10}
               y={tick.y - 5}
               textAnchor="end"
               fontSize="10"
@@ -438,13 +438,13 @@ export default function PrometheusPage() {
           description="현재 프로젝트의 Prometheus 지표를 프로젝트 스코프로 표시합니다."
         />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-8 md:pb-10 md:pt-8">
           <div className="w-full space-y-5">
 
             {/* 프로젝트 + 시간 범위 컨트롤 – 한 줄 통합 */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <div>
                     <p className="text-xs font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
                       Active Project
@@ -458,9 +458,9 @@ export default function PrometheusPage() {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-end gap-3">
+                <div className="flex min-w-0 shrink flex-nowrap items-end gap-3">
                   {/* Range presets */}
-                  <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#131820]">
+                  <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#131820]">
                     {RANGE_PRESET_OPTIONS.map((option) => {
                       const active = selectedPreset === option.key;
                       return (
@@ -480,38 +480,66 @@ export default function PrometheusPage() {
                     })}
                   </div>
 
-                  {/* Custom range */}
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    <span className="mb-1 block">시작</span>
-                    <input
-                      type="datetime-local"
-                      value={customFrom}
-                      onChange={(event) => {
-                        setSelectedPreset("custom");
-                        setCustomFrom(event.target.value);
-                      }}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    <span className="mb-1 block">종료</span>
-                    <input
-                      type="datetime-local"
-                      value={customTo}
-                      onChange={(event) => {
-                        setSelectedPreset("custom");
-                        setCustomTo(event.target.value);
-                      }}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={applyCustomRange}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-                  >
-                    적용
-                  </button>
+                  {/* Custom range + Apply: 한 줄에 시작·종료·적용 */}
+                  <div className="flex min-w-0 flex-1 flex-nowrap items-end gap-2">
+                    <label className="flex min-w-0 flex-col text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span className="mb-1 block">시작</span>
+                      <span className="relative inline-block w-full max-w-[180px]">
+                        <input
+                          type="datetime-local"
+                          value={customFrom}
+                          onChange={(event) => {
+                            setSelectedPreset("custom");
+                            setCustomFrom(event.target.value);
+                          }}
+                          className="w-full min-w-0 rounded-xl border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
+                        />
+                        <span
+                          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400"
+                          aria-hidden
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                            <line x1="16" x2="16" y1="2" y2="6" />
+                            <line x1="8" x2="8" y1="2" y2="6" />
+                            <line x1="3" x2="21" y1="10" y2="10" />
+                          </svg>
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex min-w-0 flex-col text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      <span className="mb-1 block">종료</span>
+                      <span className="relative inline-block w-full max-w-[180px]">
+                        <input
+                          type="datetime-local"
+                          value={customTo}
+                          onChange={(event) => {
+                            setSelectedPreset("custom");
+                            setCustomTo(event.target.value);
+                          }}
+                          className="w-full min-w-0 rounded-xl border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm text-slate-700 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-100"
+                        />
+                        <span
+                          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400"
+                          aria-hidden
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                            <line x1="16" x2="16" y1="2" y2="6" />
+                            <line x1="8" x2="8" y1="2" y2="6" />
+                            <line x1="3" x2="21" y1="10" y2="10" />
+                          </svg>
+                        </span>
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={applyCustomRange}
+                      className="shrink-0 rounded-xl bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#2563eb] dark:bg-[#2a6ef5] dark:hover:bg-[#2563eb]"
+                    >
+                      적용
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -576,17 +604,17 @@ export default function PrometheusPage() {
               ))}
             </section>
 
-            {/* 차트 그리드 – hover tooltip 포함 */}
+            {/* 차트 그리드 – hover tooltip 포함 (위 요약 카드와 이름 통일) */}
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <MetricPanel
-                title="CPU Usage"
+                title="CPU 평균"
                 color="#2a6ef5"
                 points={data?.overview.series.cpuUsage ?? []}
                 unit="percent"
               />
 
               <MetricPanel
-                title="Memory Usage"
+                title="메모리 평균"
                 color="#16a34a"
                 points={data?.overview.series.memoryUsage ?? []}
                 unit="percent"
@@ -600,7 +628,7 @@ export default function PrometheusPage() {
               />
 
               <MetricPanel
-                title="Error Rate"
+                title="에러율"
                 color="#ef4444"
                 points={data?.overview.series.errorRatePercent ?? []}
                 unit="percent"
