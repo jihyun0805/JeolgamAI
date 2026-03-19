@@ -138,6 +138,15 @@ public class AwsValidationService {
         );
     }
 
+    public AwsCredentialsProvider createCredentialsProvider(AwsValidationRequest request) {
+        return buildCredentialsProvider(
+                normalizeAuthMode(request.getAuthMode()),
+                normalizeRegion(request.getRegion()),
+                request,
+                new ArrayList<>()
+        );
+    }
+
     private AwsCredentialsProvider buildCredentialsProvider(
             String authMode,
             String region,
