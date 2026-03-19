@@ -265,7 +265,7 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
             return (
               <Link key={item.key} className={className} href="/integrations">
                 {item.iconSrc ? (
-                  <img src={item.iconSrc} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                  <Image src={item.iconSrc} alt="" width={20} height={20} className="h-5 w-5 shrink-0 object-contain" unoptimized />
                 ) : (
                   <SidebarIcon name={item.icon} className="h-5 w-5 shrink-0" />
                 )}
@@ -288,7 +288,7 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
               href={item.href}
             >
               {item.iconSrc ? (
-                <img src={item.iconSrc} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                <Image src={item.iconSrc} alt="" width={20} height={20} className="h-5 w-5 shrink-0 object-contain" unoptimized />
               ) : (
                 <SidebarIcon name={item.icon} className="h-5 w-5" />
               )}
