@@ -13,12 +13,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AwsIntegrationResponse {
 
-    private Long id;
+    private String workspaceId;
     private String integrationName;
     private String region;
     private String authMethod;
     private String roleArn;
     private String externalId;
     private String accessKeyId;
+    private String accountId;
+    private String callerArn;
+    private String status;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime validatedAt;
 }
