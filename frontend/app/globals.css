@@ -36,6 +36,36 @@ body {
   border-radius: 10px;
 }
 
+/* K8s 토폴로지 뷰포트: 다크 테마에 맞는 얇은 둥근 스크롤바 (Chrome/Edge WebKit, Firefox) */
+.topology-viewport-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(71 85 105) rgba(15 23 42 / 0.4);
+}
+.topology-viewport-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 4px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105);
+  border-radius: 4px;
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139);
+}
+.topology-viewport-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgb(148 163 184);
+}
+.dark .topology-viewport-scrollbar {
+  scrollbar-color: rgb(71 85 105) rgba(15 23 42 / 0.6);
+}
+.dark .topology-viewport-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
 .pdf-shadow {
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
 }
