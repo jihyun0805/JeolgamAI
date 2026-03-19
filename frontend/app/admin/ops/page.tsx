@@ -111,7 +111,7 @@ export default function OpsPage() {
   }, [page, pageSize]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="ops" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -129,7 +129,7 @@ export default function OpsPage() {
               </div>
             ) : null}
 
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
 
               {/* toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
@@ -137,13 +137,13 @@ export default function OpsPage() {
                   <p className="text-[10px] font-bold tracking-[0.22em] text-slate-400 uppercase">
                     Audit Log
                   </p>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-400">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400">
                     총 {loading ? "…" : count.toLocaleString("ko-KR")}건
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-400">표시</span>
-                  <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-[#0B0E14]">
+                  <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-[#0f1218]">
                     {[10, 20, 50].map((size) => (
                       <button
                         key={size}
@@ -151,7 +151,7 @@ export default function OpsPage() {
                         onClick={() => { setPage(1); setPageSize(size); }}
                         className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                           pageSize === size
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-[#161B22] dark:text-slate-100"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-[#1a2029] dark:text-slate-100"
                             : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                         }`}
                       >
@@ -166,7 +166,7 @@ export default function OpsPage() {
               <div className="flex-1 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-[#0F141C]/60">
+                    <tr className="border-b border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-[#131820]/60">
                       <th className="px-5 py-3 text-left text-[11px] font-bold tracking-[0.14em] text-slate-400 uppercase">
                         시간
                       </th>
@@ -200,7 +200,7 @@ export default function OpsPage() {
                         : events.map((event) => (
                           <tr
                             key={event.id}
-                            className="transition-colors hover:bg-slate-50/80 dark:hover:bg-[#0F141C]/60"
+                            className="transition-colors hover:bg-slate-50/80 dark:hover:bg-[#131820]/60"
                           >
                             {/* time */}
                             <td className="whitespace-nowrap px-5 py-3.5 font-mono text-xs text-slate-400 dark:text-slate-500">
@@ -210,7 +210,7 @@ export default function OpsPage() {
                             {/* actor */}
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2.5">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1c59f2]/10 text-[10px] font-bold text-[#1c59f2] dark:bg-[#1c59f2]/15">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2a6ef5]/10 text-[10px] font-bold text-[#2a6ef5] dark:bg-[#2a6ef5]/15">
                                   {getInitials(event.actor)}
                                 </span>
                                 <div className="min-w-0">
@@ -226,7 +226,7 @@ export default function OpsPage() {
 
                             {/* action */}
                             <td className="px-5 py-3.5">
-                              <code className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700 dark:border-slate-700/60 dark:bg-[#0B0E14] dark:text-slate-300">
+                              <code className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700 dark:border-slate-700/60 dark:bg-[#0f1218] dark:text-slate-300">
                                 {event.action}
                               </code>
                             </td>

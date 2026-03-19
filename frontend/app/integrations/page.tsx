@@ -34,9 +34,9 @@ interface ApiEnvelope<T> {
 
 /* ─── shared input style ────────────────────────────────────────────────── */
 const inputCls =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#1c59f2] dark:focus:bg-[#111824]";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#2a6ef5] dark:focus:bg-[#151b24]";
 const textareaCls =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#1c59f2] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#1c59f2] dark:focus:bg-[#111824]";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#2a6ef5] dark:focus:bg-[#151b24]";
 
 /* ─── field wrapper ─────────────────────────────────────────────────────── */
 function Field({
@@ -72,7 +72,7 @@ function AuthTab({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0B0E14]">
+    <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0f1218]">
       {options.map((opt) => (
         <button
           key={opt.value}
@@ -80,7 +80,7 @@ function AuthTab({
           onClick={() => onChange(opt.value)}
           className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
             value === opt.value
-              ? "bg-white text-slate-900 shadow-sm dark:bg-[#161B22] dark:text-slate-100"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-[#1a2029] dark:text-slate-100"
               : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           }`}
         >
@@ -131,7 +131,7 @@ function StatusBadge({
     );
   }
   return (
-    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-500">
+    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-500">
       미연동
     </span>
   );
@@ -204,7 +204,7 @@ function FormCard({
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+      className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#1a2029]"
     >
       {/* card header */}
       <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
@@ -230,7 +230,7 @@ function FormCard({
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl bg-[#1c59f2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-[#2a6ef5] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "처리 중…" : submitLabel}
         </button>
@@ -367,7 +367,7 @@ export default function IntegrationsPage() {
 
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="integrations" />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -378,7 +378,7 @@ export default function IntegrationsPage() {
             <button
               onClick={runAnalysis}
               disabled={runningAnalysis}
-              className="rounded-xl bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {runningAnalysis ? "분석 중…" : "샘플 분석 실행"}
             </button>
@@ -636,7 +636,7 @@ export default function IntegrationsPage() {
             <aside className="space-y-4 xl:self-start xl:sticky xl:top-0">
 
               {/* connection status */}
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
                 <p className="mb-4 text-[10px] font-bold tracking-[0.22em] text-slate-400 uppercase">
                   연결 상태
                 </p>

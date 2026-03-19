@@ -89,6 +89,26 @@ function riskBadgeClass(riskLevel: string) {
   }
 }
 
+/** 첫 줄: "낭비되고 있습니다" + 다음 문장까지. 그 다음 문장부터는 줄바꿈 */
+function formatExecutiveSummaryWithBreaks(text: string) {
+  const match = text.match(/([\s\S]*?낭비되고 있습니다\.?)\s*([\s\S]*)/);
+  if (!match) return text;
+
+  const upToPhrase = match[1].trim();
+  const after = match[2].trim();
+  if (!after) return upToPhrase;
+
+  const sentenceMatch = after.match(/^[^.!?]*[.!?]/);
+  const firstSentence = sentenceMatch ? sentenceMatch[0].trim() : "";
+  const rest = sentenceMatch ? after.slice(sentenceMatch[0].length).trim() : after;
+
+  const firstLine = firstSentence ? `${upToPhrase} ${firstSentence}` : upToPhrase;
+  if (!rest) return firstLine;
+
+  const laterSentences = rest.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
+  return [firstLine, ...laterSentences].join("\n");
+}
+
 function SparkleIcon() {
   return (
     <svg
@@ -200,13 +220,13 @@ export default function DashboardPage() {
       sub: data?.analysis
         ? `${data.analysis.score.grade} · 신뢰도 ${data.analysis.score.confidencePercent}%`
         : "분석 없음",
-      accent: "text-[#1c59f2]",
-      barClass: "bg-[#1c59f2]",
+      accent: "text-[#2a6ef5]",
+      barClass: "bg-[#2a6ef5]",
     },
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0B0E14] dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
       <MainSidebar active="dashboard" />
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -215,7 +235,7 @@ export default function DashboardPage() {
           description="프로젝트 비용과 권고를 한눈에 확인합니다."
           actions={
             <button
-              className="rounded-xl bg-[#1c59f2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#194fd8] disabled:opacity-60"
+              className="flex h-8 items-center rounded-xl bg-[#2a6ef5] px-4 py-0 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:opacity-60"
               disabled={runningAnalysis || loading}
               onClick={onRunAnalysis}
             >
@@ -224,14 +244,14 @@ export default function DashboardPage() {
           }
         />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="w-full space-y-5">
+        <div className="content-area-subtle min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="w-full space-y-5 pb-2 md:pb-4">
 
             {/* Hero — project header */}
-            <section className="rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+            <section className="shadow-card rounded-3xl border border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold tracking-[0.26em] text-[#1c59f2] uppercase">
+                  <p className="text-[10px] font-bold tracking-[0.26em] text-[#2a6ef5] uppercase">
                     Active Project
                   </p>
                   <h2 className="mt-1 truncate text-2xl font-black tracking-tight">
@@ -244,7 +264,7 @@ export default function DashboardPage() {
                         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
                           src.enabled
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
-                            : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-[#0B0E14] dark:text-slate-500"
+                            : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-500"
                         }`}
                       >
                         <span
@@ -283,16 +303,16 @@ export default function DashboardPage() {
               {metricCards.map((card) => (
                 <article
                   key={card.label}
-                  className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161B22]"
+                  className="shadow-card relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#1a2029]"
                 >
                   <div className={`absolute top-0 left-0 right-0 h-[3px] ${card.barClass}`} />
-                  <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                  <p className="text-xs font-bold tracking-[0.15em] text-slate-600 dark:text-slate-300 uppercase md:text-sm">
                     {card.label}
                   </p>
                   <p className={`mt-3 text-2xl font-black tracking-tight ${card.accent}`}>
                     {loading ? "…" : card.value}
                   </p>
-                  <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                     {card.sub}
                   </p>
                 </article>
@@ -301,13 +321,13 @@ export default function DashboardPage() {
 
             {/* AI Summary */}
             {data?.analysis?.executiveSummary ? (
-              <section className="rounded-2xl border border-[#1c59f2]/20 bg-[#1c59f2]/5 px-5 py-4 dark:border-[#1c59f2]/20 dark:bg-[#0e1c42]/40">
-                <div className="flex items-center gap-2 text-[#1c59f2]">
+              <section className="relative overflow-hidden rounded-2xl border border-[#2a6ef5]/30 bg-gradient-to-br from-[#2a6ef5]/25 via-[#2a6ef5]/12 to-[#2a6ef5]/5 backdrop-blur-xl px-5 py-4 shadow-[0_0_24px_-8px_rgba(42,110,245,0.25)] dark:shadow-[0_0_28px_-8px_rgba(42,110,245,0.2)] dark:border-[#2a6ef5]/25 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-b before:from-white/15 before:to-transparent before:content-[''] dark:before:from-white/5">
+                <div className="relative flex items-center gap-2 text-[#2a6ef5]">
                   <SparkleIcon />
                   <p className="text-[10px] font-bold tracking-[0.22em] uppercase">AI Analysis Summary</p>
                 </div>
-                <p className="mt-2.5 text-sm leading-7 text-slate-700 dark:text-slate-200">
-                  {data.analysis.executiveSummary}
+                <p className="relative mt-2.5 whitespace-pre-line text-sm leading-7 text-slate-700 dark:text-slate-200">
+                  {formatExecutiveSummaryWithBreaks(data.analysis.executiveSummary)}
                 </p>
               </section>
             ) : null}
@@ -316,12 +336,12 @@ export default function DashboardPage() {
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
 
               {/* Recommendations */}
-              <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold">상위 절감 권고</h3>
                   <Link
                     href="/ai-optimization"
-                    className="text-xs font-semibold text-[#1c59f2] transition hover:underline"
+                    className="text-xs font-semibold text-[#2a6ef5] transition hover:underline"
                   >
                     전체 보기 →
                   </Link>
@@ -357,7 +377,7 @@ export default function DashboardPage() {
               </article>
 
               {/* Warnings + confidence */}
-              <article className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
+              <article className="shadow-card flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
                 <h3 className="font-bold">경고 및 신뢰도</h3>
 
                 <div className="space-y-2">
@@ -377,25 +397,25 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-auto rounded-2xl bg-slate-50 p-4 dark:bg-[#0B0E14]">
+                <div className="mt-auto rounded-2xl bg-slate-50 p-4 dark:bg-[#0f1218]">
                   <div className="flex items-end justify-between">
                     <div>
                       <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
                         Analysis Confidence
                       </p>
-                      <p className={`mt-2 text-3xl font-black ${data?.analysis ? "text-[#1c59f2]" : "text-slate-400"}`}>
+                      <p className={`mt-2 text-3xl font-black ${data?.analysis ? "text-[#2a6ef5]" : "text-slate-400"}`}>
                         {loading ? "…" : `${data?.analysis?.score.confidencePercent ?? 0}%`}
                       </p>
                     </div>
                     {data?.analysis && (
-                      <span className="mb-1 rounded-full border border-[#1c59f2]/20 bg-[#1c59f2]/8 px-3 py-1 text-sm font-bold text-[#1c59f2]">
+                      <span className="mb-1 rounded-full border border-[#2a6ef5]/20 bg-[#2a6ef5]/8 px-3 py-1 text-sm font-bold text-[#2a6ef5]">
                         {data.analysis.score.grade}
                       </span>
                     )}
                   </div>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                     <div
-                      className="h-full rounded-full bg-[#1c59f2] transition-all duration-700"
+                      className="h-full rounded-full bg-[#2a6ef5] transition-all duration-700"
                       style={{ width: `${data?.analysis?.score.confidencePercent ?? 0}%` }}
                     />
                   </div>
