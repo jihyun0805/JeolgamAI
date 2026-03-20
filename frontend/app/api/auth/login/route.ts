@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getRequestOrigin, getSafeRedirectPath } from "@/lib/auth";
+import {
+  attachSessionCookie,
+  getRequestOrigin,
+  getSafeRedirectPath,
+} from "@/lib/auth";
 import { getBackendBaseUrl } from "@/lib/backend-client";
 import {
   clearLoginFailures,
@@ -221,7 +225,7 @@ export async function POST(request: Request) {
   });
 
   const projects = getProjectsForUser(user.userId);
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     data: {
       token: backendUser.accessToken,
@@ -240,4 +244,6 @@ export async function POST(request: Request) {
       })),
     },
   });
+
+  return attachSessionCookie(response, request, session);
 }
