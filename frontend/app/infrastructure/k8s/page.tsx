@@ -4,6 +4,7 @@ import { Children, ReactNode, useEffect, useRef, useState, type PointerEvent as 
 import Image from "next/image";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 type HealthTone = "healthy" | "progressing" | "degraded" | "neutral";
 type GraphNodeKind =
@@ -883,7 +884,7 @@ export default function K8sInfrastructurePage() {
       setError("");
 
       try {
-        const response = await fetch("/api/infrastructure/k8s", { cache: "no-store" });
+        const response = await authFetch("/api/infrastructure/k8s", { cache: "no-store" });
         const payload = await response.json();
         if (!response.ok || !payload?.ok || !payload?.data) {
           throw new Error(

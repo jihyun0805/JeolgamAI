@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 type SeriesPoint = {
   label: string;
@@ -362,7 +363,7 @@ export default function PrometheusPage() {
           from: appliedRange.from,
           to: appliedRange.to,
         });
-        const response = await fetch(`/api/prometheus/overview?${params.toString()}`, {
+        const response = await authFetch(`/api/prometheus/overview?${params.toString()}`, {
           cache: "no-store",
         });
         const payload = await response.json();

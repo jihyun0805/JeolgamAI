@@ -36,6 +36,8 @@ spec:
               value: http://jaeger.observability.svc.cluster.local:4318
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
               value: http/protobuf
+            - name: SESSION_SECRET
+              value: 65f09b852d582b34cac5c9a569f62355b6720f61d5250b0db755a0aff9cbe4b0
           readinessProbe:
             httpGet:
               path: /

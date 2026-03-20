@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import { storeSession } from "@/lib/jwt-store";
 import { TEST_ACCOUNT } from "@/lib/test-users";
 
 function LoginPageContent() {
@@ -36,6 +37,9 @@ function LoginPageContent() {
         setError(payload?.error?.message ?? "로그인에 실패했습니다.");
         return;
       }
+
+      const { token, userId, name, role, workspaceId, expiresAt } = payload.data;
+      storeSession({ token, userId, name, role, workspaceId, expiresAt });
 
       router.push(payload.data?.redirect || "/dashboard");
       router.refresh();

@@ -3,6 +3,7 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 type IntegrationStatus = "active" | "partial" | "failed";
 type IntegrationType = "aws" | "k8s" | "prometheus";
@@ -281,7 +282,7 @@ export default function IntegrationsPage() {
   }, [data]);
 
   async function loadIntegrations() {
-    const response = await fetch("/api/integrations", { cache: "no-store" });
+    const response = await authFetch("/api/integrations", { cache: "no-store" });
     const payload = (await response.json()) as ApiEnvelope<IntegrationsResponse>;
     if (!payload.ok || !payload.data) {
       throw new Error(payload.error?.message ?? "연동 상태를 불러오지 못했습니다.");
@@ -298,7 +299,7 @@ export default function IntegrationsPage() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -348,7 +349,7 @@ export default function IntegrationsPage() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch("/api/analysis/run", {
+      const response = await authFetch("/api/analysis/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lookbackDays: 30, triggeredBy: "manual" }),

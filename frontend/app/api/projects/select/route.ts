@@ -1,5 +1,5 @@
 import { fail } from "@/lib/api-response";
-import { requireSession, selectSessionWorkspace, setEncryptedSessionCookie } from "@/lib/auth";
+import { requireSession, selectSessionWorkspace } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { addAuditEvent, getProjectForUser } from "@/lib/store";
 
@@ -41,17 +41,11 @@ export async function POST(request: Request) {
     },
   });
 
-  const response = NextResponse.json({
+  return NextResponse.json({
     ok: true,
     data: {
       workspaceId: updatedSession.workspaceId,
       project,
     },
   });
-  setEncryptedSessionCookie(
-    response,
-    updatedSession,
-    new URL(request.url).protocol === "https:",
-  );
-  return response;
 }
