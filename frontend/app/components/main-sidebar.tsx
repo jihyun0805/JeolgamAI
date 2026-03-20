@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import UserProfileChip from "@/app/components/user-profile-chip";
+import { authFetch } from "@/lib/auth-fetch";
 
 type SidebarIconName =
   | "query_stats"
@@ -209,8 +210,8 @@ export default function MainSidebar({ active }: { active: SidebarKey }) {
 
     async function loadSession() {
       const [sessionResponse, integrationResponse] = await Promise.all([
-        fetch("/api/auth/session", { cache: "no-store" }),
-        fetch("/api/integrations", { cache: "no-store" }),
+        authFetch("/api/auth/session", { cache: "no-store" }),
+        authFetch("/api/integrations", { cache: "no-store" }),
       ]);
 
       if (sessionResponse.ok) {

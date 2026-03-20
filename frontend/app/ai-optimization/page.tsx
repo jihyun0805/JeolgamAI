@@ -3,6 +3,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface AnalysisPayload {
   analysis: {
@@ -126,8 +127,8 @@ export default function AiOptimizationPage() {
     setError("");
     try {
       const [analysisResponse, recommendationsResponse] = await Promise.all([
-        fetch("/api/analysis/latest", { cache: "no-store" }),
-        fetch("/api/recommendations", { cache: "no-store" }),
+        authFetch("/api/analysis/latest", { cache: "no-store" }),
+        authFetch("/api/recommendations", { cache: "no-store" }),
       ]);
       const [analysisPayload, recommendationsPayload] = await Promise.all([
         analysisResponse.json(),
@@ -176,7 +177,7 @@ export default function AiOptimizationPage() {
       params.set("pinnedRecommendationId", recommendationId);
     }
 
-    const response = await fetch(`/api/chat?${params.toString()}`, { cache: "no-store" });
+    const response = await authFetch(`/api/chat?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok || !payload?.ok || !payload?.data) {
       throw new Error(payload?.error?.message ?? "대화 세션을 불러오지 못했습니다.");
@@ -221,7 +222,7 @@ export default function AiOptimizationPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await authFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

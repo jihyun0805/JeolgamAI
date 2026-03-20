@@ -3,6 +3,8 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { authFetch } from "@/lib/auth-fetch";
+import { clearSession } from "@/lib/jwt-store";
 
 function BellIcon() {
   return (
@@ -87,8 +89,9 @@ export default function PageTopBar({
     let cancelled = false;
 
     async function loadSession() {
-      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const response = await authFetch("/api/auth/session", { cache: "no-store" });
       if (response.status === 401) {
+        clearSession();
         router.replace(`/login?redirect=${encodeURIComponent(pathname || "/dashboard")}`);
         return;
       }
@@ -130,7 +133,7 @@ export default function PageTopBar({
 
     setSwitchingProject(true);
     try {
-      const response = await fetch("/api/projects/select", {
+      const response = await authFetch("/api/projects/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
@@ -238,15 +241,19 @@ export default function PageTopBar({
                 </div>
 
                 {/* logout */}
-                <Link
-                  href="/api/auth/logout?redirect=/"
+                <button
+                  type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    clearSession();
+                    window.location.href = "/";
+                  }}
                 >
                   <LogoutIcon />
                   로그아웃
-                </Link>
+                </button>
               </div>
             ) : null}
           </div>

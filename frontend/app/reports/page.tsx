@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { ReportArtifact } from "@/lib/types";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface AnalysisPayload {
   project?: {
@@ -115,8 +116,8 @@ export default function ReportsPage() {
     setError("");
     try {
       const [analysisResponse, reportsResponse] = await Promise.all([
-        fetch("/api/analysis/latest", { cache: "no-store" }),
-        fetch("/api/reports/generate", { cache: "no-store" }),
+        authFetch("/api/analysis/latest", { cache: "no-store" }),
+        authFetch("/api/reports/generate", { cache: "no-store" }),
       ]);
 
       const analysisPayload = await analysisResponse.json();
@@ -175,7 +176,7 @@ export default function ReportsPage() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch("/api/reports/generate", {
+      const response = await authFetch("/api/reports/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -206,7 +207,7 @@ export default function ReportsPage() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `/api/reports/generate?reportId=${encodeURIComponent(selectedReport.id)}&format=pdf`,
         { cache: "no-store" },
       );
