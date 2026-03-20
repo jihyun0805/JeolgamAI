@@ -102,3 +102,17 @@ body {
     ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 }
+
+* {
+  cursor: url('/select_cursor.png') 0 0, auto !important;
+}
+
+p, span, h1, h2, h3, h4, h5, h6, li, td, th, code, pre,
+input, textarea, [contenteditable] {
+  cursor: url('/copy_cursor.png') 0 0, text !important;
+}
+
+button, a, [role="button"], button *, a * {
+  cursor: url('/select_cursor.png') 0 0, auto !important;
+}                                                                                         
+    
