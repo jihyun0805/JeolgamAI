@@ -248,7 +248,7 @@ export default function PageTopBar({
                   onClick={() => {
                     setUserMenuOpen(false);
                     clearSession();
-                    window.location.href = "/";
+                    window.location.href = "/api/auth/logout?redirect=/";
                   }}
                 >
                   <LogoutIcon />

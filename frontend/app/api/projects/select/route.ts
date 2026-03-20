@@ -1,5 +1,9 @@
 import { fail } from "@/lib/api-response";
-import { requireSession, selectSessionWorkspace } from "@/lib/auth";
+import {
+  attachSessionCookie,
+  requireSession,
+  selectSessionWorkspace,
+} from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { addAuditEvent, getProjectForUser } from "@/lib/store";
 
@@ -41,11 +45,13 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     data: {
       workspaceId: updatedSession.workspaceId,
       project,
     },
   });
+
+  return attachSessionCookie(response, request, updatedSession);
 }

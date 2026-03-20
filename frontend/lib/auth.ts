@@ -5,6 +5,11 @@ import {
   getProjectForUser,
   getProjectsForUser,
 } from "@/lib/store";
+import {
+  payloadToUserSession,
+  sealUserSession,
+  unsealUserSession,
+} from "@/lib/session-cookie";
 import { UserRole, UserSession } from "@/lib/types";
 
 export const SESSION_COOKIE_NAME = "jeolgamai_session";
@@ -30,35 +35,70 @@ export interface GetSessionResult {
   sealedCookie?: string;
 }
 
-export function getSessionFromRequest(request: Request | NextRequest): GetSessionResult {
-  const authHeader = request.headers.get("authorization");
+function getRequestHeader(
+  request: Request | NextRequest,
+  name: string,
+): string | null {
+  return request.headers.get(name);
+}
+
+function getCookieValue(
+  request: Request | NextRequest,
+  cookieName: string,
+): string | null {
+  const cookieHeader = getRequestHeader(request, "cookie");
+  if (!cookieHeader) return null;
+
+  const cookies = cookieHeader.split(";");
+  for (const cookie of cookies) {
+    const [name, ...valueParts] = cookie.trim().split("=");
+    if (name === cookieName) {
+      return valueParts.join("=") || null;
+    }
+  }
+
+  return null;
+}
+
+function resolveWorkspaceForUser(userId: string, workspaceId: string): string | null {
+  const accessibleProjects = getProjectsForUser(userId);
+  if (accessibleProjects.some((p) => p.id === workspaceId)) {
+    return workspaceId;
+  }
+
+  const user = getAuthUserById(userId);
+  return user?.defaultProjectId ?? accessibleProjects[0]?.id ?? null;
+}
+
+function isSessionExpired(expiresAt: string | undefined): boolean {
+  return Boolean(expiresAt && new Date(expiresAt).getTime() < Date.now());
+}
+
+function buildSessionFromHeaders(
+  request: Request | NextRequest,
+): GetSessionResult {
+  const authHeader = getRequestHeader(request, "authorization");
   if (!authHeader?.startsWith("Bearer ")) return { session: null };
 
   const token = authHeader.slice(7);
-  const userId = request.headers.get("x-user-id");
-  const workspaceId = request.headers.get("x-workspace-id");
-  const expiresAt = request.headers.get("x-expires-at");
+  const userId = getRequestHeader(request, "x-user-id");
+  const workspaceId = getRequestHeader(request, "x-workspace-id");
+  const expiresAt = getRequestHeader(request, "x-expires-at");
 
-  if (!token || !userId || !workspaceId) return { session: null };
-
-  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+  if (!token || !userId || !workspaceId || isSessionExpired(expiresAt ?? undefined)) {
     return { session: null };
   }
 
-  let resolvedWorkspaceId = workspaceId;
-  const accessibleProjects = getProjectsForUser(userId);
-  if (!accessibleProjects.some((p) => p.id === workspaceId)) {
-    const user = getAuthUserById(userId);
-    const fallback = user?.defaultProjectId ?? accessibleProjects[0]?.id;
-    if (!fallback) return { session: null };
-    resolvedWorkspaceId = fallback;
+  const resolvedWorkspaceId = resolveWorkspaceForUser(userId, workspaceId);
+  if (!resolvedWorkspaceId) {
+    return { session: null };
   }
 
   const session: UserSession = {
     token: userId,
     userId,
-    name: decodeURIComponent(request.headers.get("x-user-name") ?? ""),
-    role: parseSafeRole(request.headers.get("x-user-role")),
+    name: decodeURIComponent(getRequestHeader(request, "x-user-name") ?? ""),
+    role: parseSafeRole(getRequestHeader(request, "x-user-role")),
     workspaceId: resolvedWorkspaceId,
     backendAccessToken: token,
     createdAt: new Date().toISOString(),
@@ -66,6 +106,39 @@ export function getSessionFromRequest(request: Request | NextRequest): GetSessio
   };
 
   return { session };
+}
+
+function buildSessionFromCookie(
+  request: Request | NextRequest,
+): GetSessionResult {
+  const sealedCookie = getCookieValue(request, SESSION_COOKIE_NAME);
+  if (!sealedCookie) return { session: null };
+
+  const payload = unsealUserSession(sealedCookie);
+  if (!payload || isSessionExpired(payload.expiresAt)) {
+    return { session: null };
+  }
+
+  const resolvedWorkspaceId = resolveWorkspaceForUser(payload.userId, payload.workspaceId);
+  if (!resolvedWorkspaceId) {
+    return { session: null };
+  }
+
+  const session = payloadToUserSession({
+    ...payload,
+    workspaceId: resolvedWorkspaceId,
+  });
+
+  return { session, sealedCookie };
+}
+
+export function getSessionFromRequest(request: Request | NextRequest): GetSessionResult {
+  const headerSession = buildSessionFromHeaders(request);
+  if (headerSession.session) {
+    return headerSession;
+  }
+
+  return buildSessionFromCookie(request);
 }
 
 /** 프로젝트 전환 시 동일 사용자·토큰으로 workspaceId만 바꾼 새 세션 객체를 만듭니다. */
@@ -179,4 +252,52 @@ export function buildLogoutResponse(request: Request | NextRequest, redirectTo: 
     new URL(getSafeRedirectPath(redirectTo, "/"), getRequestOrigin(request)),
     302,
   );
+}
+
+function shouldUseSecureCookies(request: Request | NextRequest) {
+  const forwardedProto = getRequestHeader(request, "x-forwarded-proto");
+  if (forwardedProto) {
+    return forwardedProto.split(",")[0]?.trim() === "https";
+  }
+
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return process.env.NODE_ENV === "production";
+  }
+}
+
+export function attachSessionCookie(
+  response: NextResponse,
+  request: Request | NextRequest,
+  session: UserSession,
+) {
+  response.cookies.set({
+    name: SESSION_COOKIE_NAME,
+    value: sealUserSession(session),
+    httpOnly: true,
+    sameSite: "lax",
+    secure: shouldUseSecureCookies(request),
+    path: "/",
+    expires: new Date(session.expiresAt),
+  });
+
+  return response;
+}
+
+export function clearSessionCookie(
+  response: NextResponse,
+  request: Request | NextRequest,
+) {
+  response.cookies.set({
+    name: SESSION_COOKIE_NAME,
+    value: "",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: shouldUseSecureCookies(request),
+    path: "/",
+    expires: new Date(0),
+  });
+
+  return response;
 }
