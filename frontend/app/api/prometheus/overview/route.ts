@@ -2,7 +2,6 @@ import { fail, ok } from "@/lib/api-response";
 import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
 import {
-  getIntegrations,
   getProjectById,
 } from "@/lib/store";
 
@@ -32,7 +31,14 @@ interface BackendPrometheusOverview {
   warnings: string[];
 }
 
+type ProjectSummary = {
+  id: string;
+  name: string;
+  awsRegion: string;
+};
+
 interface BackendAnalysisLatest {
+  project?: ProjectSummary | null;
   analysis: {
     id: string;
   } | null;
@@ -46,23 +52,16 @@ export async function GET(request: Request) {
   const to = requestUrl.searchParams.get("to");
 
   const project = getProjectById(auth.session.workspaceId);
-  if (!project) {
-    return fail("NOT_FOUND", "활성 프로젝트를 찾을 수 없습니다.", 404);
-  }
-
-  const integration = getIntegrations(auth.session.workspaceId).find(
-    (item) => item.type === "prometheus" && item.status !== "failed",
-  );
-
-  if (!integration) {
-    return fail(
-      "PROMETHEUS_NOT_CONNECTED",
-      "현재 프로젝트에 Prometheus 연동이 없습니다.",
-      412,
-    );
-  }
+  const projectSummary: ProjectSummary | null = project
+    ? {
+        id: project.id,
+        name: project.name,
+        awsRegion: project.awsRegion,
+      }
+    : null;
 
   let overview: BackendPrometheusOverview;
+  let resolvedProject: ProjectSummary | null = projectSummary;
   let latestAnalysisId: string | null = null;
   try {
     const backendParams = new URLSearchParams({
@@ -77,12 +76,13 @@ export async function GET(request: Request) {
     const latest = await getBackendJson<BackendAnalysisLatest>(
       `/api/optimization/analysis/latest?workspaceId=${encodeURIComponent(
         auth.session.workspaceId,
-      )}&projectName=${encodeURIComponent(project.name)}&awsRegion=${encodeURIComponent(
-        project.awsRegion,
+      )}&projectName=${encodeURIComponent(project?.name ?? "")}&awsRegion=${encodeURIComponent(
+        project?.awsRegion ?? "",
       )}`,
       { accessToken: auth.session.backendAccessToken },
     );
     latestAnalysisId = latest.analysis?.id ?? null;
+    resolvedProject = latest.project ?? resolvedProject;
   } catch (error) {
     return fail(
       "BACKEND_FETCH_FAILED",
@@ -95,8 +95,7 @@ export async function GET(request: Request) {
 
   return ok({
     workspaceId: auth.session.workspaceId,
-    project,
-    integration,
+    project: resolvedProject,
     analysisId: latestAnalysisId,
     overview: {
       summary: overview.summary,
