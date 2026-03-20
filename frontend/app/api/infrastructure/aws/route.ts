@@ -1,19 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireBackendSession } from "@/lib/auth";
 import { getBackendJson } from "@/lib/backend-client";
-import { getIntegrations } from "@/lib/store";
 
 export async function GET(request: Request) {
   const auth = requireBackendSession(request);
   if (!auth.ok) return auth.response;
-
-  const hasAwsIntegration = getIntegrations(auth.session.workspaceId).some(
-    (item) => item.type === "aws" && item.status !== "failed",
-  );
-
-  if (!hasAwsIntegration) {
-    return fail("CONNECTOR_REQUIRED", "AWS 연동이 완료된 프로젝트만 조회할 수 있습니다.", 400);
-  }
 
   try {
     const data = await getBackendJson(
