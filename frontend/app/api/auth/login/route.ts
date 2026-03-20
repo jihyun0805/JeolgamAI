@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRequestOrigin, getSafeRedirectPath, setEncryptedSessionCookie } from "@/lib/auth";
+import { getRequestOrigin, getSafeRedirectPath } from "@/lib/auth";
 import { getBackendBaseUrl } from "@/lib/backend-client";
 import {
   clearLoginFailures,
@@ -78,10 +78,7 @@ export async function GET(request: Request) {
     },
   });
 
-  const response = NextResponse.redirect(new URL(next, getRequestOrigin(request)));
-  setEncryptedSessionCookie(response, session, url.protocol === "https:");
-
-  return response;
+  return NextResponse.redirect(new URL(next, getRequestOrigin(request)));
 }
 
 interface LoginRequestBody {
@@ -224,9 +221,16 @@ export async function POST(request: Request) {
   });
 
   const projects = getProjectsForUser(user.userId);
-  const response = NextResponse.json({
+  return NextResponse.json({
     ok: true,
     data: {
+      token: backendUser.accessToken,
+      tokenType: backendUser.tokenType,
+      userId: user.userId,
+      name: user.name,
+      role: user.role,
+      workspaceId: session.workspaceId,
+      expiresAt: session.expiresAt,
       redirect: next,
       activeProjectId: session.workspaceId,
       projects: projects.map((project) => ({
@@ -236,6 +240,4 @@ export async function POST(request: Request) {
       })),
     },
   });
-  setEncryptedSessionCookie(response, session, url.protocol === "https:");
-  return response;
 }

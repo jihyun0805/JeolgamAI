@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface AnalysisPayload {
   project?: {
@@ -54,7 +55,7 @@ export default function InfrastructureAnalysisPage() {
   async function loadAnalysis() {
     setError("");
     try {
-      const response = await fetch("/api/analysis/latest", { cache: "no-store" });
+      const response = await authFetch("/api/analysis/latest", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload?.ok || !payload?.data) {
         throw new Error(payload?.error?.message ?? "비용 분석 데이터를 불러오지 못했습니다.");
@@ -72,7 +73,7 @@ export default function InfrastructureAnalysisPage() {
   async function onRunAnalysis() {
     setRunningAnalysis(true);
     try {
-      const response = await fetch("/api/analysis/run", {
+      const response = await authFetch("/api/analysis/run", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

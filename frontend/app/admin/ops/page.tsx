@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface AuditEvent {
   id: string;
@@ -87,7 +88,7 @@ export default function OpsPage() {
           page: String(page),
           size: String(pageSize),
         });
-        const response = await fetch(`/api/audit?${params.toString()}`, { cache: "no-store" });
+        const response = await authFetch(`/api/audit?${params.toString()}`, { cache: "no-store" });
         const payload = await response.json();
         if (!response.ok || !payload?.ok || !payload?.data) {
           throw new Error(payload?.error?.message ?? "운영 로그를 불러오지 못했습니다.");

@@ -49,6 +49,8 @@ spec:
                   name: backend-runtime-secrets
                   key: CONNECTOR_ENCRYPTION_KEY
                   optional: true
+            - name: APP_JWT_SECRET
+              value: S14P21A502-jeolgamai-jwt-prod-secret-2026-change-before-export
           readinessProbe:
             tcpSocket:
               port: 8080

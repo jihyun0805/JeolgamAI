@@ -5,7 +5,6 @@ import {
   getProjectForUser,
   getProjectsForUser,
 } from "@/lib/store";
-import { payloadToUserSession, sealUserSession, unsealUserSession } from "@/lib/session-cookie";
 import { UserRole, UserSession } from "@/lib/types";
 
 export const SESSION_COOKIE_NAME = "jeolgamai_session";
@@ -19,56 +18,54 @@ function normalizeRequestHost(rawHost: string | null, fallbackHost: string) {
   return host;
 }
 
-function parseCookie(cookieHeader: string | null, key: string): string | null {
-  if (!cookieHeader) return null;
+const ALLOWED_ROLES: UserRole[] = ["system_admin", "company_admin", "company_operator"];
 
-  const cookies = cookieHeader.split(";");
-  for (const cookie of cookies) {
-    const [rawName, ...rest] = cookie.trim().split("=");
-    if (rawName === key) {
-      return decodeURIComponent(rest.join("="));
-    }
-  }
-
-  return null;
+function parseSafeRole(raw: string | null): UserRole {
+  if (raw && ALLOWED_ROLES.includes(raw as UserRole)) return raw as UserRole;
+  return "company_admin";
 }
 
 export interface GetSessionResult {
   session: UserSession | null;
-  /** workspaceId fallback 적용 시 재발급용 암호화 쿠키 값(이 값으로 쿠키를 갱신하면 다음 요청부터 fallback 반복 없음) */
   sealedCookie?: string;
 }
 
 export function getSessionFromRequest(request: Request | NextRequest): GetSessionResult {
-  const cookieRaw = parseCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
-  if (!cookieRaw) return { session: null };
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return { session: null };
 
-  let payload;
-  try {
-    payload = unsealUserSession(cookieRaw);
-  } catch {
-    return { session: null };
-  }
-  if (!payload) return { session: null };
+  const token = authHeader.slice(7);
+  const userId = request.headers.get("x-user-id");
+  const workspaceId = request.headers.get("x-workspace-id");
+  const expiresAt = request.headers.get("x-expires-at");
 
-  if (new Date(payload.expiresAt).getTime() < Date.now()) {
-    return { session: null };
-  }
+  if (!token || !userId || !workspaceId) return { session: null };
 
-  let session = payloadToUserSession(payload);
-  const accessibleProjects = getProjectsForUser(session.userId);
-  if (accessibleProjects.some((project) => project.id === session.workspaceId)) {
-    return { session };
-  }
-
-  const user = getAuthUserById(session.userId);
-  const fallbackProjectId = user?.defaultProjectId ?? accessibleProjects[0]?.id;
-  if (!fallbackProjectId) {
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
     return { session: null };
   }
 
-  session = { ...session, workspaceId: fallbackProjectId };
-  return { session, sealedCookie: sealUserSession(session) };
+  let resolvedWorkspaceId = workspaceId;
+  const accessibleProjects = getProjectsForUser(userId);
+  if (!accessibleProjects.some((p) => p.id === workspaceId)) {
+    const user = getAuthUserById(userId);
+    const fallback = user?.defaultProjectId ?? accessibleProjects[0]?.id;
+    if (!fallback) return { session: null };
+    resolvedWorkspaceId = fallback;
+  }
+
+  const session: UserSession = {
+    token: userId,
+    userId,
+    name: decodeURIComponent(request.headers.get("x-user-name") ?? ""),
+    role: parseSafeRole(request.headers.get("x-user-role")),
+    workspaceId: resolvedWorkspaceId,
+    backendAccessToken: token,
+    createdAt: new Date().toISOString(),
+    expiresAt: expiresAt ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+  };
+
+  return { session };
 }
 
 /** 프로젝트 전환 시 동일 사용자·토큰으로 workspaceId만 바꾼 새 세션 객체를 만듭니다. */
@@ -177,51 +174,9 @@ export function getRequestOrigin(request: Request | NextRequest) {
   return `${protocol}://${host}`;
 }
 
-export function setEncryptedSessionCookie(
-  response: NextResponse,
-  session: UserSession,
-  secure: boolean,
-) {
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: sealUserSession(session),
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    secure,
-    maxAge: 60 * 60 * 8,
-  });
-}
-
-/** 이미 암호화된 쿠키 값으로 세션 쿠키를 설정(workspaceId fallback 재발급용). */
-export function setSessionCookieFromSealed(
-  response: NextResponse,
-  sealedValue: string,
-  secure: boolean,
-) {
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: sealedValue,
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    secure,
-    maxAge: 60 * 60 * 8,
-  });
-}
-
 export function buildLogoutResponse(request: Request | NextRequest, redirectTo: string) {
-  const response = NextResponse.redirect(
+  return NextResponse.redirect(
     new URL(getSafeRedirectPath(redirectTo, "/"), getRequestOrigin(request)),
     302,
   );
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    path: "/",
-    maxAge: 0,
-    httpOnly: true,
-    sameSite: "strict",
-  });
-  return response;
 }

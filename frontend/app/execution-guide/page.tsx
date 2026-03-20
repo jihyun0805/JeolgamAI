@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 type ExecutionIconName =
   | "auto_awesome"
@@ -240,7 +241,7 @@ export default function ExecutionGuidePage() {
 
   useEffect(() => {
     async function loadLatestAnalysis() {
-      const response = await fetch("/api/analysis/latest", {
+      const response = await authFetch("/api/analysis/latest", {
         cache: "no-store",
       });
 
@@ -274,7 +275,7 @@ export default function ExecutionGuidePage() {
   }, []);
 
   async function trackCommandCopy() {
-    await fetch("/api/execution/command-copy", {
+    await authFetch("/api/execution/command-copy", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

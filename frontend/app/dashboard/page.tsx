@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface DashboardPayload {
   workspaceId: string;
@@ -137,7 +138,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/analysis/latest", { cache: "no-store" });
+      const response = await authFetch("/api/analysis/latest", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload?.ok || !payload?.data) {
         throw new Error(payload?.error?.message ?? "대시보드 데이터를 불러오지 못했습니다.");
@@ -158,7 +159,7 @@ export default function DashboardPage() {
     setRunningAnalysis(true);
     setError("");
     try {
-      const response = await fetch("/api/analysis/run", {
+      const response = await authFetch("/api/analysis/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lookbackDays: 30, triggeredBy: "manual" }),
