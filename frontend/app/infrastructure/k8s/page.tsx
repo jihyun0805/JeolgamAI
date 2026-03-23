@@ -1050,8 +1050,8 @@ export default function K8sInfrastructurePage() {
           description="서비스가 어떤 워크로드와 pod, node로 이어지는지 시각적으로 확인합니다."
         />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="w-full space-y-6">
+        <div className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6 md:px-8 md:pt-8 md:pb-10">
+          <div className="w-full space-y-6 pb-6 md:pb-10">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div>
                 <div>
@@ -1855,6 +1855,8 @@ export default function K8sInfrastructurePage() {
                     )}
               </div>
             </section>
+
+            <div aria-hidden className="h-6 md:h-10" />
 
           </div>
         </div>
