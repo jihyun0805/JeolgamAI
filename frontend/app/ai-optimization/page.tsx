@@ -419,7 +419,7 @@ export default function AiOptimizationPage() {
               onSubmit={sendMessage}
             >
               <div
-                className={`flex items-end gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#131820] ${
+                className={`flex items-center gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#131820] ${
                   submitting
                     ? "border-slate-200 dark:border-slate-700"
                     : "border-slate-200 focus-within:border-[#2a6ef5] focus-within:bg-white dark:border-slate-700 dark:focus-within:border-[#2a6ef5] dark:focus-within:bg-[#151b24]"
@@ -428,7 +428,7 @@ export default function AiOptimizationPage() {
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                  className="flex-1 resize-none bg-transparent text-sm leading-normal text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                   style={{ maxHeight: "120px", overflowY: "auto" }}
                   placeholder="권고에 대해 질문하세요…"
                   value={prompt}
