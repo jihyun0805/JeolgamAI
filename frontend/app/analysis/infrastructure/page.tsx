@@ -124,7 +124,7 @@ export default function InfrastructureAnalysisPage() {
           }
         />
 
-        <div className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-0 md:px-8 md:pt-10 md:pb-0">
           <div className="w-full space-y-6">
             <section className="shadow-card rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -140,14 +140,14 @@ export default function InfrastructureAnalysisPage() {
                     {analysis?.awsRegion ?? "ap-northeast-2"}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-[#0f1218]">
-                  <div>
+                <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-2xl bg-slate-50 p-4 dark:divide-slate-700 dark:bg-[#0f1218]">
+                  <div className="pr-4">
                     <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">월간 비용</p>
                     <p className="mt-1 text-xl font-black">
                       {analysis ? formatKrw(analysis.totalMonthlyCost) : "..."}
                     </p>
                   </div>
-                  <div>
+                  <div className="pl-4">
                     <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">월 절감 가능</p>
                     <p className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-300">
                       {analysis ? formatKrw(analysis.potentialMonthlySaving) : "..."}
@@ -177,8 +177,8 @@ export default function InfrastructureAnalysisPage() {
                       <tr>
                         <th className="px-4 py-3 text-left font-semibold">서비스</th>
                         <th className="px-4 py-3 text-left font-semibold">Usage Type</th>
-                        <th className="px-4 py-3 text-left font-semibold">리소스 수</th>
-                        <th className="px-4 py-3 text-right font-semibold">월 비용</th>
+                        <th className="py-3 pr-4 pl-0 text-left font-semibold whitespace-nowrap">리소스 수</th>
+                        <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">월 비용</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -191,7 +191,7 @@ export default function InfrastructureAnalysisPage() {
                           <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                             {item.resourceCount}
                           </td>
-                          <td className="px-4 py-3 text-right font-bold">
+                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
                             {formatKrw(item.monthlyCost)}
                           </td>
                         </tr>
@@ -243,7 +243,7 @@ export default function InfrastructureAnalysisPage() {
                     className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-h-[96px]">
                         <p className="font-bold">{resource.name}</p>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                           {resource.type} · {resource.region ?? "ap-northeast-2"}
@@ -274,6 +274,9 @@ export default function InfrastructureAnalysisPage() {
                 </ul>
               </section>
             ) : null}
+
+            <div aria-hidden className="h-2 md:h-5" />
+
           </div>
         </div>
       </main>
