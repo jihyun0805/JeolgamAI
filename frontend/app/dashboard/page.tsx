@@ -168,6 +168,7 @@ export default function DashboardPage() {
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error?.message ?? "분석 실행에 실패했습니다.");
       }
+      window.dispatchEvent(new Event("app:notifications:refresh"));
       await loadDashboard();
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : String(runError));

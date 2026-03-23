@@ -1,10 +1,11 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authFetch } from "@/lib/auth-fetch";
 import { clearSession } from "@/lib/jwt-store";
+import { AppNotification } from "@/lib/types";
 
 function BellIcon() {
   return (
@@ -65,6 +66,32 @@ interface SessionPayload {
   }>;
 }
 
+interface NotificationPayload {
+  notifications: AppNotification[];
+  unreadCount: number;
+}
+
+function formatNotificationTime(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function notificationToneClasses(severity: string) {
+  switch (severity) {
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
+    case "critical":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
+    default:
+      return "border-[#2a6ef5]/20 bg-[#2a6ef5]/10 text-[#2a6ef5]";
+  }
+}
+
 export default function PageTopBar({
   title,
   description,
@@ -83,7 +110,27 @@ export default function PageTopBar({
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [switchingProject, setSwitchingProject] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+
+  async function loadNotifications() {
+    setNotificationsLoading(true);
+    try {
+      const response = await authFetch("/api/notifications", { cache: "no-store" });
+      if (response.status === 401) return;
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok || !payload?.data) return;
+      const data = payload.data as NotificationPayload;
+      setNotifications((data.notifications ?? []).filter((item) => !item.read));
+      setUnreadCount(data.unreadCount ?? 0);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -106,19 +153,40 @@ export default function PageTopBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    loadNotifications().catch(() => {});
+
+    const intervalId = window.setInterval(() => {
+      loadNotifications().catch(() => {});
+    }, 30000);
+
+    function refreshNotifications() {
+      loadNotifications().catch(() => {});
+    }
+
+    window.addEventListener("app:notifications:refresh", refreshNotifications);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("app:notifications:refresh", refreshNotifications);
+    };
+  }, []);
+
   /* close menu on outside click */
   useEffect(() => {
-    if (!userMenuOpen) return;
+    if (!userMenuOpen && !notificationsOpen) return;
 
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [userMenuOpen]);
+  }, [notificationsOpen, userMenuOpen]);
 
   const profileName = session?.name ?? userName;
   const profileRole = useMemo(() => {
@@ -150,6 +218,36 @@ export default function PageTopBar({
     } finally {
       setSwitchingProject(false);
     }
+  }
+
+  async function markNotificationsRead() {
+    const unreadIds = notifications.filter((item) => !item.read).map((item) => item.id);
+    if (unreadIds.length === 0) return;
+
+    const response = await authFetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationIds: unreadIds }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok || !payload?.data) return;
+    const data = payload.data as NotificationPayload;
+    setNotifications((data.notifications ?? []).filter((item) => !item.read));
+    setUnreadCount(data.unreadCount ?? 0);
+  }
+
+  async function markSingleNotificationRead(notificationId: string) {
+    const response = await authFetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationIds: [notificationId] }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok || !payload?.data) return false;
+    const data = payload.data as NotificationPayload;
+    setNotifications((data.notifications ?? []).filter((item) => !item.read));
+    setUnreadCount(data.unreadCount ?? 0);
+    return true;
   }
 
   return (
@@ -189,14 +287,117 @@ export default function PageTopBar({
           ) : null}
 
           {/* notification bell */}
-          <button
-            type="button"
-            aria-label="알림"
-            className="relative rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <BellIcon />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full border-2 border-white bg-rose-500 dark:border-[#1a2029]" />
-          </button>
+          <div ref={notificationsRef} className="relative">
+            <button
+              type="button"
+              aria-label="알림"
+              onClick={() => {
+                setNotificationsOpen((prev) => !prev);
+                if (!notificationsOpen) {
+                  loadNotifications().catch(() => {});
+                }
+              }}
+              className={`relative rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                notificationsOpen ? "bg-slate-100 dark:bg-slate-800" : ""
+              }`}
+            >
+              <BellIcon />
+              {unreadCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-white bg-rose-500 px-1 text-[10px] font-bold leading-none text-white dark:border-[#1a2029]">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              ) : null}
+            </button>
+
+            {notificationsOpen ? (
+              <div className="absolute right-0 top-full z-30 mt-2 w-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-[#1a2029]">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">알림</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                      분석 및 리포트 완료 알림을 보여줍니다.
+                    </p>
+                  </div>
+                  {unreadCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markNotificationsRead().catch(() => {});
+                      }}
+                      className="text-xs font-semibold text-[#2a6ef5] transition hover:underline"
+                    >
+                      모두 읽음
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="max-h-[24rem] overflow-y-auto">
+                  {notificationsLoading ? (
+                    <div className="space-y-2 p-4">
+                      {[1, 2, 3].map((idx) => (
+                        <div key={idx} className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                      ))}
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                      아직 도착한 알림이 없습니다.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 p-3">
+                      {notifications.slice(0, 8).map((notification) => (
+                        <Link
+                          key={notification.id}
+                          href={
+                            notification.reportId
+                              ? `/reports?reportId=${notification.reportId}`
+                              : notification.analysisId
+                              ? `/ai-optimization?analysisId=${notification.analysisId}`
+                              : "/dashboard"
+                          }
+                          onClick={async (event: ReactMouseEvent<HTMLAnchorElement>) => {
+                            event.preventDefault();
+                            const href = notification.reportId
+                              ? `/reports?reportId=${notification.reportId}`
+                              : notification.analysisId
+                              ? `/ai-optimization?analysisId=${notification.analysisId}`
+                              : "/dashboard";
+                            setNotificationsOpen(false);
+                            if (!notification.read) {
+                              await markSingleNotificationRead(notification.id).catch(() => false);
+                            }
+                            router.push(href);
+                          }}
+                          className="block rounded-2xl border border-slate-200 px-3.5 py-3 transition hover:border-[#2a6ef5]/20 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-[#2a6ef5]/20 dark:hover:bg-[#131820]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${notificationToneClasses(notification.severity)}`}>
+                                  {notification.severity.toUpperCase()}
+                                </span>
+                                {!notification.read ? (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#2a6ef5]" />
+                                ) : null}
+                              </div>
+                              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                                {notification.title}
+                              </p>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                {notification.body}
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                              {formatNotificationTime(notification.createdAt)}
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           {/* user menu */}
           <div ref={menuRef} className="relative">
