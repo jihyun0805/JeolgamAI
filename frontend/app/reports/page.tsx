@@ -192,6 +192,7 @@ export default function ReportsPage() {
 
       const createdReport = payload.data as ReportArtifact;
       setMessage(`${templateLabel()}를 생성했습니다.`);
+      window.dispatchEvent(new Event("app:notifications:refresh"));
       await loadPageData(createdReport.id);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : String(generateError));

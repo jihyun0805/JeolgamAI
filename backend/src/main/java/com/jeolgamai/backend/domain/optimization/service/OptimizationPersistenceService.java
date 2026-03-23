@@ -8,12 +8,14 @@ import com.jeolgamai.backend.domain.optimization.entity.OptimizationAnalysisReco
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationApprovalLogRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatMessageRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationChatSessionRecord;
+import com.jeolgamai.backend.domain.optimization.entity.OptimizationNotificationRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationRecommendationRecord;
 import com.jeolgamai.backend.domain.optimization.entity.OptimizationReportRecord;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationAnalysisRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationApprovalLogRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatMessageRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationChatSessionRecordRepository;
+import com.jeolgamai.backend.domain.optimization.repository.OptimizationNotificationRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationRecommendationRecordRepository;
 import com.jeolgamai.backend.domain.optimization.repository.OptimizationReportRecordRepository;
 import jakarta.transaction.Transactional;
@@ -51,6 +53,7 @@ public class OptimizationPersistenceService {
     private final OptimizationApprovalLogRecordRepository approvalLogRepository;
     private final OptimizationChatSessionRecordRepository chatSessionRepository;
     private final OptimizationChatMessageRecordRepository chatMessageRepository;
+    private final OptimizationNotificationRecordRepository notificationRepository;
     private final OptimizationReportRecordRepository reportRepository;
     private final ObjectMapper objectMapper;
 
@@ -126,6 +129,40 @@ public class OptimizationPersistenceService {
     public Optional<OptimizationModels.ReportArtifact> findLatestReportByAnalysis(String workspaceId, String analysisId) {
         return reportRepository.findTopByWorkspaceIdAndAnalysisIdOrderByCreatedAtDesc(workspaceId, analysisId)
                 .map(this::toReport);
+    }
+
+    @Transactional
+    public OptimizationModels.AppNotification saveNotification(OptimizationModels.AppNotification notification) {
+        return toNotification(notificationRepository.save(toNotificationRecord(notification)));
+    }
+
+    public OptimizationModels.NotificationList listNotifications(String workspaceId) {
+        List<OptimizationModels.AppNotification> notifications = notificationRepository
+                .findTop20ByWorkspaceIdAndReadFalseOrderByCreatedAtDesc(workspaceId)
+                .stream()
+                .map(this::toNotification)
+                .toList();
+        long unreadCount = notificationRepository.countByWorkspaceIdAndReadFalse(workspaceId);
+        return new OptimizationModels.NotificationList(notifications, unreadCount);
+    }
+
+    @Transactional
+    public OptimizationModels.NotificationList markNotificationsRead(String workspaceId, List<String> notificationIds) {
+        List<OptimizationNotificationRecord> targets;
+        if (notificationIds == null || notificationIds.isEmpty()) {
+            targets = notificationRepository.findByWorkspaceIdAndReadFalseOrderByCreatedAtDesc(workspaceId);
+        } else {
+            targets = notificationRepository.findByWorkspaceIdAndIdIn(workspaceId, notificationIds);
+        }
+
+        if (!targets.isEmpty()) {
+            for (OptimizationNotificationRecord target : targets) {
+                target.setRead(true);
+            }
+            notificationRepository.saveAll(targets);
+        }
+
+        return listNotifications(workspaceId);
     }
 
     @Transactional
@@ -400,6 +437,34 @@ public class OptimizationPersistenceService {
                 record.getPreviewUrl(),
                 record.getExportUrl(),
                 readJson(record.getPayloadJson(), REPORT_PAYLOAD_TYPE)
+        );
+    }
+
+    private OptimizationNotificationRecord toNotificationRecord(OptimizationModels.AppNotification notification) {
+        OptimizationNotificationRecord record = new OptimizationNotificationRecord();
+        record.setId(notification.id());
+        record.setWorkspaceId(notification.workspaceId());
+        record.setSeverity(notification.severity());
+        record.setTitle(notification.title());
+        record.setBody(notification.body());
+        record.setAnalysisId(notification.analysisId());
+        record.setReportId(notification.reportId());
+        record.setCreatedAt(notification.createdAt());
+        record.setRead(notification.read());
+        return record;
+    }
+
+    private OptimizationModels.AppNotification toNotification(OptimizationNotificationRecord record) {
+        return new OptimizationModels.AppNotification(
+                record.getId(),
+                record.getWorkspaceId(),
+                record.getSeverity(),
+                record.getTitle(),
+                record.getBody(),
+                record.getAnalysisId(),
+                record.getReportId(),
+                record.getCreatedAt(),
+                record.isRead()
         );
     }
 

@@ -176,6 +176,25 @@ public final class OptimizationModels {
     ) {
     }
 
+    public record AppNotification(
+            String id,
+            String workspaceId,
+            String severity,
+            String title,
+            String body,
+            String analysisId,
+            String reportId,
+            String createdAt,
+            boolean read
+    ) {
+    }
+
+    public record NotificationList(
+            List<AppNotification> notifications,
+            long unreadCount
+    ) {
+    }
+
     public record ReportPayload(
             int totalScore,
             String grade,
@@ -256,6 +275,12 @@ public final class OptimizationModels {
             ProjectSummary project,
             AnalysisSnapshot analysis,
             List<Recommendation> recommendations
+    ) {
+    }
+
+    public record MarkNotificationsReadRequest(
+            @NotBlank String workspaceId,
+            List<String> notificationIds
     ) {
     }
 

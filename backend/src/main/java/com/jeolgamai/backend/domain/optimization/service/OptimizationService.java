@@ -96,6 +96,7 @@ public class OptimizationService {
                 sources
         );
         saveAnalysisBundle(bundle);
+        notifyAnalysisCompleted(bundle);
         return bundle;
     }
 
@@ -326,7 +327,7 @@ public class OptimizationService {
         );
 
         OptimizationModels.ReportArtifact saved = optimizationPersistenceService.saveReport(report);
-        return new OptimizationModels.ReportArtifact(
+        OptimizationModels.ReportArtifact normalized = new OptimizationModels.ReportArtifact(
                 saved.id(),
                 saved.workspaceId(),
                 saved.analysisId(),
@@ -337,6 +338,20 @@ public class OptimizationService {
                 "/api/reports/generate?reportId=" + saved.id() + "&format=pdf",
                 saved.payload()
         );
+        optimizationPersistenceService.saveNotification(
+                new OptimizationModels.AppNotification(
+                        createId("notification"),
+                        workspaceId,
+                        "info",
+                        "리포트 생성 완료",
+                        analysisBundle.project().name() + " 통합 리포트가 생성되었습니다. 보고서 목록에서 바로 열람하고 PDF로 내보낼 수 있습니다.",
+                        analysisBundle.analysis().id(),
+                        normalized.id(),
+                        nowIso(),
+                        false
+                )
+        );
+        return normalized;
     }
 
     public OptimizationModels.ReportListResponse listReports(
@@ -399,6 +414,19 @@ public class OptimizationService {
         );
     }
 
+    public OptimizationModels.NotificationList getNotifications(String workspaceId) {
+        return optimizationPersistenceService.listNotifications(requireWorkspaceId(workspaceId));
+    }
+
+    public OptimizationModels.NotificationList markNotificationsRead(
+            OptimizationModels.MarkNotificationsReadRequest request
+    ) {
+        return optimizationPersistenceService.markNotificationsRead(
+                requireWorkspaceId(request.workspaceId()),
+                request.notificationIds()
+        );
+    }
+
     private OptimizationModels.ReportArtifact resolveReport(
             String workspaceId,
             String reportId,
@@ -421,6 +449,34 @@ public class OptimizationService {
         if (!optimizationPersistenceService.analysisExists(workspaceId, analysisId)) {
             throw new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다.");
         }
+    }
+
+    private void notifyAnalysisCompleted(OptimizationModels.AnalysisBundle bundle) {
+        if (bundle.analysis() == null) {
+            return;
+        }
+
+        OptimizationModels.Recommendation primaryRecommendation = bundle.recommendations().stream()
+                .findFirst()
+                .orElse(null);
+        String body = primaryRecommendation == null
+                ? bundle.project().name() + " 분석이 완료되었습니다. 점수와 비용 요약을 확인해 다음 액션을 정리해보세요."
+                : bundle.project().name() + " 분석이 완료되었습니다. 대표 권고 '" + primaryRecommendation.title()
+                + "' 검토부터 시작하면 월 " + formatKrw(primaryRecommendation.estMonthlySaving()) + " 수준의 절감 효과를 기대할 수 있습니다.";
+
+        optimizationPersistenceService.saveNotification(
+                new OptimizationModels.AppNotification(
+                        createId("notification"),
+                        bundle.workspaceId(),
+                        "info",
+                        "분석 완료",
+                        body,
+                        bundle.analysis().id(),
+                        null,
+                        nowIso(),
+                        false
+                )
+        );
     }
 
     private OptimizationModels.ProjectSummary ensureProject(
