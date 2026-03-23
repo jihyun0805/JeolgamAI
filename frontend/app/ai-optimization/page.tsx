@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
 interface AnalysisPayload {
   analysis: {
@@ -374,7 +374,7 @@ export default function AiOptimizationPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="topology-viewport-scrollbar flex-1 overflow-y-auto px-6 py-5">
               {error ? (
                 <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
                   {error}
@@ -435,11 +435,7 @@ export default function AiOptimizationPage() {
               onSubmit={sendMessage}
             >
               <div
-<<<<<<< HEAD
                 className={`flex items-center gap-3 rounded-2xl border bg-slate-50 px-4 py-2 transition dark:bg-[#131820] ${
-=======
-                className={`flex items-center gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#131820] ${
->>>>>>> origin/develop
                   submitting
                     ? "border-slate-200 dark:border-slate-700"
                     : "border-slate-200 focus-within:border-[#2a6ef5] focus-within:bg-white dark:border-slate-700 dark:focus-within:border-[#2a6ef5] dark:focus-within:bg-[#151b24]"
@@ -448,11 +444,7 @@ export default function AiOptimizationPage() {
                 <textarea
                   ref={textareaRef}
                   rows={1}
-<<<<<<< HEAD
                   className="flex-1 resize-none bg-transparent py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
-=======
-                  className="flex-1 resize-none bg-transparent text-sm leading-normal text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
->>>>>>> origin/develop
                   style={{ maxHeight: "120px", overflowY: "auto" }}
                   placeholder="권고에 대해 질문하세요…"
                   value={prompt}
