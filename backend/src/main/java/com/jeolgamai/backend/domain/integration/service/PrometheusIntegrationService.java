@@ -38,9 +38,9 @@ public class PrometheusIntegrationService {
     private static final Duration RANGE_WINDOW = Duration.ofHours(24);
     private static final ZoneId DISPLAY_ZONE = ZoneId.of("Asia/Seoul");
     private static final Duration MAX_LOOKBACK = Duration.ofDays(90);
-    private static final DateTimeFormatter SHORT_LABEL_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-    private static final DateTimeFormatter DEFAULT_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MM/dd HH'h'");
-    private static final DateTimeFormatter LONG_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MM/dd");
+    private static final DateTimeFormatter SHORT_LABEL_FORMATTER = DateTimeFormatter.ofPattern("H:mm");
+    private static final DateTimeFormatter DEFAULT_LABEL_FORMATTER = DateTimeFormatter.ofPattern("M/d HH:mm");
+    private static final DateTimeFormatter LONG_LABEL_FORMATTER = DateTimeFormatter.ofPattern("M/d");
     private static final String CPU_USAGE_QUERY =
             "avg(100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))))";
     private static final String MEMORY_USAGE_QUERY =
@@ -281,6 +281,7 @@ public class PrometheusIntegrationService {
                         latencyMs,
                         errorRate
                 ),
+                buildForecast(cpuUsage, memoryUsage, latencyMs, errorRate, range),
                 new PrometheusOverviewResponse.TimeRange(
                         range.from().toString(),
                         range.to().toString(),
@@ -543,6 +544,245 @@ public class PrometheusIntegrationService {
         return points.stream()
                 .mapToDouble(PrometheusOverviewResponse.Point::value)
                 .average();
+    }
+
+    private PrometheusOverviewResponse.Forecast buildForecast(
+            List<PrometheusOverviewResponse.Point> cpuUsage,
+            List<PrometheusOverviewResponse.Point> memoryUsage,
+            List<PrometheusOverviewResponse.Point> latencyMs,
+            List<PrometheusOverviewResponse.Point> errorRate,
+            PrometheusRange range
+    ) {
+        long selectedRangeSeconds = Math.max(1, Duration.between(range.from(), range.to()).getSeconds());
+        long forecastWindowSeconds = Math.max(range.stepSeconds(), selectedRangeSeconds / 4);
+        return new PrometheusOverviewResponse.Forecast(
+                "최근 시계열 평균과 단기 추세를 결합한 projected usage",
+                List.of(
+                        buildForecastMetric(
+                                "cpu",
+                                "CPU 사용률",
+                                "%",
+                                cpuUsage,
+                                range.stepSeconds(),
+                                true,
+                                0,
+                                100
+                        ),
+                        buildForecastMetric(
+                                "memory",
+                                "메모리 사용률",
+                                "%",
+                                memoryUsage,
+                                range.stepSeconds(),
+                                true,
+                                0,
+                                100
+                        ),
+                        buildForecastMetric(
+                                "latency",
+                                "P95 Latency",
+                                "ms",
+                                latencyMs,
+                                range.stepSeconds(),
+                                false,
+                                0,
+                                Double.MAX_VALUE
+                        ),
+                        buildForecastMetric(
+                                "error_rate",
+                                "에러율",
+                                "%",
+                                errorRate,
+                                range.stepSeconds(),
+                                true,
+                                0,
+                                100
+                        )
+                ),
+                List.of(
+                        buildForecastSeries("cpu", cpuUsage, range, forecastWindowSeconds, true, 0, 100),
+                        buildForecastSeries("memory", memoryUsage, range, forecastWindowSeconds, true, 0, 100),
+                        buildForecastSeries("latency", latencyMs, range, forecastWindowSeconds, false, 0, Double.MAX_VALUE),
+                        buildForecastSeries("error_rate", errorRate, range, forecastWindowSeconds, true, 0, 100)
+                )
+        );
+    }
+
+    private PrometheusOverviewResponse.ForecastSeries buildForecastSeries(
+            String key,
+            List<PrometheusOverviewResponse.Point> points,
+            PrometheusRange range,
+            long forecastWindowSeconds,
+            boolean boundedPercent,
+            double min,
+            double max
+    ) {
+        if (points == null || points.isEmpty()) {
+            return new PrometheusOverviewResponse.ForecastSeries(key, List.of());
+        }
+
+        double current = points.get(points.size() - 1).value();
+        double movingAverage = points.stream()
+                .skip(Math.max(0, points.size() - 5L))
+                .mapToDouble(PrometheusOverviewResponse.Point::value)
+                .average()
+                .orElse(current);
+        double slopePerStep = calculateSlopePerStep(points);
+        DateTimeFormatter labelFormatter = selectLabelFormatter(range);
+
+        List<PrometheusOverviewResponse.Point> forecastPoints = new ArrayList<>();
+        long safeStepSeconds = Math.max(1, range.stepSeconds());
+        long lastHorizonSeconds = 0;
+        for (long horizonSeconds = safeStepSeconds; horizonSeconds <= forecastWindowSeconds; horizonSeconds += safeStepSeconds) {
+            lastHorizonSeconds = horizonSeconds;
+            double projected = projectValue(
+                    current,
+                    movingAverage,
+                    slopePerStep,
+                    safeStepSeconds,
+                    horizonSeconds,
+                    min,
+                    max,
+                    boundedPercent
+            );
+            String label = labelFormatter.format(
+                    range.to().plusSeconds(horizonSeconds).atZone(DISPLAY_ZONE).toLocalDateTime()
+            );
+            forecastPoints.add(new PrometheusOverviewResponse.Point(label, round(projected)));
+        }
+
+        if (forecastPoints.isEmpty() || lastHorizonSeconds < forecastWindowSeconds) {
+            long horizonSeconds = forecastWindowSeconds;
+            double projected = projectValue(
+                    current,
+                    movingAverage,
+                    slopePerStep,
+                    safeStepSeconds,
+                    horizonSeconds,
+                    min,
+                    max,
+                    boundedPercent
+            );
+            String label = labelFormatter.format(
+                    range.to().plusSeconds(horizonSeconds).atZone(DISPLAY_ZONE).toLocalDateTime()
+            );
+            forecastPoints.add(new PrometheusOverviewResponse.Point(label, round(projected)));
+        }
+
+        return new PrometheusOverviewResponse.ForecastSeries(key, forecastPoints);
+    }
+
+    private PrometheusOverviewResponse.ForecastMetric buildForecastMetric(
+            String key,
+            String label,
+            String unit,
+            List<PrometheusOverviewResponse.Point> points,
+            long stepSeconds,
+            boolean boundedPercent,
+            double min,
+            double max
+    ) {
+        if (points == null || points.isEmpty()) {
+            return new PrometheusOverviewResponse.ForecastMetric(
+                    key,
+                    label,
+                    unit,
+                    0,
+                    0,
+                    0,
+                    0,
+                    "데이터 부족",
+                    "예측에 사용할 시계열 데이터가 충분하지 않습니다."
+            );
+        }
+
+        double current = points.get(points.size() - 1).value();
+        double movingAverage = points.stream()
+                .skip(Math.max(0, points.size() - 5L))
+                .mapToDouble(PrometheusOverviewResponse.Point::value)
+                .average()
+                .orElse(current);
+        double slopePerStep = calculateSlopePerStep(points);
+
+        double forecast1h = projectValue(current, movingAverage, slopePerStep, stepSeconds, 3600, min, max, boundedPercent);
+        double forecast6h = projectValue(current, movingAverage, slopePerStep, stepSeconds, 21600, min, max, boundedPercent);
+        double forecast24h = projectValue(current, movingAverage, slopePerStep, stepSeconds, 86400, min, max, boundedPercent);
+
+        return new PrometheusOverviewResponse.ForecastMetric(
+                key,
+                label,
+                unit,
+                round(current),
+                round(forecast1h),
+                round(forecast6h),
+                round(forecast24h),
+                forecastStatus(key, forecast24h),
+                forecastDetail(key, current, forecast24h)
+        );
+    }
+
+    private double calculateSlopePerStep(List<PrometheusOverviewResponse.Point> points) {
+        if (points.size() < 2) {
+            return 0;
+        }
+
+        List<PrometheusOverviewResponse.Point> recent = points.subList(Math.max(0, points.size() - 5), points.size());
+        double totalDelta = 0;
+        int count = 0;
+        for (int i = 1; i < recent.size(); i++) {
+            totalDelta += recent.get(i).value() - recent.get(i - 1).value();
+            count += 1;
+        }
+        return count == 0 ? 0 : totalDelta / count;
+    }
+
+    private double projectValue(
+            double current,
+            double movingAverage,
+            double slopePerStep,
+            long stepSeconds,
+            long horizonSeconds,
+            double min,
+            double max,
+            boolean boundedPercent
+    ) {
+        long safeStepSeconds = Math.max(stepSeconds, 1);
+        double stepsAhead = (double) horizonSeconds / safeStepSeconds;
+        double projected = (movingAverage * 0.55) + ((current + slopePerStep * stepsAhead) * 0.45);
+        double clamped = Math.max(min, Math.min(max, projected));
+        if (!boundedPercent) {
+            return Math.max(min, projected);
+        }
+        return clamped;
+    }
+
+    private String forecastStatus(String key, double projected24h) {
+        return switch (key) {
+            case "cpu" -> projected24h >= 75 ? "주의 필요" : projected24h >= 45 ? "관리 가능" : "최적화 가능";
+            case "memory" -> projected24h >= 80 ? "주의 필요" : projected24h >= 55 ? "관리 가능" : "최적화 가능";
+            case "latency" -> projected24h >= 250 ? "주의 필요" : projected24h >= 120 ? "관찰 필요" : "안정적";
+            case "error_rate" -> projected24h >= 3 ? "주의 필요" : projected24h >= 1 ? "관찰 필요" : "안정적";
+            default -> "관찰 필요";
+        };
+    }
+
+    private String forecastDetail(String key, double current, double projected24h) {
+        String direction;
+        if (Math.abs(projected24h - current) < 0.5) {
+            direction = "큰 변화 없이 유지될 가능성이 있습니다.";
+        } else if (projected24h > current) {
+            direction = "현재보다 상승할 가능성이 있습니다.";
+        } else {
+            direction = "현재보다 완만하게 낮아질 가능성이 있습니다.";
+        }
+
+        return switch (key) {
+            case "cpu" -> "CPU 헤드룸 관점에서 " + direction;
+            case "memory" -> "메모리 requests/limits 관점에서 " + direction;
+            case "latency" -> "응답 지연 기준으로 " + direction;
+            case "error_rate" -> "오류 비율 기준으로 " + direction;
+            default -> direction;
+        };
     }
 
     private int countResults(JsonNode payload) {

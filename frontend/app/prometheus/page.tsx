@@ -10,6 +10,23 @@ type SeriesPoint = {
   value: number;
 };
 
+type ForecastMetric = {
+  key: string;
+  label: string;
+  unit: string;
+  currentValue: number;
+  forecast1h: number;
+  forecast6h: number;
+  forecast24h: number;
+  statusLabel: string;
+  detail: string;
+};
+
+type ForecastSeries = {
+  key: string;
+  points: SeriesPoint[];
+};
+
 type RangePreset = "6h" | "24h" | "7d" | "30d" | "custom";
 
 const RANGE_PRESET_OPTIONS: Array<{ key: Exclude<RangePreset, "custom">; label: string; hours: number }> = [
@@ -40,6 +57,11 @@ interface PrometheusPayload {
         value: number;
       }>
     >;
+    forecast?: {
+      methodology?: string;
+      metrics: ForecastMetric[];
+      chartSeries?: ForecastSeries[];
+    };
     timeRange?: {
       from: string;
       to: string;
@@ -61,6 +83,65 @@ function formatMetricValue(value: number, unit: "percent" | "ms") {
   }
 
   return `${value.toFixed(2)}%`;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "");
+  const chunk =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((value) => value + value)
+          .join("")
+      : normalized;
+  const red = Number.parseInt(chunk.slice(0, 2), 16);
+  const green = Number.parseInt(chunk.slice(2, 4), 16);
+  const blue = Number.parseInt(chunk.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function forecastToneClass(statusLabel: string) {
+  if (statusLabel.includes("주의")) {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
+  }
+  if (statusLabel.includes("최적화")) {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
+  }
+  if (statusLabel.includes("안정")) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-[#131820] dark:text-slate-300";
+}
+
+function resolveForecastSeries(
+  chartSeries: ForecastSeries[] | undefined,
+  metrics: ForecastMetric[],
+  key: string,
+) {
+  const series = chartSeries?.find((item) => item.key === key)?.points;
+  if (series?.length) return series;
+
+  const metric = metrics.find((item) => item.key === key);
+  if (!metric) return [];
+  return [
+    { label: "1h", value: metric.forecast1h },
+    { label: "6h", value: metric.forecast6h },
+    { label: "24h", value: metric.forecast24h },
+  ];
+}
+
+function downsampleSeries(points: SeriesPoint[], maxPoints: number) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+
+  const sampled: SeriesPoint[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    const index = Math.round((i * (points.length - 1)) / Math.max(maxPoints - 1, 1));
+    sampled.push(points[index]);
+  }
+
+  return sampled;
 }
 
 function toDateTimeLocalValue(date: Date) {
@@ -97,19 +178,50 @@ function formatRangeText(from: string | undefined, to: string | undefined) {
   return `${formatter.format(new Date(from))} ~ ${formatter.format(new Date(to))}`;
 }
 
+function formatAxisLabel(date: Date, from: string | undefined, to: string | undefined) {
+  if (!from || !to) {
+    return "";
+  }
+
+  const durationMs = new Date(to).getTime() - new Date(from).getTime();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  if (durationMs <= 12 * 60 * 60 * 1000) {
+    return `${hour}:${minute}`;
+  }
+  if (durationMs <= 8 * 24 * 60 * 60 * 1000) {
+    return `${month}/${day} ${hour}:${minute}`;
+  }
+  return `${month}/${day}`;
+}
+
 type TooltipPos = { x: number; y: number; containerWidth: number };
+type HoverTarget = { kind: "actual" | "forecast"; index: number };
 
 function LineChart({
   points,
+  forecastPoints,
   color,
+  forecastColor,
+  rangeFrom,
+  rangeTo,
   unit,
 }: {
   points: SeriesPoint[];
+  forecastPoints?: SeriesPoint[];
   color: string;
+  forecastColor?: string;
+  rangeFrom?: string;
+  rangeTo?: string;
   unit: "percent" | "ms";
 }) {
   const gradientId = useId().replace(/:/g, "");
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const forecastGradientId = `${gradientId}-forecast`;
+  const projectedColor = forecastColor ?? color;
+  const [hoveredTarget, setHoveredTarget] = useState<HoverTarget | null>(null);
   const [tooltipPos, setTooltipPos] = useState<TooltipPos>({ x: 0, y: 0, containerWidth: 0 });
 
   if (points.length === 0) {
@@ -125,22 +237,36 @@ function LineChart({
   const padding = { top: 20, right: 72, bottom: 30, left: 20 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const values = points.map((point) => point.value);
+  const futurePoints = downsampleSeries(
+    forecastPoints ?? [],
+    Math.max(3, Math.round(points.length / 4)),
+  );
+  const values = [...points, ...futurePoints].map((point) => point.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const baseMin = Math.min(0, minValue);
   const safeRange = Math.max(maxValue - baseMin, Math.abs(maxValue) * 0.15, 1);
   const scaleMin = baseMin;
   const scaleMax = baseMin + safeRange;
-  const stepX = points.length > 1 ? chartWidth / (points.length - 1) : chartWidth / 2;
+  const actualRatio = futurePoints.length ? 0.8 : 1;
+  const actualWidth = chartWidth * actualRatio;
+  const forecastWidth = chartWidth - actualWidth;
+  const actualStepX = points.length > 1 ? actualWidth / (points.length - 1) : actualWidth / 2;
+  const forecastStepX = futurePoints.length
+    ? forecastWidth / futurePoints.length
+    : 0;
 
-  const toX = (index: number) => padding.left + stepX * index;
   const toY = (value: number) =>
     padding.top + chartHeight - ((value - scaleMin) / (scaleMax - scaleMin)) * chartHeight;
 
   const coordinates = points.map((point, index) => ({
     ...point,
-    x: toX(index),
+    x: padding.left + actualStepX * index,
+    y: toY(point.value),
+  }));
+  const forecastCoordinates = futurePoints.map((point, index) => ({
+    ...point,
+    x: padding.left + actualWidth + forecastStepX * (index + 1),
     y: toY(point.value),
   }));
 
@@ -148,6 +274,11 @@ function LineChart({
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
   const areaPath = `${linePath} L ${coordinates[coordinates.length - 1].x} ${height - padding.bottom} L ${coordinates[0].x} ${height - padding.bottom} Z`;
+  const forecastPath = forecastCoordinates.length
+    ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
+        .concat(forecastCoordinates.map((point) => `L ${point.x} ${point.y}`))
+        .join(" ")
+    : "";
 
   const ticks = Array.from({ length: 4 }, (_, index) => {
     const ratio = index / 3;
@@ -158,29 +289,50 @@ function LineChart({
     };
   });
 
-  // X축 레이블: 최대 5개 균등 배치
-  const xTickCount = Math.min(5, points.length);
-  const xTickIndices = Array.from({ length: xTickCount }, (_, i) =>
-    xTickCount === 1 ? 0 : Math.round((i * (points.length - 1)) / (xTickCount - 1)),
-  );
+  const actualTickCount = futurePoints.length ? 4 : 5;
+  const actualTickDivisor = actualTickCount - 1;
+  const actualTimeTicks =
+    rangeFrom && rangeTo
+      ? Array.from({ length: actualTickCount }, (_, index) => {
+          const ratio = index / actualTickDivisor;
+          const date = new Date(
+            new Date(rangeFrom).getTime() +
+              (new Date(rangeTo).getTime() - new Date(rangeFrom).getTime()) * ratio,
+          );
+          return {
+            x: padding.left + actualWidth * ratio,
+            label: formatAxisLabel(date, rangeFrom, rangeTo),
+          };
+        })
+      : [];
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = e.clientX - rect.left;
     const viewX = (relX / rect.width) * width;
 
-    let closestIdx = 0;
+    let closestTarget: HoverTarget = { kind: "actual", index: 0 };
     let minDist = Infinity;
     coordinates.forEach((pt, i) => {
       const d = Math.abs(pt.x - viewX);
       if (d < minDist) {
         minDist = d;
-        closestIdx = i;
+        closestTarget = { kind: "actual", index: i };
+      }
+    });
+    forecastCoordinates.forEach((pt, i) => {
+      const d = Math.abs(pt.x - viewX);
+      if (d < minDist) {
+        minDist = d;
+        closestTarget = { kind: "forecast", index: i };
       }
     });
 
-    setHoveredIdx(closestIdx);
-    const pt = coordinates[closestIdx];
+    setHoveredTarget(closestTarget);
+    const pt =
+      closestTarget.kind === "forecast"
+        ? forecastCoordinates[closestTarget.index]
+        : coordinates[closestTarget.index];
     setTooltipPos({
       x: (pt.x / width) * rect.width,
       y: (pt.y / height) * rect.height,
@@ -188,7 +340,24 @@ function LineChart({
     });
   }
 
-  const hovered = hoveredIdx !== null ? coordinates[hoveredIdx] : null;
+  const hovered =
+    hoveredTarget?.kind === "forecast"
+      ? (forecastCoordinates[hoveredTarget.index] ?? null)
+      : hoveredTarget
+        ? (coordinates[hoveredTarget.index] ?? null)
+        : null;
+  const hoveredStroke =
+    hoveredTarget?.kind === "forecast"
+      ? projectedColor
+      : color;
+  const finalForecast = forecastCoordinates.at(-1) ?? null;
+  const forecastEndDate =
+    rangeFrom && rangeTo && futurePoints.length
+      ? new Date(new Date(rangeTo).getTime() + (new Date(rangeTo).getTime() - new Date(rangeFrom).getTime()) / 4)
+      : null;
+  const finalForecastAxisLabel = forecastEndDate
+    ? formatAxisLabel(forecastEndDate, rangeFrom, rangeTo)
+    : finalForecast?.label ?? "";
 
   return (
     <div className="relative rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-[#131820]">
@@ -197,7 +366,7 @@ function LineChart({
         className="h-52 w-full"
         preserveAspectRatio="none"
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoveredIdx(null)}
+        onMouseLeave={() => setHoveredTarget(null)}
         style={{ cursor: "crosshair" }}
       >
         <defs>
@@ -205,7 +374,22 @@ function LineChart({
             <stop offset="0%" stopColor={color} stopOpacity="0.26" />
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
+          <linearGradient id={forecastGradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={projectedColor} stopOpacity="0.12" />
+            <stop offset="100%" stopColor={projectedColor} stopOpacity="0.02" />
+          </linearGradient>
         </defs>
+
+        {forecastCoordinates.length ? (
+          <rect
+            x={padding.left + actualWidth}
+            y={padding.top}
+            width={forecastWidth}
+            height={chartHeight}
+            fill={hexToRgba(projectedColor, 0.05)}
+            rx="12"
+          />
+        ) : null}
 
         {ticks.map((tick) => (
           <g key={tick.y}>
@@ -239,6 +423,25 @@ function LineChart({
           strokeLinecap="round"
         />
 
+        {forecastPath ? (
+          <>
+            <path
+              d={`${forecastPath} L ${forecastCoordinates[forecastCoordinates.length - 1].x} ${height - padding.bottom} L ${coordinates[coordinates.length - 1].x} ${height - padding.bottom} Z`}
+              fill={`url(#${forecastGradientId})`}
+            />
+            <path
+              d={forecastPath}
+              fill="none"
+              stroke={projectedColor}
+              strokeWidth="2.5"
+              strokeDasharray="7 6"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeOpacity="0.48"
+            />
+          </>
+        ) : null}
+
         {/* Hover vertical line */}
         {hovered && (
           <line
@@ -246,7 +449,7 @@ function LineChart({
             x2={hovered.x}
             y1={padding.top}
             y2={height - padding.bottom}
-            stroke={color}
+            stroke={hoveredStroke}
             strokeWidth="1.5"
             strokeDasharray="3 5"
             strokeOpacity="0.55"
@@ -255,7 +458,7 @@ function LineChart({
 
         {/* Data point dots */}
         {coordinates.map((pt, i) =>
-          i === hoveredIdx ? (
+          hoveredTarget?.kind === "actual" && i === hoveredTarget.index ? (
             <g key={pt.label}>
               <circle cx={pt.x} cy={pt.y} r="7" fill={color} fillOpacity="0.15" />
               <circle cx={pt.x} cy={pt.y} r="4" fill={color} />
@@ -269,19 +472,48 @@ function LineChart({
           ),
         )}
 
-        {/* X축 레이블 – 5개만 */}
-        {xTickIndices.map((idx) => (
+        {forecastCoordinates.map((pt, i) =>
+          hoveredTarget?.kind === "forecast" && i === hoveredTarget.index ? (
+            <g key={`forecast-${pt.label}`}>
+              <circle cx={pt.x} cy={pt.y} r="7" fill={projectedColor} fillOpacity="0.15" />
+              <circle cx={pt.x} cy={pt.y} r="4" fill={projectedColor} />
+              <circle cx={pt.x} cy={pt.y} r="1.8" fill="white" />
+            </g>
+          ) : (
+            <g key={`forecast-${pt.label}`}>
+              <circle cx={pt.x} cy={pt.y} r="4.5" fill={projectedColor} fillOpacity="0.1" />
+              <circle cx={pt.x} cy={pt.y} r="2.6" fill={projectedColor} fillOpacity="0.35" />
+            </g>
+          ),
+        )}
+
+        {/* X축 레이블 */}
+        {actualTimeTicks.map((tick) => (
           <text
-            key={`xt-${idx}`}
-            x={coordinates[idx].x}
+            key={`xt-${tick.x}`}
+            x={tick.x}
             y={height - 7}
             textAnchor="middle"
             fontSize="10"
             fill="rgba(148, 163, 184, 0.85)"
           >
-            {coordinates[idx].label}
+            {tick.label}
           </text>
         ))}
+
+        {finalForecast ? (
+          <text
+            key={`forecast-label-${finalForecast.label}`}
+            x={finalForecast.x}
+            y={height - 7}
+            textAnchor="middle"
+            fontSize="10"
+            fill={hexToRgba(projectedColor, 0.92)}
+          >
+            {finalForecastAxisLabel}
+          </text>
+        ) : null}
+
       </svg>
 
       {/* HTML floating tooltip – 왜곡 없이 정확한 텍스트 렌더 */}
@@ -296,8 +528,12 @@ function LineChart({
             top: Math.max(6, tooltipPos.y - 44),
           }}
         >
-          <p className="text-[10px] text-slate-400">{hovered.label}</p>
+          <p className="text-[10px] text-slate-400">
+            {hovered.label}
+            {hoveredTarget?.kind === "forecast" ? " 예상" : ""}
+          </p>
           <p className="mt-0.5 text-sm font-bold text-white">
+            {hoveredTarget?.kind === "forecast" ? "약 " : ""}
             {formatMetricValue(hovered.value, unit)}
           </p>
         </div>
@@ -309,26 +545,57 @@ function LineChart({
 function MetricPanel({
   title,
   points,
+  forecastPoints,
   color,
+  forecastColor,
+  rangeFrom,
+  rangeTo,
   unit,
 }: {
   title: string;
   points: SeriesPoint[];
+  forecastPoints?: SeriesPoint[];
   color: string;
+  forecastColor?: string;
+  rangeFrom?: string;
+  rangeTo?: string;
   unit: "percent" | "ms";
 }) {
+  const projectedColor = forecastColor ?? color;
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-bold">{title}</h3>
-        {points.length > 0 ? (
-          <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            latest {formatMetricValue(points[points.length - 1].value, unit)}
-          </span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {forecastPoints?.length ? (
+            <span
+              className="rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                borderColor: hexToRgba(projectedColor, 0.28),
+                backgroundColor: hexToRgba(projectedColor, 0.1),
+                color: projectedColor,
+              }}
+            >
+              예상선
+            </span>
+          ) : null}
+          {points.length > 0 ? (
+            <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              latest {formatMetricValue(points[points.length - 1].value, unit)}
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="mt-5">
-        <LineChart color={color} points={points} unit={unit} />
+        <LineChart
+          color={color}
+          forecastColor={forecastColor}
+          forecastPoints={forecastPoints}
+          points={points}
+          rangeFrom={rangeFrom}
+          rangeTo={rangeTo}
+          unit={unit}
+        />
       </div>
     </article>
   );
@@ -349,6 +616,16 @@ export default function PrometheusPage() {
   const warnings = data?.overview.warnings ?? [];
   const latencyUnavailable = hasMetricWarning(warnings, "latency");
   const errorRateUnavailable = hasMetricWarning(warnings, "error_rate");
+  const forecastMetrics = data?.overview.forecast?.metrics ?? [];
+  const forecastChartSeries = data?.overview.forecast?.chartSeries;
+  const cpuForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "cpu");
+  const memoryForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "memory");
+  const latencyForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "latency");
+  const errorRateForecast = resolveForecastSeries(
+    forecastChartSeries,
+    forecastMetrics,
+    "error_rate",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -610,31 +887,120 @@ export default function PrometheusPage() {
               <MetricPanel
                 title="CPU 평균"
                 color="#2a6ef5"
+                forecastPoints={cpuForecast}
                 points={data?.overview.series.cpuUsage ?? []}
+                rangeFrom={data?.overview.timeRange?.from}
+                rangeTo={data?.overview.timeRange?.to}
                 unit="percent"
               />
 
               <MetricPanel
                 title="메모리 평균"
                 color="#16a34a"
+                forecastPoints={memoryForecast}
                 points={data?.overview.series.memoryUsage ?? []}
+                rangeFrom={data?.overview.timeRange?.from}
+                rangeTo={data?.overview.timeRange?.to}
                 unit="percent"
               />
 
               <MetricPanel
                 title="P95 Latency"
                 color="#f59e0b"
+                forecastPoints={latencyForecast}
                 points={data?.overview.series.latencyMs ?? []}
+                rangeFrom={data?.overview.timeRange?.from}
+                rangeTo={data?.overview.timeRange?.to}
                 unit="ms"
               />
 
               <MetricPanel
                 title="에러율"
                 color="#ef4444"
+                forecastPoints={errorRateForecast}
                 points={data?.overview.series.errorRatePercent ?? []}
+                rangeFrom={data?.overview.timeRange?.from}
+                rangeTo={data?.overview.timeRange?.to}
                 unit="percent"
               />
             </section>
+
+            {data?.overview.forecast?.metrics?.length ? (
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
+                <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                      Forecast Table
+                    </p>
+                    <h3 className="mt-1 text-lg font-bold">예상 메트릭 사용량</h3>
+                  </div>
+                  {data.overview.forecast.methodology ? (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      {data.overview.forecast.methodology}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <table className="min-w-[980px] w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col className="w-[38%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[18%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold tracking-[0.12em] text-slate-500 uppercase dark:border-slate-800 dark:bg-[#131820] dark:text-slate-400">
+                        <th className="px-5 py-3 text-left">지표</th>
+                        <th className="px-4 py-3 text-right">현재</th>
+                        <th className="px-4 py-3 text-right">1시간 후</th>
+                        <th className="px-4 py-3 text-right">6시간 후</th>
+                        <th className="px-4 py-3 text-right">24시간 후</th>
+                        <th className="px-5 py-3 text-center">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                      {data.overview.forecast.metrics.map((metric) => {
+                        const unit = metric.unit === "ms" ? "ms" : "percent";
+                        return (
+                          <tr key={metric.key} className="align-middle">
+                            <td className="px-5 py-5">
+                              <div className="max-w-[30rem]">
+                                <p className="text-[15px] font-semibold text-slate-900 dark:text-white">
+                                  {metric.label}
+                                </p>
+                                <p className="mt-2 min-h-[3rem] break-keep text-sm leading-6 text-slate-500 dark:text-slate-400">
+                                  {metric.detail}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                              {formatMetricValue(metric.currentValue, unit)}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
+                              {formatMetricValue(metric.forecast1h, unit)}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
+                              {formatMetricValue(metric.forecast6h, unit)}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] font-semibold tabular-nums text-[#2a6ef5]">
+                              {formatMetricValue(metric.forecast24h, unit)}
+                            </td>
+                            <td className="px-5 py-5 text-center">
+                              <span className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${forecastToneClass(metric.statusLabel)}`}>
+                                {metric.statusLabel}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
           </div>
         </div>
       </main>

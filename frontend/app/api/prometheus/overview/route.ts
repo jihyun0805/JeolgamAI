@@ -23,6 +23,24 @@ interface BackendPrometheusOverview {
     latencyMs: Array<{ label: string; value: number }>;
     errorRatePercent: Array<{ label: string; value: number }>;
   };
+  forecast?: {
+    methodology?: string;
+    metrics: Array<{
+      key: string;
+      label: string;
+      unit: string;
+      currentValue: number;
+      forecast1h: number;
+      forecast6h: number;
+      forecast24h: number;
+      statusLabel: string;
+      detail: string;
+    }>;
+    chartSeries?: Array<{
+      key: string;
+      points: Array<{ label: string; value: number }>;
+    }>;
+  };
   timeRange: {
     from: string;
     to: string;
@@ -100,6 +118,7 @@ export async function GET(request: Request) {
     overview: {
       summary: overview.summary,
       series: overview.series,
+      forecast: overview.forecast,
       timeRange: overview.timeRange,
       warnings: overview.warnings,
       authMode: overview.authMode,
