@@ -386,8 +386,8 @@ export default function IntegrationsPage() {
           }
         />
 
-        <main className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="grid w-full grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
+        <main className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-10 md:px-8 md:pt-8 md:pb-14">
+          <div className="grid w-full grid-cols-1 gap-6 pb-10 md:pb-14 xl:grid-cols-[1fr_320px]">
 
             {/* ── left: forms ── */}
             <div className="space-y-6">
@@ -634,7 +634,8 @@ export default function IntegrationsPage() {
             </div>
 
             {/* ── right: sidebar ── */}
-            <aside className="space-y-4 xl:self-start xl:sticky xl:top-0">
+            <aside>
+              <div className="space-y-4 xl:sticky xl:top-6">
 
               {/* connection status */}
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
@@ -707,8 +708,10 @@ export default function IntegrationsPage() {
                   {data.warnings.join(" / ")}
                 </div>
               ) : null}
+              </div>
             </aside>
 
+            <div aria-hidden className="h-10 md:h-14" />
           </div>
         </main>
       </div>
