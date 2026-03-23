@@ -115,4 +115,3 @@ input, textarea, [contenteditable] {
 button, a, [role="button"], button *, a * {
   cursor: url('/select_cursor.png') 0 0, auto !important;
 }                                                                                         
-    

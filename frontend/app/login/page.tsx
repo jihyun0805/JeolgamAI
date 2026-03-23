@@ -13,7 +13,10 @@ function LoginPageContent() {
   const [loginId, setLoginId] = useState(searchParams.get("loginId") ?? "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  /** 서버/네트워크 오류만 (폼 상단 배너) */
   const [error, setError] = useState("");
+  const [touched, setTouched] = useState({ loginId: false, password: false });
+  const [fieldErrors, setFieldErrors] = useState<{ loginId?: string; password?: string }>({});
 
   const redirect = useMemo(
     () => searchParams.get("redirect") || "/dashboard",
@@ -22,8 +25,16 @@ function LoginPageContent() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
     setError("");
+
+    setTouched({ loginId: true, password: true });
+    const nextFieldErrors: { loginId?: string; password?: string } = {};
+    if (!loginId.trim()) nextFieldErrors.loginId = "아이디를 입력해주세요.";
+    if (!password) nextFieldErrors.password = "비밀번호를 입력해주세요.";
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+
+    setLoading(true);
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -51,23 +62,54 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050a1f] px-5 py-10 text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#050a1f] px-5 py-10 text-white">
       <div className="mx-auto w-full max-w-md rounded-2xl border border-blue-400/20 bg-[#101f4f]/70 p-7 shadow-[0_20px_80px_rgba(11,72,200,0.3)] backdrop-blur-xl">
         <h1 className="text-2xl font-extrabold">로그인</h1>
         <p className="mt-2 text-sm text-blue-100/70">
           계정으로 로그인하고 대시보드로 이동하세요.
         </p>
 
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+        <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-400/60 bg-red-950/60 px-4 py-3 text-sm font-medium text-red-100 shadow-sm"
+            >
+              {error}
+            </div>
+          ) : null}
+
           <label className="block space-y-2 text-sm">
             <span className="text-blue-100/80">아이디</span>
             <input
               value={loginId}
-              onChange={(event) => setLoginId(event.target.value)}
+              onChange={(event) => {
+                const v = event.target.value;
+                setLoginId(v);
+                setError("");
+                setFieldErrors((fe) => {
+                  const next = { ...fe };
+                  const msg = !v.trim() ? "아이디를 입력해주세요." : undefined;
+                  if (msg) next.loginId = msg;
+                  else delete next.loginId;
+                  return next;
+                });
+              }}
+              onBlur={() => {
+                setTouched((t) => ({ ...t, loginId: true }));
+                setFieldErrors((fe) => {
+                  const next = { ...fe };
+                  if (!loginId.trim()) next.loginId = "아이디를 입력해주세요.";
+                  else delete next.loginId;
+                  return next;
+                });
+              }}
               className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
               placeholder="아이디 입력"
-              required
             />
+            {touched.loginId && fieldErrors.loginId ? (
+              <p className="text-xs font-medium text-red-300">{fieldErrors.loginId}</p>
+            ) : null}
           </label>
 
           <label className="block space-y-2 text-sm">
@@ -75,14 +117,33 @@ function LoginPageContent() {
             <input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                const v = event.target.value;
+                setPassword(v);
+                setError("");
+                setFieldErrors((fe) => {
+                  const next = { ...fe };
+                  if (!v) next.password = "비밀번호를 입력해주세요.";
+                  else delete next.password;
+                  return next;
+                });
+              }}
+              onBlur={() => {
+                setTouched((t) => ({ ...t, password: true }));
+                setFieldErrors((fe) => {
+                  const next = { ...fe };
+                  if (!password) next.password = "비밀번호를 입력해주세요.";
+                  else delete next.password;
+                  return next;
+                });
+              }}
               className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
               placeholder="비밀번호 입력"
-              required
             />
+            {touched.password && fieldErrors.password ? (
+              <p className="text-xs font-medium text-red-300">{fieldErrors.password}</p>
+            ) : null}
           </label>
-
-          {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
           <button
             type="submit"
@@ -112,7 +173,11 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#050a1f]" />}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#050a1f]" />
+      }
+    >
       <LoginPageContent />
     </Suspense>
   );
