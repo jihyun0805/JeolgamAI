@@ -9,6 +9,7 @@ public record PrometheusOverviewResponse(
         String authMode,
         Summary summary,
         Series series,
+        Forecast forecast,
         TimeRange timeRange,
         List<String> warnings
 ) {
@@ -32,6 +33,32 @@ public record PrometheusOverviewResponse(
     public record Point(
             String label,
             double value
+    ) {
+    }
+
+    public record Forecast(
+            String methodology,
+            List<ForecastMetric> metrics,
+            List<ForecastSeries> chartSeries
+    ) {
+    }
+
+    public record ForecastMetric(
+            String key,
+            String label,
+            String unit,
+            double currentValue,
+            double forecast1h,
+            double forecast6h,
+            double forecast24h,
+            String statusLabel,
+            String detail
+    ) {
+    }
+
+    public record ForecastSeries(
+            String key,
+            List<Point> points
     ) {
     }
 
