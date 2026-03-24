@@ -63,6 +63,7 @@ class ForecastMetricResponse(BaseModel):
 
 class ForecastChartPoint(BaseModel):
     timestamp: datetime
+    label: str
     lower: float
     base: float
     upper: float
@@ -128,6 +129,7 @@ def forecast_metrics(payload: ForecastRequest) -> ForecastResponse:
                 points=[
                     ForecastChartPoint(
                         timestamp=timestamp,
+                        label=timestamp.isoformat(),
                         lower=band.lower,
                         base=band.base,
                         upper=band.upper,

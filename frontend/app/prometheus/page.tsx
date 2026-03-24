@@ -269,6 +269,7 @@ function LineChart({
   forecastPoints,
   aiBandPoints,
   color,
+  aiBandColor,
   forecastColor,
   rangeFrom,
   rangeTo,
@@ -278,6 +279,7 @@ function LineChart({
   forecastPoints?: SeriesPoint[];
   aiBandPoints?: AiForecastBandPoint[];
   color: string;
+  aiBandColor?: string;
   forecastColor?: string;
   rangeFrom?: string;
   rangeTo?: string;
@@ -286,6 +288,7 @@ function LineChart({
   const gradientId = useId().replace(/:/g, "");
   const forecastGradientId = `${gradientId}-forecast`;
   const projectedColor = forecastColor ?? color;
+  const aiRangeColor = aiBandColor ?? "#8b5cf6";
   const [hoveredTarget, setHoveredTarget] = useState<HoverTarget | null>(null);
   const [tooltipPos, setTooltipPos] = useState<TooltipPos>({ x: 0, y: 0, containerWidth: 0 });
 
@@ -486,7 +489,7 @@ function LineChart({
             y={padding.top}
             width={forecastWidth}
             height={chartHeight}
-            fill={hexToRgba(projectedColor, 0.04)}
+            fill={hexToRgba(aiBandCoordinates.length ? aiRangeColor : projectedColor, 0.04)}
             rx="12"
           />
         ) : null}
@@ -524,18 +527,18 @@ function LineChart({
         />
 
         {aiBandFillPath ? (
-          <path d={aiBandFillPath} fill={hexToRgba(projectedColor, 0.14)} />
+          <path d={aiBandFillPath} fill={hexToRgba(aiRangeColor, 0.16)} />
         ) : null}
         {aiBandBasePath ? (
           <path
             d={aiBandBasePath}
             fill="none"
-            stroke={projectedColor}
+            stroke={aiRangeColor}
             strokeWidth="1.75"
             strokeDasharray="5 5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeOpacity="0.38"
+            strokeOpacity="0.7"
           />
         ) : null}
 
@@ -664,6 +667,7 @@ function MetricPanel({
   forecastPoints,
   aiBandPoints,
   color,
+  aiBandColor,
   forecastColor,
   rangeFrom,
   rangeTo,
@@ -674,12 +678,14 @@ function MetricPanel({
   forecastPoints?: SeriesPoint[];
   aiBandPoints?: AiForecastBandPoint[];
   color: string;
+  aiBandColor?: string;
   forecastColor?: string;
   rangeFrom?: string;
   rangeTo?: string;
   unit: "percent" | "ms";
 }) {
   const projectedColor = forecastColor ?? color;
+  const aiRangeColor = aiBandColor ?? "#8b5cf6";
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
       <div className="flex items-center justify-between gap-3">
@@ -689,9 +695,9 @@ function MetricPanel({
             <span
               className="rounded-full border px-3 py-1 text-xs font-semibold"
               style={{
-                borderColor: hexToRgba(projectedColor, 0.22),
-                backgroundColor: hexToRgba(projectedColor, 0.08),
-                color: projectedColor,
+                borderColor: hexToRgba(aiRangeColor, 0.3),
+                backgroundColor: hexToRgba(aiRangeColor, 0.12),
+                color: aiRangeColor,
               }}
             >
               AI 범위
@@ -719,6 +725,7 @@ function MetricPanel({
       <div className="mt-5">
         <LineChart
           aiBandPoints={aiBandPoints}
+          aiBandColor={aiBandColor}
           color={color}
           forecastColor={forecastColor}
           forecastPoints={forecastPoints}

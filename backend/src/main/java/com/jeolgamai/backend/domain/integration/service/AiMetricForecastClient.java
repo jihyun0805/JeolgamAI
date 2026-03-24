@@ -36,7 +36,8 @@ public class AiMetricForecastClient {
             long stepSeconds,
             List<MetricSeriesRequest> metrics
     ) {
-        if (!enabled || metrics == null || metrics.isEmpty()) {
+        List<MetricSeriesRequest> sanitizedMetrics = sanitizeMetrics(metrics);
+        if (!enabled || sanitizedMetrics.isEmpty()) {
             return null;
         }
 
@@ -44,7 +45,7 @@ public class AiMetricForecastClient {
                 .connectTimeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)))
                 .build();
 
-        ForecastRequest requestBody = new ForecastRequest(workspaceId, from, to, stepSeconds, metrics);
+        ForecastRequest requestBody = new ForecastRequest(workspaceId, from, to, stepSeconds, sanitizedMetrics);
         try {
             String payload = objectMapper.writeValueAsString(requestBody);
             HttpRequest request = HttpRequest.newBuilder()
@@ -56,7 +57,9 @@ public class AiMetricForecastClient {
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("AI forecast service 응답코드 " + response.statusCode());
+                throw new IllegalStateException(
+                        "AI forecast service 응답코드 " + response.statusCode() + ": " + response.body()
+                );
             }
 
             ForecastResponse forecast = objectMapper.readValue(response.body(), ForecastResponse.class);
@@ -107,6 +110,26 @@ public class AiMetricForecastClient {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("AI forecast 요청이 중단되었습니다.", exception);
         }
+    }
+
+    private List<MetricSeriesRequest> sanitizeMetrics(List<MetricSeriesRequest> metrics) {
+        if (metrics == null) {
+            return List.of();
+        }
+
+        return metrics.stream()
+                .map(metric -> new MetricSeriesRequest(
+                        metric.key(),
+                        metric.label(),
+                        metric.unit(),
+                        metric.points() == null
+                                ? List.of()
+                                : metric.points().stream()
+                                        .filter(point -> point != null && Double.isFinite(point.value()))
+                                        .toList()
+                ))
+                .filter(metric -> !metric.points().isEmpty())
+                .toList();
     }
 
     public record ForecastRequest(
@@ -165,6 +188,7 @@ public class AiMetricForecastClient {
     }
 
     public record ForecastBandPointResponse(
+            String timestamp,
             String label,
             double lower,
             double base,
