@@ -43,6 +43,7 @@ public class AiMetricForecastClient {
 
         HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
 
         ForecastRequest requestBody = new ForecastRequest(workspaceId, from, to, stepSeconds, sanitizedMetrics);
@@ -51,6 +52,7 @@ public class AiMetricForecastClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/v1/forecast/metrics"))
                     .timeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)))
+                    .version(HttpClient.Version.HTTP_1_1)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payload))
                     .build();

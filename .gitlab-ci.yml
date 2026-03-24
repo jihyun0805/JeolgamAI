@@ -162,6 +162,48 @@ build_frontend_image:
     reports:
       dotenv: frontend.env
 
+build_ai_service_image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  rules: *master_only_rules
+  needs:
+    - job: prepare_release
+      artifacts: true
+  script:
+    - |
+      for v in IMAGE_TAG; do
+        eval "val=\${$v-}"
+        if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
+      done
+    - |
+      if [ -n "${GCP_SA_KEY:-}" ]; then
+        mkdir -p /kaniko/.docker
+        GAR_AUTH="$(printf '_json_key:%s' "${GCP_SA_KEY}" | base64 | tr -d '\n')"
+        cat > /kaniko/.docker/config.json <<EOF
+      {
+        "auths": {
+          "${GAR_HOST}": { "auth": "${GAR_AUTH}" },
+          "https://${GAR_HOST}": { "auth": "${GAR_AUTH}" }
+        }
+      }
+      EOF
+        echo "Using GAR auth from GCP_SA_KEY"
+      elif [ -f /kaniko/.docker/config.json ]; then
+        echo "Using existing /kaniko/.docker/config.json from runner environment"
+      elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] || [ -n "${GOOGLE_GHA_CREDS_PATH:-}" ]; then
+        echo "Using ambient Google application credentials from runner environment"
+      else
+        echo "GCP_SA_KEY not set; relying on runner ambient GAR authentication"
+      fi
+    - AI_SERVICE_IMAGE_REPO="${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/ai-service"
+    - /kaniko/executor --context "${CI_PROJECT_DIR}/ai-service" --dockerfile "${CI_PROJECT_DIR}/ai-service/Dockerfile" --destination "${AI_SERVICE_IMAGE_REPO}:${IMAGE_TAG}" --destination "${AI_SERVICE_IMAGE_REPO}:latest" --cache=true --cache-ttl=168h
+    - echo "AI_SERVICE_IMAGE=${AI_SERVICE_IMAGE_REPO}:${IMAGE_TAG}" > ai-service.env
+  artifacts:
+    reports:
+      dotenv: ai-service.env
+
 update_gitops_manifests:
   stage: gitops
   image:
@@ -175,9 +217,11 @@ update_gitops_manifests:
       artifacts: true
     - job: build_frontend_image
       artifacts: true
+    - job: build_ai_service_image
+      artifacts: true
   script:
     - |
-      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE CI_SERVER_HOST CI_PROJECT_PATH; do
+      for v in IMAGE_TAG BACKEND_IMAGE FRONTEND_IMAGE AI_SERVICE_IMAGE CI_SERVER_HOST CI_PROJECT_PATH; do
         eval "val=\${$v-}"
         if [ -z "$val" ]; then echo "Missing required variable: $v"; exit 1; fi
       done
@@ -197,12 +241,13 @@ update_gitops_manifests:
     - git remote set-url --push origin "${PUSH_REMOTE_URL}"
     - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${BACKEND_IMAGE}|" infra/k8s/backend/deployment.yaml
     - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${FRONTEND_IMAGE}|" infra/k8s/frontend/deployment.yaml
+    - sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1${AI_SERVICE_IMAGE}|" infra/k8s/ai-service/deployment.yaml
     - |
-      if git diff --quiet infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml; then
+      if git diff --quiet infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml infra/k8s/ai-service/deployment.yaml; then
         echo "No manifest changes detected."
         exit 0
       fi
-    - git add infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml
+    - git add infra/k8s/backend/deployment.yaml infra/k8s/frontend/deployment.yaml infra/k8s/ai-service/deployment.yaml
     - 'git commit -m "chore(gitops): deploy ${IMAGE_TAG} [skip ci]"'
     - git push origin HEAD:master
 

@@ -288,7 +288,7 @@ function LineChart({
   const gradientId = useId().replace(/:/g, "");
   const forecastGradientId = `${gradientId}-forecast`;
   const projectedColor = forecastColor ?? color;
-  const aiRangeColor = aiBandColor ?? "#8b5cf6";
+  const aiRangeColor = aiBandColor ?? "#a855f7";
   const [hoveredTarget, setHoveredTarget] = useState<HoverTarget | null>(null);
   const [tooltipPos, setTooltipPos] = useState<TooltipPos>({ x: 0, y: 0, containerWidth: 0 });
 
@@ -380,6 +380,16 @@ function LineChart({
   const aiBandBasePath = aiBandCoordinates.length
     ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
         .concat(aiBandCoordinates.map((point) => `L ${point.x} ${point.baseY}`))
+        .join(" ")
+    : "";
+  const aiBandUpperPath = aiBandCoordinates.length
+    ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
+        .concat(aiBandCoordinates.map((point) => `L ${point.x} ${point.upperY}`))
+        .join(" ")
+    : "";
+  const aiBandLowerPath = aiBandCoordinates.length
+    ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
+        .concat(aiBandCoordinates.map((point) => `L ${point.x} ${point.lowerY}`))
         .join(" ")
     : "";
 
@@ -489,7 +499,7 @@ function LineChart({
             y={padding.top}
             width={forecastWidth}
             height={chartHeight}
-            fill={hexToRgba(aiBandCoordinates.length ? aiRangeColor : projectedColor, 0.04)}
+            fill={hexToRgba(aiBandCoordinates.length ? aiRangeColor : projectedColor, 0.07)}
             rx="12"
           />
         ) : null}
@@ -527,18 +537,42 @@ function LineChart({
         />
 
         {aiBandFillPath ? (
-          <path d={aiBandFillPath} fill={hexToRgba(aiRangeColor, 0.16)} />
+          <path d={aiBandFillPath} fill={hexToRgba(aiRangeColor, 0.22)} />
+        ) : null}
+        {aiBandUpperPath ? (
+          <path
+            d={aiBandUpperPath}
+            fill="none"
+            stroke={aiRangeColor}
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeOpacity="0.5"
+          />
+        ) : null}
+        {aiBandLowerPath ? (
+          <path
+            d={aiBandLowerPath}
+            fill="none"
+            stroke={aiRangeColor}
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeOpacity="0.5"
+          />
         ) : null}
         {aiBandBasePath ? (
           <path
             d={aiBandBasePath}
             fill="none"
             stroke={aiRangeColor}
-            strokeWidth="1.75"
-            strokeDasharray="5 5"
+            strokeWidth="2.1"
+            strokeDasharray="6 5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeOpacity="0.7"
+            strokeOpacity="0.95"
           />
         ) : null}
 
@@ -685,22 +719,58 @@ function MetricPanel({
   unit: "percent" | "ms";
 }) {
   const projectedColor = forecastColor ?? color;
-  const aiRangeColor = aiBandColor ?? "#8b5cf6";
+  const aiRangeColor = aiBandColor ?? "#a855f7";
+  const finalAiBand = aiBandPoints?.at(-1) ?? null;
+  const aiRangeText = finalAiBand
+    ? `${formatMetricValue(finalAiBand.lower, unit)} ~ ${formatMetricValue(finalAiBand.upper, unit)}`
+    : null;
+  const aiBaseText = finalAiBand ? `약 ${formatMetricValue(finalAiBand.base, unit)}` : null;
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-lg font-bold">{title}</h3>
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-bold">{title}</h3>
+          {finalAiBand ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              AI 예측 {aiBaseText}, 범위 {aiRangeText}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {aiBandPoints?.length ? (
             <span
               className="rounded-full border px-3 py-1 text-xs font-semibold"
               style={{
-                borderColor: hexToRgba(aiRangeColor, 0.3),
-                backgroundColor: hexToRgba(aiRangeColor, 0.12),
+                borderColor: hexToRgba(aiRangeColor, 0.42),
+                backgroundColor: hexToRgba(aiRangeColor, 0.18),
                 color: aiRangeColor,
               }}
             >
               AI 범위
+            </span>
+          ) : null}
+          {aiBaseText ? (
+            <span
+              className="rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                borderColor: hexToRgba(aiRangeColor, 0.28),
+                backgroundColor: hexToRgba(aiRangeColor, 0.1),
+                color: aiRangeColor,
+              }}
+            >
+              {aiBaseText}
+            </span>
+          ) : null}
+          {aiRangeText ? (
+            <span
+              className="rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                borderColor: hexToRgba(aiRangeColor, 0.24),
+                backgroundColor: hexToRgba(aiRangeColor, 0.08),
+                color: hexToRgba(aiRangeColor, 0.96),
+              }}
+            >
+              {aiRangeText}
             </span>
           ) : null}
           {forecastPoints?.length ? (
@@ -986,7 +1056,7 @@ export default function PrometheusPage() {
                 {
                   label: "Scrape Health",
                   value: `${data?.overview.summary.scrapeHealthPercent ?? 0}%`,
-                  color: "#8b5cf6",
+                  color: "#d946ef",
                 },
               ].map((card) => (
                 <article
