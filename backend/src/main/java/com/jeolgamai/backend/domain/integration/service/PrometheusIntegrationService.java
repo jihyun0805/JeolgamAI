@@ -150,16 +150,19 @@ public class PrometheusIntegrationService {
     );
 
     private final ConnectorRegistryService connectorRegistryService;
+    private final AiMetricForecastClient aiMetricForecastClient;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final boolean allowLoopback;
 
     public PrometheusIntegrationService(
             ConnectorRegistryService connectorRegistryService,
+            AiMetricForecastClient aiMetricForecastClient,
             ObjectMapper objectMapper,
             @Value("${connector.allow-loopback:false}") boolean allowLoopback
     ) {
         this.connectorRegistryService = connectorRegistryService;
+        this.aiMetricForecastClient = aiMetricForecastClient;
         this.objectMapper = objectMapper;
         this.allowLoopback = allowLoopback;
         this.httpClient = HttpClient.newBuilder()
@@ -282,6 +285,7 @@ public class PrometheusIntegrationService {
                         errorRate
                 ),
                 buildForecast(cpuUsage, memoryUsage, latencyMs, errorRate, range),
+                buildAiForecast(normalizedWorkspaceId, cpuUsage, memoryUsage, latencyMs, errorRate, range, warnings),
                 new PrometheusOverviewResponse.TimeRange(
                         range.from().toString(),
                         range.to().toString(),
@@ -528,10 +532,11 @@ public class PrometheusIntegrationService {
                 return;
             }
 
+            Instant instant = Instant.ofEpochSecond(timestamp);
             String label = labelFormatter.format(
-                    Instant.ofEpochSecond(timestamp).atZone(DISPLAY_ZONE).toLocalDateTime()
+                    instant.atZone(DISPLAY_ZONE).toLocalDateTime()
             );
-            points.add(new PrometheusOverviewResponse.Point(label, round(aggregate[0] / aggregate[1])));
+            points.add(new PrometheusOverviewResponse.Point(instant.toString(), label, round(aggregate[0] / aggregate[1])));
         });
         return points;
     }
@@ -608,6 +613,53 @@ public class PrometheusIntegrationService {
         );
     }
 
+    private PrometheusOverviewResponse.AiForecast buildAiForecast(
+            String workspaceId,
+            List<PrometheusOverviewResponse.Point> cpuUsage,
+            List<PrometheusOverviewResponse.Point> memoryUsage,
+            List<PrometheusOverviewResponse.Point> latencyMs,
+            List<PrometheusOverviewResponse.Point> errorRate,
+            PrometheusRange range,
+            List<String> warnings
+    ) {
+        try {
+            return aiMetricForecastClient.forecast(
+                    workspaceId,
+                    range.from().toString(),
+                    range.to().toString(),
+                    range.stepSeconds(),
+                    List.of(
+                            toMetricSeriesRequest("cpu", "CPU 사용률", "%", cpuUsage),
+                            toMetricSeriesRequest("memory", "메모리 사용률", "%", memoryUsage),
+                            toMetricSeriesRequest("latency", "P95 Latency", "ms", latencyMs),
+                            toMetricSeriesRequest("error_rate", "에러율", "%", errorRate)
+                    )
+            );
+        } catch (IllegalStateException exception) {
+            warnings.add("ai forecast 조회 실패: " + safeErrorMessage(exception));
+            return null;
+        }
+    }
+
+    private AiMetricForecastClient.MetricSeriesRequest toMetricSeriesRequest(
+            String key,
+            String label,
+            String unit,
+            List<PrometheusOverviewResponse.Point> points
+    ) {
+        return new AiMetricForecastClient.MetricSeriesRequest(
+                key,
+                label,
+                unit,
+                points.stream()
+                        .map(point -> new AiMetricForecastClient.MetricPointRequest(
+                                point.timestamp(),
+                                point.value()
+                        ))
+                        .toList()
+        );
+    }
+
     private PrometheusOverviewResponse.ForecastSeries buildForecastSeries(
             String key,
             List<PrometheusOverviewResponse.Point> points,
@@ -645,10 +697,15 @@ public class PrometheusIntegrationService {
                     max,
                     boundedPercent
             );
+            Instant forecastInstant = range.to().plusSeconds(horizonSeconds);
             String label = labelFormatter.format(
-                    range.to().plusSeconds(horizonSeconds).atZone(DISPLAY_ZONE).toLocalDateTime()
+                    forecastInstant.atZone(DISPLAY_ZONE).toLocalDateTime()
             );
-            forecastPoints.add(new PrometheusOverviewResponse.Point(label, round(projected)));
+            forecastPoints.add(new PrometheusOverviewResponse.Point(
+                    forecastInstant.toString(),
+                    label,
+                    round(projected)
+            ));
         }
 
         if (forecastPoints.isEmpty() || lastHorizonSeconds < forecastWindowSeconds) {
@@ -663,10 +720,15 @@ public class PrometheusIntegrationService {
                     max,
                     boundedPercent
             );
+            Instant forecastInstant = range.to().plusSeconds(horizonSeconds);
             String label = labelFormatter.format(
-                    range.to().plusSeconds(horizonSeconds).atZone(DISPLAY_ZONE).toLocalDateTime()
+                    forecastInstant.atZone(DISPLAY_ZONE).toLocalDateTime()
             );
-            forecastPoints.add(new PrometheusOverviewResponse.Point(label, round(projected)));
+            forecastPoints.add(new PrometheusOverviewResponse.Point(
+                    forecastInstant.toString(),
+                    label,
+                    round(projected)
+            ));
         }
 
         return new PrometheusOverviewResponse.ForecastSeries(key, forecastPoints);

@@ -1,0 +1,1 @@
+"""JeolgamAI forecasting service package."""
