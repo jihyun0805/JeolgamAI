@@ -76,3 +76,9 @@ optimization:
       model: ${GMS_OPENAI_CHAT_MODEL:gpt-4o}
       temperature: ${GMS_OPENAI_CHAT_TEMPERATURE:${OPENAI_CHAT_TEMPERATURE:0.2}}
       timeout-seconds: ${GMS_TIMEOUT_SECONDS:30}
+
+forecast:
+  ai:
+    enabled: ${FORECAST_AI_ENABLED:true}
+    base-url: ${FORECAST_AI_BASE_URL:http://127.0.0.1:8000}
+    timeout-seconds: ${FORECAST_AI_TIMEOUT_SECONDS:8}

@@ -6,8 +6,15 @@ import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
 
 type SeriesPoint = {
+  timestamp?: string;
   label: string;
   value: number;
+};
+
+type RangeValue = {
+  lower: number;
+  base: number;
+  upper: number;
 };
 
 type ForecastMetric = {
@@ -25,6 +32,29 @@ type ForecastMetric = {
 type ForecastSeries = {
   key: string;
   points: SeriesPoint[];
+};
+
+type AiForecastMetric = {
+  key: string;
+  label: string;
+  unit: string;
+  strategy: string;
+  currentValue: number;
+  forecast1h: RangeValue;
+  forecast6h: RangeValue;
+  forecast24h: RangeValue;
+};
+
+type AiForecastBandPoint = {
+  label: string;
+  lower: number;
+  base: number;
+  upper: number;
+};
+
+type AiForecastSeries = {
+  key: string;
+  points: AiForecastBandPoint[];
 };
 
 type RangePreset = "6h" | "24h" | "7d" | "30d" | "custom";
@@ -61,6 +91,12 @@ interface PrometheusPayload {
       methodology?: string;
       metrics: ForecastMetric[];
       chartSeries?: ForecastSeries[];
+    };
+    aiForecast?: {
+      methodology?: string;
+      provider?: string;
+      metrics: AiForecastMetric[];
+      chartSeries?: AiForecastSeries[];
     };
     timeRange?: {
       from: string;
@@ -130,6 +166,23 @@ function resolveForecastSeries(
   ];
 }
 
+function resolveAiForecastSeries(
+  chartSeries: AiForecastSeries[] | undefined,
+  metrics: AiForecastMetric[],
+  key: string,
+) {
+  const series = chartSeries?.find((item) => item.key === key)?.points;
+  if (series?.length) return series;
+
+  const metric = metrics.find((item) => item.key === key);
+  if (!metric) return [];
+  return [
+    { label: "1h", lower: metric.forecast1h.lower, base: metric.forecast1h.base, upper: metric.forecast1h.upper },
+    { label: "6h", lower: metric.forecast6h.lower, base: metric.forecast6h.base, upper: metric.forecast6h.upper },
+    { label: "24h", lower: metric.forecast24h.lower, base: metric.forecast24h.base, upper: metric.forecast24h.upper },
+  ];
+}
+
 function downsampleSeries(points: SeriesPoint[], maxPoints: number) {
   if (points.length <= maxPoints) {
     return points;
@@ -141,6 +194,19 @@ function downsampleSeries(points: SeriesPoint[], maxPoints: number) {
     sampled.push(points[index]);
   }
 
+  return sampled;
+}
+
+function downsampleBandSeries(points: AiForecastBandPoint[], maxPoints: number) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+
+  const sampled: AiForecastBandPoint[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    const index = Math.round((i * (points.length - 1)) / Math.max(maxPoints - 1, 1));
+    sampled.push(points[index]);
+  }
   return sampled;
 }
 
@@ -201,6 +267,7 @@ type HoverTarget = { kind: "actual" | "forecast"; index: number };
 function LineChart({
   points,
   forecastPoints,
+  aiBandPoints,
   color,
   forecastColor,
   rangeFrom,
@@ -209,6 +276,7 @@ function LineChart({
 }: {
   points: SeriesPoint[];
   forecastPoints?: SeriesPoint[];
+  aiBandPoints?: AiForecastBandPoint[];
   color: string;
   forecastColor?: string;
   rangeFrom?: string;
@@ -234,11 +302,17 @@ function LineChart({
   const padding = { top: 20, right: 72, bottom: 30, left: 20 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
+  const maxFuturePoints = Math.max(3, Math.round(points.length / 4));
   const futurePoints = downsampleSeries(
     forecastPoints ?? [],
-    Math.max(3, Math.round(points.length / 4)),
+    maxFuturePoints,
   );
-  const values = [...points, ...futurePoints].map((point) => point.value);
+  const futureBandPoints = downsampleBandSeries(aiBandPoints ?? [], maxFuturePoints);
+  const values = [
+    ...points.map((point) => point.value),
+    ...futurePoints.map((point) => point.value),
+    ...futureBandPoints.flatMap((point) => [point.lower, point.base, point.upper]),
+  ];
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const baseMin = Math.min(0, minValue);
@@ -266,6 +340,18 @@ function LineChart({
     x: padding.left + actualWidth + forecastStepX * (index + 1),
     y: toY(point.value),
   }));
+  const aiBandCoordinates = futureBandPoints.map((point, index) => ({
+    ...point,
+    x:
+      padding.left +
+      actualWidth +
+      (futureBandPoints.length
+        ? (forecastWidth / futureBandPoints.length) * (index + 1)
+        : 0),
+    lowerY: toY(point.lower),
+    baseY: toY(point.base),
+    upperY: toY(point.upper),
+  }));
 
   const linePath = coordinates
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
@@ -274,6 +360,23 @@ function LineChart({
   const forecastPath = forecastCoordinates.length
     ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
         .concat(forecastCoordinates.map((point) => `L ${point.x} ${point.y}`))
+        .join(" ")
+    : "";
+  const aiBandFillPath = aiBandCoordinates.length
+    ? [
+        `M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`,
+        ...aiBandCoordinates.map((point) => `L ${point.x} ${point.upperY}`),
+        ...aiBandCoordinates
+          .slice()
+          .reverse()
+          .map((point) => `L ${point.x} ${point.lowerY}`),
+        `L ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`,
+        "Z",
+      ].join(" ")
+    : "";
+  const aiBandBasePath = aiBandCoordinates.length
+    ? [`M ${coordinates[coordinates.length - 1].x} ${coordinates[coordinates.length - 1].y}`]
+        .concat(aiBandCoordinates.map((point) => `L ${point.x} ${point.baseY}`))
         .join(" ")
     : "";
 
@@ -377,13 +480,13 @@ function LineChart({
           </linearGradient>
         </defs>
 
-        {forecastCoordinates.length ? (
+        {forecastCoordinates.length || aiBandCoordinates.length ? (
           <rect
             x={padding.left + actualWidth}
             y={padding.top}
             width={forecastWidth}
             height={chartHeight}
-            fill={hexToRgba(projectedColor, 0.05)}
+            fill={hexToRgba(projectedColor, 0.04)}
             rx="12"
           />
         ) : null}
@@ -420,11 +523,27 @@ function LineChart({
           strokeLinecap="round"
         />
 
+        {aiBandFillPath ? (
+          <path d={aiBandFillPath} fill={hexToRgba(projectedColor, 0.14)} />
+        ) : null}
+        {aiBandBasePath ? (
+          <path
+            d={aiBandBasePath}
+            fill="none"
+            stroke={projectedColor}
+            strokeWidth="1.75"
+            strokeDasharray="5 5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeOpacity="0.38"
+          />
+        ) : null}
+
         {forecastPath ? (
           <>
             <path
               d={`${forecastPath} L ${forecastCoordinates[forecastCoordinates.length - 1].x} ${height - padding.bottom} L ${coordinates[coordinates.length - 1].x} ${height - padding.bottom} Z`}
-              fill={`url(#${forecastGradientId})`}
+              fill={hexToRgba(projectedColor, 0.04)}
             />
             <path
               d={forecastPath}
@@ -434,7 +553,7 @@ function LineChart({
               strokeDasharray="7 6"
               strokeLinejoin="round"
               strokeLinecap="round"
-              strokeOpacity="0.48"
+              strokeOpacity="0.62"
             />
           </>
         ) : null}
@@ -543,6 +662,7 @@ function MetricPanel({
   title,
   points,
   forecastPoints,
+  aiBandPoints,
   color,
   forecastColor,
   rangeFrom,
@@ -552,6 +672,7 @@ function MetricPanel({
   title: string;
   points: SeriesPoint[];
   forecastPoints?: SeriesPoint[];
+  aiBandPoints?: AiForecastBandPoint[];
   color: string;
   forecastColor?: string;
   rangeFrom?: string;
@@ -564,6 +685,18 @@ function MetricPanel({
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-bold">{title}</h3>
         <div className="flex items-center gap-2">
+          {aiBandPoints?.length ? (
+            <span
+              className="rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                borderColor: hexToRgba(projectedColor, 0.22),
+                backgroundColor: hexToRgba(projectedColor, 0.08),
+                color: projectedColor,
+              }}
+            >
+              AI 범위
+            </span>
+          ) : null}
           {forecastPoints?.length ? (
             <span
               className="rounded-full border px-3 py-1 text-xs font-semibold"
@@ -573,7 +706,7 @@ function MetricPanel({
                 color: projectedColor,
               }}
             >
-              예상선
+              산술선
             </span>
           ) : null}
           {points.length > 0 ? (
@@ -585,6 +718,7 @@ function MetricPanel({
       </div>
       <div className="mt-5">
         <LineChart
+          aiBandPoints={aiBandPoints}
           color={color}
           forecastColor={forecastColor}
           forecastPoints={forecastPoints}
@@ -615,12 +749,22 @@ export default function PrometheusPage() {
   const errorRateUnavailable = hasMetricWarning(warnings, "error_rate");
   const forecastMetrics = data?.overview.forecast?.metrics ?? [];
   const forecastChartSeries = data?.overview.forecast?.chartSeries;
+  const aiForecastMetrics = data?.overview.aiForecast?.metrics ?? [];
+  const aiForecastChartSeries = data?.overview.aiForecast?.chartSeries;
   const cpuForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "cpu");
   const memoryForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "memory");
   const latencyForecast = resolveForecastSeries(forecastChartSeries, forecastMetrics, "latency");
   const errorRateForecast = resolveForecastSeries(
     forecastChartSeries,
     forecastMetrics,
+    "error_rate",
+  );
+  const cpuAiBand = resolveAiForecastSeries(aiForecastChartSeries, aiForecastMetrics, "cpu");
+  const memoryAiBand = resolveAiForecastSeries(aiForecastChartSeries, aiForecastMetrics, "memory");
+  const latencyAiBand = resolveAiForecastSeries(aiForecastChartSeries, aiForecastMetrics, "latency");
+  const errorRateAiBand = resolveAiForecastSeries(
+    aiForecastChartSeries,
+    aiForecastMetrics,
     "error_rate",
   );
 
@@ -857,6 +1001,7 @@ export default function PrometheusPage() {
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <MetricPanel
                 title="CPU 평균"
+                aiBandPoints={cpuAiBand}
                 color="#2a6ef5"
                 forecastPoints={cpuForecast}
                 points={data?.overview.series.cpuUsage ?? []}
@@ -867,6 +1012,7 @@ export default function PrometheusPage() {
 
               <MetricPanel
                 title="메모리 평균"
+                aiBandPoints={memoryAiBand}
                 color="#16a34a"
                 forecastPoints={memoryForecast}
                 points={data?.overview.series.memoryUsage ?? []}
@@ -877,6 +1023,7 @@ export default function PrometheusPage() {
 
               <MetricPanel
                 title="P95 Latency"
+                aiBandPoints={latencyAiBand}
                 color="#f59e0b"
                 forecastPoints={latencyForecast}
                 points={data?.overview.series.latencyMs ?? []}
@@ -887,6 +1034,7 @@ export default function PrometheusPage() {
 
               <MetricPanel
                 title="에러율"
+                aiBandPoints={errorRateAiBand}
                 color="#ef4444"
                 forecastPoints={errorRateForecast}
                 points={data?.overview.series.errorRatePercent ?? []}
