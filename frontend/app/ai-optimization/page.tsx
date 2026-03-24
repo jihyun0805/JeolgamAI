@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 
 interface AnalysisPayload {
   analysis: {
@@ -110,6 +110,7 @@ export default function AiOptimizationPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [scoreLabel, setScoreLabel] = useState("");
   const [analysisSummary, setAnalysisSummary] = useState("");
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -158,9 +159,11 @@ export default function AiOptimizationPage() {
           `${analysisData.analysis.score.totalScore}점 · ${analysisData.analysis.score.grade}`,
         );
         setAnalysisSummary(analysisData.analysis.executiveSummary ?? "");
+        setSummaryExpanded(false);
       } else {
         setScoreLabel("");
         setAnalysisSummary("");
+        setSummaryExpanded(false);
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -279,7 +282,7 @@ export default function AiOptimizationPage() {
               <p className="text-[10px] font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
                 Analysis Score
               </p>
-              <div className="mt-2 flex items-baseline gap-2.5">
+              <div className="mt-2 flex items-center gap-2.5">
                 <span className="text-4xl font-black tracking-tight">
                   {loading ? "…" : scorePart || "—"}
                 </span>
@@ -290,9 +293,22 @@ export default function AiOptimizationPage() {
                 ) : null}
               </div>
               {analysisSummary ? (
-                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                  {analysisSummary}
-                </p>
+                <>
+                  <p
+                    className={`mt-2 text-xs leading-relaxed break-words text-slate-500 dark:text-slate-400 ${
+                      summaryExpanded ? "" : "line-clamp-2"
+                    }`}
+                  >
+                    {analysisSummary}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryExpanded((prev) => !prev)}
+                    className="mt-1 text-xs font-semibold text-[#2a6ef5] hover:text-[#1f5de6] dark:text-blue-300 dark:hover:text-blue-200"
+                  >
+                    {summaryExpanded ? "접기" : "더보기"}
+                  </button>
+                </>
               ) : null}
             </article>
 
@@ -358,7 +374,7 @@ export default function AiOptimizationPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="topology-viewport-scrollbar flex-1 overflow-y-auto px-6 py-5">
               {error ? (
                 <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
                   {error}
@@ -400,7 +416,7 @@ export default function AiOptimizationPage() {
                         className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                           message.role === "user"
                             ? "rounded-br-sm bg-[#2a6ef5] text-white"
-                            : "rounded-bl-sm bg-slate-100 text-slate-800 dark:bg-[#131820] dark:text-slate-100"
+                            : "rounded-bl-sm border border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-600 dark:bg-[#1b2430] dark:text-slate-100"
                         }`}
                       >
                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -415,11 +431,11 @@ export default function AiOptimizationPage() {
 
             {/* Input */}
             <form
-              className="shrink-0 border-t border-slate-200 p-4 dark:border-slate-800"
+              className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-800"
               onSubmit={sendMessage}
             >
               <div
-                className={`flex items-end gap-3 rounded-2xl border bg-slate-50 px-4 py-3 transition dark:bg-[#131820] ${
+                className={`flex items-center gap-3 rounded-2xl border bg-slate-50 px-4 py-2 transition dark:bg-[#131820] ${
                   submitting
                     ? "border-slate-200 dark:border-slate-700"
                     : "border-slate-200 focus-within:border-[#2a6ef5] focus-within:bg-white dark:border-slate-700 dark:focus-within:border-[#2a6ef5] dark:focus-within:bg-[#151b24]"
@@ -428,7 +444,7 @@ export default function AiOptimizationPage() {
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                  className="flex-1 resize-none bg-transparent py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                   style={{ maxHeight: "120px", overflowY: "auto" }}
                   placeholder="권고에 대해 질문하세요…"
                   value={prompt}

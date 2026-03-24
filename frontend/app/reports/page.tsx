@@ -192,6 +192,7 @@ export default function ReportsPage() {
 
       const createdReport = payload.data as ReportArtifact;
       setMessage(`${templateLabel()}를 생성했습니다.`);
+      window.dispatchEvent(new Event("app:notifications:refresh"));
       await loadPageData(createdReport.id);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : String(generateError));
@@ -267,8 +268,8 @@ export default function ReportsPage() {
           }
         />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="w-full space-y-6">
+        <div className="content-area-subtle topology-viewport-scrollbar flex min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6 md:px-8 md:pt-8 md:pb-10">
+          <div className="w-full space-y-6 pb-6 md:pb-10">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
@@ -602,6 +603,8 @@ export default function ReportsPage() {
                 )}
               </article>
             </section>
+
+            <div aria-hidden className="h-6 md:h-10" />
           </div>
         </div>
       </main>

@@ -43,6 +43,10 @@ spec:
                   name: backend-runtime-secrets
                   key: GMS_API_KEY
                   optional: true
+            - name: FORECAST_AI_ENABLED
+              value: "true"
+            - name: FORECAST_AI_BASE_URL
+              value: http://ai-service:8000
             - name: CONNECTOR_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:

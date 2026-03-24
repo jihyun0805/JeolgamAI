@@ -18,10 +18,10 @@ interface BackendPrometheusOverview {
     scrapeHealthPercent: number;
   };
   series: {
-    cpuUsage: Array<{ label: string; value: number }>;
-    memoryUsage: Array<{ label: string; value: number }>;
-    latencyMs: Array<{ label: string; value: number }>;
-    errorRatePercent: Array<{ label: string; value: number }>;
+    cpuUsage: Array<{ timestamp: string; label: string; value: number }>;
+    memoryUsage: Array<{ timestamp: string; label: string; value: number }>;
+    latencyMs: Array<{ timestamp: string; label: string; value: number }>;
+    errorRatePercent: Array<{ timestamp: string; label: string; value: number }>;
   };
   forecast?: {
     methodology?: string;
@@ -39,6 +39,24 @@ interface BackendPrometheusOverview {
     chartSeries?: Array<{
       key: string;
       points: Array<{ label: string; value: number }>;
+    }>;
+  };
+  aiForecast?: {
+    methodology?: string;
+    provider?: string;
+    metrics: Array<{
+      key: string;
+      label: string;
+      unit: string;
+      strategy: string;
+      currentValue: number;
+      forecast1h: { lower: number; base: number; upper: number };
+      forecast6h: { lower: number; base: number; upper: number };
+      forecast24h: { lower: number; base: number; upper: number };
+    }>;
+    chartSeries?: Array<{
+      key: string;
+      points: Array<{ label: string; lower: number; base: number; upper: number }>;
     }>;
   };
   timeRange: {
@@ -119,6 +137,7 @@ export async function GET(request: Request) {
       summary: overview.summary,
       series: overview.series,
       forecast: overview.forecast,
+      aiForecast: overview.aiForecast,
       timeRange: overview.timeRange,
       warnings: overview.warnings,
       authMode: overview.authMode,

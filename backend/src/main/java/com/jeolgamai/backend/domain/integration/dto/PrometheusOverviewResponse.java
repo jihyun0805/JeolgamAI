@@ -10,6 +10,7 @@ public record PrometheusOverviewResponse(
         Summary summary,
         Series series,
         Forecast forecast,
+        AiForecast aiForecast,
         TimeRange timeRange,
         List<String> warnings
 ) {
@@ -31,6 +32,7 @@ public record PrometheusOverviewResponse(
     }
 
     public record Point(
+            String timestamp,
             String label,
             double value
     ) {
@@ -59,6 +61,47 @@ public record PrometheusOverviewResponse(
     public record ForecastSeries(
             String key,
             List<Point> points
+    ) {
+    }
+
+    public record AiForecast(
+            String methodology,
+            String provider,
+            List<AiForecastMetric> metrics,
+            List<AiForecastSeries> chartSeries
+    ) {
+    }
+
+    public record AiForecastMetric(
+            String key,
+            String label,
+            String unit,
+            String strategy,
+            double currentValue,
+            RangeValue forecast1h,
+            RangeValue forecast6h,
+            RangeValue forecast24h
+    ) {
+    }
+
+    public record AiForecastSeries(
+            String key,
+            List<BandPoint> points
+    ) {
+    }
+
+    public record RangeValue(
+            double lower,
+            double base,
+            double upper
+    ) {
+    }
+
+    public record BandPoint(
+            String label,
+            double lower,
+            double base,
+            double upper
     ) {
     }
 

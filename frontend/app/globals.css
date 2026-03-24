@@ -114,5 +114,19 @@ input, textarea, [contenteditable] {
 
 button, a, [role="button"], button *, a * {
   cursor: url('/select_cursor.png') 0 0, auto !important;
-}                                                                                         
-    
+}
+
+.native-date-input {
+  padding-right: 2.25rem;
+}
+
+.native-date-input::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+  transform: translateX(28px);
+}
+
+.dark .native-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}

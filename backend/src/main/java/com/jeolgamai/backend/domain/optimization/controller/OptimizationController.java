@@ -225,4 +225,38 @@ public class OptimizationController {
             return ResponseEntity.badRequest().body(BaseResponse.onBadRequest(exception.getMessage()));
         }
     }
+
+    @GetMapping("/notifications")
+    @Operation(summary = "최적화/리포트 알림 조회")
+    public ResponseEntity<BaseResponse<OptimizationModels.NotificationList>> getNotifications(
+            @RequestParam String workspaceId
+    ) {
+        try {
+            return ResponseEntity.ok(
+                    BaseResponse.onSuccess(
+                            "알림 조회 성공",
+                            optimizationService.getNotifications(workspaceId)
+                    )
+            );
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(BaseResponse.onBadRequest(exception.getMessage()));
+        }
+    }
+
+    @PostMapping("/notifications/read")
+    @Operation(summary = "최적화/리포트 알림 읽음 처리")
+    public ResponseEntity<BaseResponse<OptimizationModels.NotificationList>> markNotificationsRead(
+            @Valid @RequestBody OptimizationModels.MarkNotificationsReadRequest request
+    ) {
+        try {
+            return ResponseEntity.ok(
+                    BaseResponse.onSuccess(
+                            "알림 읽음 처리 성공",
+                            optimizationService.markNotificationsRead(request)
+                    )
+            );
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(BaseResponse.onBadRequest(exception.getMessage()));
+        }
+    }
 }

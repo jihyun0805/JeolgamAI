@@ -242,6 +242,8 @@ export interface AppNotification {
   severity: AlertSeverity;
   title: string;
   body: string;
+  analysisId?: string | null;
+  reportId?: string | null;
   createdAt: string;
   read: boolean;
 }
