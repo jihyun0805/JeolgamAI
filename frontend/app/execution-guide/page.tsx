@@ -308,7 +308,7 @@ export default function ExecutionGuidePage() {
           title="실행 가이드"
           description="AI가 생성한 인프라 비용 최적화 플랜을 단계별로 검토하고 실 인프라에 적용합니다."
           actions={
-            <button className="flex items-center gap-2 rounded-lg bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white transition-all hover:bg-[#2a6ef5]/90">
+            <button className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white transition-all hover:bg-brand/90">
               <ExecutionIcon name="download" className="h-4 w-4" />
               플랜 다운로드 (PDF)
             </button>
@@ -320,7 +320,7 @@ export default function ExecutionGuidePage() {
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <h2 className="text-3xl font-black tracking-tight">실행 플랜 상세</h2>
-                <span className="rounded-full bg-[#2a6ef5]/10 px-2 py-1 text-xs font-bold text-[#2a6ef5] uppercase">
+                <span className="rounded-full bg-brand/10 px-2 py-1 text-xs font-bold text-brand uppercase">
                   Plan ID: {analysisId || "#AI-2024-001"}
                 </span>
               </div>
@@ -342,11 +342,11 @@ export default function ExecutionGuidePage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-3 bg-[#f5f6f8] px-4 dark:bg-[#0f1218]">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-[#2a6ef5] text-white ring-4 ring-[#f5f6f8] dark:ring-[#0f1218]">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-brand text-white ring-4 ring-[#f5f6f8] dark:ring-[#0f1218]">
                     <span className="text-sm font-bold italic">2</span>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-[#2a6ef5]">Step 2</p>
+                    <p className="text-sm font-bold text-brand">Step 2</p>
                     <p className="text-xs text-slate-500">명령어 실행</p>
                   </div>
                 </div>
@@ -424,7 +424,7 @@ export default function ExecutionGuidePage() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-start justify-between">
-                    <div className="rounded-lg bg-[#2a6ef5]/10 p-2 text-[#2a6ef5]">
+                    <div className="rounded-lg bg-brand/10 p-2 text-brand">
                       <ExecutionIcon name="search" className="h-5 w-5" />
                     </div>
                     <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-500">
@@ -442,12 +442,12 @@ export default function ExecutionGuidePage() {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-4 rounded-xl border-2 border-[#2a6ef5] bg-white p-5 shadow-lg shadow-[#2a6ef5]/5 dark:bg-slate-900">
+                <div className="flex flex-col gap-4 rounded-xl border-2 border-brand bg-white p-5 shadow-lg shadow-brand/5 dark:bg-slate-900">
                   <div className="flex items-start justify-between">
-                    <div className="rounded-lg bg-[#2a6ef5] p-2 text-white">
+                    <div className="rounded-lg bg-brand p-2 text-white">
                       <ExecutionIcon name="terminal" className="h-5 w-5" />
                     </div>
-                    <span className="rounded bg-[#2a6ef5]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2a6ef5]">
+                    <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold text-brand">
                       진행 중
                     </span>
                   </div>
@@ -459,7 +459,7 @@ export default function ExecutionGuidePage() {
                   </div>
                   <button
                     onClick={handleCopyCommand}
-                    className="mt-auto w-full rounded-lg bg-[#2a6ef5] py-2 text-xs font-bold text-white transition-all hover:bg-[#2a6ef5]/90"
+                    className="mt-auto w-full rounded-lg bg-brand py-2 text-xs font-bold text-white transition-all hover:bg-brand/90"
                   >
                     명령어 복사하기
                   </button>
@@ -491,7 +491,7 @@ export default function ExecutionGuidePage() {
             </div>
 
             {copyFeedback ? (
-              <div className="rounded-lg border border-[#2a6ef5]/30 bg-[#2a6ef5]/10 p-3 text-sm text-[#2a6ef5]">
+              <div className="rounded-lg border border-brand/30 bg-brand/10 p-3 text-sm text-brand">
                 {copyFeedback}
               </div>
             ) : null}
@@ -515,7 +515,7 @@ export default function ExecutionGuidePage() {
                 <button className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold transition-colors hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
                   이전 단계
                 </button>
-                <button className="rounded-xl bg-[#2a6ef5] px-8 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a6ef5]/20 transition-all hover:scale-[1.02] active:scale-95">
+                <button className="rounded-xl bg-brand px-8 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition-all hover:scale-[1.02] active:scale-95">
                   실행 완료 (다음으로)
                 </button>
               </div>

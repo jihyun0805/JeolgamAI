@@ -71,11 +71,14 @@ function formatCompactDateTime(value: string | null | undefined) {
   });
 }
 
-function getCostBasisLabel(data: DashboardPayload | null) {
-  if (!data?.analysis) return null;
-  if (data.analysis.sourceCoverage.aws) return "AWS 실측 기반";
-  if (data.analysis.sourceCoverage.prometheus) return "Prometheus 기반 추정";
-  return "제한적 분석";
+function riskLeftBorderClass(riskLevel: string) {
+  switch (riskLevel.toLowerCase()) {
+    case "low":      return "border-l-emerald-400 dark:border-l-emerald-500";
+    case "medium":   return "border-l-amber-400 dark:border-l-amber-500";
+    case "high":
+    case "critical": return "border-l-rose-400 dark:border-l-rose-500";
+    default:         return "border-l-slate-300 dark:border-l-slate-600";
+  }
 }
 
 function riskBadgeClass(riskLevel: string) {
@@ -92,45 +95,6 @@ function riskBadgeClass(riskLevel: string) {
   }
 }
 
-function signalToneClass(tone: string) {
-  switch (tone) {
-    case "attention":
-      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
-    case "opportunity":
-      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
-    case "stable":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300";
-    default:
-      return "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400";
-  }
-}
-
-function formatDelta(value: number) {
-  if (value === 0) return "변동 없음";
-  if (value > 0) return `+${formatKrw(value)}`;
-  return `-${formatKrw(Math.abs(value))}`;
-}
-
-/** 첫 줄: "낭비되고 있습니다" + 다음 문장까지. 그 다음 문장부터는 줄바꿈 */
-function formatExecutiveSummaryWithBreaks(text: string) {
-  const match = text.match(/([\s\S]*?낭비되고 있습니다\.?)\s*([\s\S]*)/);
-  if (!match) return text;
-
-  const upToPhrase = match[1].trim();
-  const after = match[2].trim();
-  if (!after) return upToPhrase;
-
-  const sentenceMatch = after.match(/^[^.!?]*[.!?]/);
-  const firstSentence = sentenceMatch ? sentenceMatch[0].trim() : "";
-  const rest = sentenceMatch ? after.slice(sentenceMatch[0].length).trim() : after;
-
-  const firstLine = firstSentence ? `${upToPhrase} ${firstSentence}` : upToPhrase;
-  if (!rest) return firstLine;
-
-  const laterSentences = rest.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
-  return [firstLine, ...laterSentences].join("\n");
-}
-
 function SparkleIcon() {
   return (
     <svg
@@ -140,7 +104,7 @@ function SparkleIcon() {
       strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-4 w-4"
+      className="h-3.5 w-3.5 shrink-0"
       aria-hidden
     >
       <path d="m12 3 1.6 3.8L17.5 8l-3.8 1.6L12 13.5 10.3 9.6 6.5 8l3.9-1.2L12 3Z" />
@@ -180,7 +144,6 @@ export default function DashboardPage() {
     function handleWorkspaceChanged() {
       loadDashboard().catch(() => {});
     }
-
     window.addEventListener("app:workspace:changed", handleWorkspaceChanged);
     return () => {
       window.removeEventListener("app:workspace:changed", handleWorkspaceChanged);
@@ -213,51 +176,17 @@ export default function DashboardPage() {
     () =>
       [...(data?.recommendations ?? [])]
         .sort((a, b) => b.estMonthlySaving - a.estMonthlySaving)
-        .slice(0, 4),
+        .slice(0, 5),
     [data],
   );
 
-  const costBasisLabel = getCostBasisLabel(data);
-  const analysisTime = formatCompactDateTime(data?.analysis?.createdAt);
   const coverage = data?.analysis?.sourceCoverage;
   const sources = [
     { label: "AWS", enabled: Boolean(coverage?.aws) },
-    { label: "Prometheus", enabled: Boolean(coverage?.prometheus) },
     { label: "K8s", enabled: Boolean(coverage?.k8s) },
+    { label: "Prometheus", enabled: Boolean(coverage?.prometheus) },
   ];
-
-  const metricCards = [
-    {
-      label: "총 월간 비용",
-      value: data?.analysis ? formatKrw(data.analysis.totalMonthlyCost) : "—",
-      sub: data?.analysis?.awsRegion ?? "ap-northeast-2",
-      accent: "text-slate-900 dark:text-white",
-      barClass: "bg-slate-300 dark:bg-slate-600",
-    },
-    {
-      label: "예상 월 절감",
-      value: data?.analysis ? formatKrw(data.analysis.potentialMonthlySaving) : "—",
-      sub: `연간 ${data?.analysis ? formatKrw(data.analysis.potentialAnnualSaving) : "—"}`,
-      accent: "text-emerald-600 dark:text-emerald-300",
-      barClass: "bg-emerald-400",
-    },
-    {
-      label: "낭비 비용",
-      value: data?.analysis ? formatKrw(data.analysis.wasteCost) : "—",
-      sub: "유휴·과할당 추정 포함",
-      accent: "text-[#b41a2a] dark:text-[#e63946]",
-      barClass: "bg-[#b41a2a]",
-    },
-    {
-      label: "최적화 점수",
-      value: data?.analysis ? `${data.analysis.score.totalScore}점` : "—",
-      sub: data?.analysis
-        ? `${data.analysis.score.grade} · 신뢰도 ${data.analysis.score.confidencePercent}%`
-        : "분석 없음",
-      accent: "text-[#2a6ef5]",
-      barClass: "bg-[#2a6ef5]",
-    },
-  ];
+  const analysisTime = formatCompactDateTime(data?.analysis?.createdAt);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f6f8] text-slate-900 dark:bg-[#0f1218] dark:text-slate-100">
@@ -269,7 +198,7 @@ export default function DashboardPage() {
           description="프로젝트 비용과 권고를 한눈에 확인합니다."
           actions={
             <button
-              className="flex h-8 items-center rounded-xl bg-[#2a6ef5] px-4 py-0 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:opacity-60"
+              className="flex h-8 items-center rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-hover disabled:opacity-60"
               disabled={runningAnalysis || loading}
               onClick={onRunAnalysis}
             >
@@ -278,244 +207,141 @@ export default function DashboardPage() {
           }
         />
 
-        <div className="content-area-subtle min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 md:px-8 md:pb-10 md:pt-8">
+        <div className="content-area-subtle min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5 md:px-8 md:pt-7">
           <div className="w-full space-y-5">
 
-            {/* Hero — project header */}
-            <section className="shadow-card rounded-3xl border border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-[#1a2029]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold tracking-[0.26em] text-[#2a6ef5] uppercase">
-                    Active Project
-                  </p>
-                  <h2 className="mt-1 truncate text-2xl font-black tracking-tight">
-                    {loading ? "로딩 중…" : (data?.project?.name ?? "프로젝트 없음")}
-                  </h2>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {sources.map((src) => (
-                      <span
-                        key={src.label}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
-                          src.enabled
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
-                            : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-500"
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${src.enabled ? "bg-emerald-400" : "bg-slate-300 dark:bg-slate-600"}`}
-                        />
-                        {src.label}
-                      </span>
-                    ))}
-                  </div>
+            {/* Project info row */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <h2 className="truncate text-base font-bold text-slate-900 dark:text-white">
+                  {loading ? "로딩 중…" : (data?.project?.name ?? "프로젝트 없음")}
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  {sources.map((src) => (
+                    <span
+                      key={src.label}
+                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                        src.enabled
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-transparent dark:text-slate-600"
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${src.enabled ? "bg-emerald-400" : "bg-slate-300 dark:bg-slate-700"}`} />
+                      {src.label}
+                    </span>
+                  ))}
                 </div>
-                {(costBasisLabel || analysisTime) && (
-                  <div className="shrink-0 text-right">
-                    {costBasisLabel && (
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {costBasisLabel}
-                      </p>
-                    )}
-                    {analysisTime && (
-                      <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                        {analysisTime} 분석
-                      </p>
-                    )}
-                  </div>
+              </div>
+              {analysisTime && (
+                <p className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                  {analysisTime} 분석
+                </p>
+              )}
+            </div>
+
+            {error && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+                {error}
+              </div>
+            )}
+
+            {/* Hero — savings focal point + stat strip */}
+            <section className="shadow-card relative overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#1a2029]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-400/5 via-transparent to-transparent" />
+
+              {/* Top: savings number */}
+              <div className="relative px-7 py-7">
+                <p className="text-xs font-bold tracking-[0.2em] text-emerald-600 uppercase dark:text-emerald-400">
+                  절감 가능
+                </p>
+                <p className="mt-2 text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {loading ? (
+                    <span className="text-slate-300 dark:text-slate-700">—</span>
+                  ) : data?.analysis ? (
+                    formatKrw(data.analysis.potentialMonthlySaving)
+                  ) : (
+                    <span className="text-slate-300 dark:text-slate-700">—</span>
+                  )}
+                  {data?.analysis && (
+                    <span className="ml-1 text-lg font-semibold text-slate-400 dark:text-slate-500">/월</span>
+                  )}
+                </p>
+                {data?.analysis && (
+                  <p className="mt-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                    연간 {formatKrw(data.analysis.potentialAnnualSaving)} 절약 가능
+                  </p>
                 )}
+              </div>
+
+              {/* Bottom stat strip */}
+              <div className="relative grid grid-cols-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="px-7 py-4">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500 uppercase">총 월간 비용</p>
+                  <p className="mt-1.5 text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                    {loading ? "…" : data?.analysis ? formatKrw(data.analysis.totalMonthlyCost) : "—"}
+                  </p>
+                </div>
+                <div className="border-x border-slate-100 px-7 py-4 dark:border-slate-800">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500 uppercase">낭비 비용</p>
+                  <p className="mt-1.5 text-xl font-black tracking-tight text-[#b41a2a] dark:text-[#e63946]">
+                    {loading ? "…" : data?.analysis ? formatKrw(data.analysis.wasteCost) : "—"}
+                  </p>
+                </div>
+                <div className="px-7 py-4">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500 uppercase">최적화 점수</p>
+                  <p className="mt-1.5 text-xl font-black tracking-tight text-[#2a6ef5]">
+                    {loading ? "…" : data?.analysis ? `${data.analysis.score.totalScore}점` : "—"}
+                    {data?.analysis && (
+                      <span className="ml-1.5 text-sm font-semibold text-slate-400 dark:text-slate-500">
+                        {data.analysis.score.grade}
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
             </section>
 
-            {error ? (
-              <section className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
-                {error}
-              </section>
-            ) : null}
-
-            {/* Metric cards */}
-            <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-              {metricCards.map((card) => (
-                <article
-                  key={card.label}
-                  className="shadow-card relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#1a2029]"
-                >
-                  <div className={`absolute top-0 left-0 right-0 h-[3px] ${card.barClass}`} />
-                  <p className="text-xs font-bold tracking-[0.15em] text-slate-600 dark:text-slate-300 uppercase md:text-sm">
-                    {card.label}
-                  </p>
-                  <p className={`mt-3 text-2xl font-black tracking-tight ${card.accent}`}>
-                    {loading ? "…" : card.value}
-                  </p>
-                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    {card.sub}
-                  </p>
-                </article>
-              ))}
-            </section>
-
-            {data?.insights ? (
-              <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-                <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
-                        Current Signals
-                      </p>
-                      <h3 className="mt-1 text-lg font-bold">지금 먼저 확인할 상태</h3>
-                    </div>
-                    <span className="rounded-full border border-[#2a6ef5]/15 bg-[#2a6ef5]/8 px-3 py-1 text-xs font-semibold text-[#2a6ef5]">
-                      {data.insights.quantitativeScore}점 · {data.insights.quantitativeGrade}
-                    </span>
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    {data.insights.decisionSignals.map((signal) => (
-                      <div key={signal.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{signal.label}</p>
-                            <p className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                              {signal.value}
-                            </p>
-                          </div>
-                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${signalToneClass(signal.tone)}`}>
-                            {signal.statusLabel}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                          {signal.detail}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-
-                <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
-                  <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
-                    Action Flow
-                  </p>
-                  <h3 className="mt-1 text-lg font-bold">지금 어떤 순서로 봐야 하는가</h3>
-                  <div className="mt-4 rounded-2xl border border-[#2a6ef5]/20 bg-[#2a6ef5]/6 px-4 py-3 dark:bg-[#2a6ef5]/8">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {data.insights.priorityHeadline}
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {data.insights.actionGuide.map((step, index) => (
-                      <div key={step.id} className="flex gap-3 rounded-2xl border border-slate-200 px-4 py-4 dark:border-slate-800">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-white dark:text-slate-900">
-                          {index + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">{step.title}</p>
-                          <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{step.detail}</p>
-                          <p className="mt-2 text-xs font-semibold text-[#2a6ef5]">{step.nextAction}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              </section>
-            ) : null}
-
             {/* AI Summary */}
-            {data?.analysis?.executiveSummary ? (
-              <section className="relative overflow-hidden rounded-2xl border border-[#2a6ef5]/30 bg-gradient-to-br from-[#2a6ef5]/25 via-[#2a6ef5]/12 to-[#2a6ef5]/5 backdrop-blur-xl px-5 py-4 shadow-[0_0_24px_-8px_rgba(42,110,245,0.25)] dark:shadow-[0_0_28px_-8px_rgba(42,110,245,0.2)] dark:border-[#2a6ef5]/25 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-b before:from-white/15 before:to-transparent before:content-[''] dark:before:from-white/5">
-                <div className="relative flex items-center gap-2 text-[#2a6ef5]">
+            {data?.analysis?.executiveSummary && (
+              <section className="shadow-card rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50/40 px-6 py-5 dark:border-orange-500/20 dark:from-orange-500/10 dark:to-amber-500/5">
+                <div className="flex items-center gap-2 text-brand">
                   <SparkleIcon />
-                  <p className="text-[10px] font-bold tracking-[0.22em] uppercase">AI Commentary</p>
+                  <p className="text-[11px] font-bold tracking-[0.2em] uppercase">AI 요약</p>
                 </div>
-                <p className="relative mt-2.5 whitespace-pre-line text-sm leading-7 text-slate-700 dark:text-slate-200">
-                  {formatExecutiveSummaryWithBreaks(data.analysis.executiveSummary)}
+                <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  {data.analysis.executiveSummary}
                 </p>
               </section>
-            ) : null}
+            )}
 
-            {data?.insights?.scenarios?.length ? (
-              <section className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
-                      What-if Simulation
-                    </p>
-                    <h3 className="mt-1 text-lg font-bold">운영 시나리오 비교</h3>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                    조건 변화에 따른 비용과 대응 방향
-                  </span>
-                </div>
-                <div className="mt-4 grid gap-4 xl:grid-cols-3">
-                  {data.insights.scenarios.map((scenario) => (
-                    <div
-                      key={scenario.id}
-                      className="flex h-full flex-col rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{scenario.title}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                            {scenario.summary}
-                          </p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${riskBadgeClass(scenario.riskLevel)}`}>
-                          {scenario.riskLevel}
-                        </span>
-                      </div>
-                      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{scenario.actionLabel}</p>
-                          <p className="mt-1 text-sm font-semibold leading-6 text-slate-900 dark:text-white">
-                            {scenario.actionDetail}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-xs text-slate-400 dark:text-slate-500">예상 월 비용</p>
-                          <p className="mt-1 whitespace-nowrap text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                            {formatKrw(scenario.projectedMonthlyCost)}
-                          </p>
-                          <p className={`mt-1 text-xs font-semibold ${scenario.monthlyDelta <= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-300"}`}>
-                            {formatDelta(scenario.monthlyDelta)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {/* Bottom grid */}
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
+            {/* Bottom 2-col */}
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
 
               {/* Recommendations */}
               <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold">상위 절감 권고</h3>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">상위 절감 권고</h3>
                   <Link
                     href="/ai-optimization"
-                    className="text-xs font-semibold text-[#2a6ef5] transition hover:underline"
+                    className="text-xs font-semibold text-brand transition hover:underline"
                   >
                     전체 보기 →
                   </Link>
                 </div>
-                <div className="mt-4 space-y-2.5">
+                <div className="mt-4 space-y-2">
                   {loading ? (
-                    [1, 2, 3, 4].map((i) => (
-                      <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+                    [1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="h-11 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
                     ))
                   ) : topRecommendations.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-400">권고 없음</p>
+                    <p className="py-8 text-center text-sm text-slate-400">분석 후 권고가 표시됩니다</p>
                   ) : (
                     topRecommendations.map((rec) => (
                       <div
                         key={rec.id}
-                        className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-700/60"
+                        className={`flex items-center gap-3 rounded-xl border border-l-2 border-slate-100 py-2.5 pl-4 pr-4 dark:border-slate-700/50 ${riskLeftBorderClass(rec.riskLevel)}`}
                       >
-                        <span
-                          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${riskBadgeClass(rec.riskLevel)}`}
-                        >
-                          {rec.riskLevel}
-                        </span>
-                        <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={rec.title}>
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200" title={rec.title}>
                           {rec.title}
                         </p>
                         <span className="shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
@@ -528,55 +354,52 @@ export default function DashboardPage() {
               </article>
 
               {/* Warnings + confidence */}
-              <article className="shadow-card flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
-                <h3 className="font-bold">경고 및 신뢰도</h3>
-
-                <div className="space-y-2">
-                  {(data?.analysis?.warnings ?? []).map((warning) => (
-                    <div
-                      key={warning}
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
-                    >
-                      {warning}
-                    </div>
-                  ))}
-                  {!loading && (data?.analysis?.warnings.length ?? 0) === 0 ? (
-                    <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
-                      치명적인 경고 없음
-                    </div>
-                  ) : null}
+              <article className="shadow-card flex flex-col rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#1a2029]">
+                {/* Warnings */}
+                <div className="flex-1 p-6">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">경고</h3>
+                  <div className="mt-3 space-y-2">
+                    {(data?.analysis?.warnings ?? []).map((warning) => (
+                      <div
+                        key={warning}
+                        className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
+                      >
+                        <span className="mt-0.5 shrink-0 text-amber-500">▲</span>
+                        {warning}
+                      </div>
+                    ))}
+                    {!loading && (data?.analysis?.warnings.length ?? 0) === 0 && (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                        치명적인 경고 없음
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-auto rounded-2xl bg-slate-50 p-4 dark:bg-[#0f1218]">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
-                        Analysis Confidence
-                      </p>
-                      <p className={`mt-2 text-3xl font-black ${data?.analysis ? "text-[#2a6ef5]" : "text-slate-400"}`}>
-                        {loading ? "…" : `${data?.analysis?.score.confidencePercent ?? 0}%`}
-                      </p>
-                    </div>
+                {/* Confidence bar */}
+                <div className="border-t border-slate-100 p-6 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">분석 신뢰도</h3>
                     {data?.analysis && (
-                      <span className="mb-1 rounded-full border border-[#2a6ef5]/20 bg-[#2a6ef5]/8 px-3 py-1 text-sm font-bold text-[#2a6ef5]">
+                      <span className="rounded-full border border-brand/20 bg-brand/8 px-2.5 py-0.5 text-xs font-bold text-brand">
                         {data.analysis.score.grade}
                       </span>
                     )}
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                  <p className={`mt-3 text-3xl font-black ${data?.analysis ? "text-brand" : "text-slate-300 dark:text-slate-700"}`}>
+                    {loading ? "…" : `${data?.analysis?.score.confidencePercent ?? 0}%`}
+                  </p>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
-                      className="h-full rounded-full bg-[#2a6ef5] transition-all duration-700"
+                      className="h-full rounded-full bg-brand transition-all duration-700"
                       style={{ width: `${data?.analysis?.score.confidencePercent ?? 0}%` }}
                     />
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-                    연동된 소스 수와 데이터 품질 기반
-                  </p>
                 </div>
               </article>
-            </section>
 
+            </section>
           </div>
         </div>
       </main>

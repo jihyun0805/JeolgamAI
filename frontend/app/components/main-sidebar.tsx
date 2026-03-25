@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/app/components/theme-provider";
 import UserProfileChip from "@/app/components/user-profile-chip";
 import { authFetch } from "@/lib/auth-fetch";
 
@@ -198,6 +199,8 @@ interface CoveragePayload {
 let coverageCache: CoveragePayload | null = null;
 
 export default function MainSidebar({ active }: { active?: SidebarKey }) {
+  const { theme } = useTheme();
+  const logoSrc = theme === "light" ? "/gammeongi.png" : "/logo.png";
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [coverage, setCoverage] = useState<CoveragePayload>(
     coverageCache ?? { aws: false, k8s: false, prometheus: false },
@@ -241,11 +244,11 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-[#0f1218] md:flex">
       <div className="flex items-stretch gap-3 p-6">
-        <div className="flex w-14 shrink-0 items-center justify-center">
-          <Image src="/logo.png" alt="JeolgamAI" width={48} height={48} className="h-full w-auto max-w-full object-contain" />
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center">
+          <Image src={logoSrc} alt="JeolgamAI" width={64} height={64} className="h-16 w-auto object-contain" />
         </div>
         <div className="flex flex-col justify-center gap-0.5">
-          <h1 className="text-xl font-extrabold tracking-tight text-[#2a6ef5]">JeolgamAI</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-brand">JeolgamAI</h1>
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cloud Cost Intelligence</p>
         </div>
       </div>
@@ -256,7 +259,7 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
           const isDisabled = item.coverageKey ? !coverage[item.coverageKey] : false;
           const className = `flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
             isActive
-              ? "bg-[#2a6ef5]/10 text-[#2a6ef5]"
+              ? "bg-brand/10 text-brand"
               : isDisabled
                 ? "cursor-pointer text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -273,7 +276,7 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                   <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
                   {coverageLoaded ? (
-                    <span className="shrink-0 rounded-md border border-[#2a6ef5]/40 bg-[#2a6ef5]/10 px-2 py-1 text-[10px] font-bold text-[#2a6ef5] dark:border-[#2a6ef5]/50 dark:bg-[#2a6ef5]/15">
+                    <span className="shrink-0 rounded-md border border-brand/40 bg-brand/10 px-2 py-1 text-[10px] font-bold text-brand dark:border-brand/50 dark:bg-brand/15">
                       연동 필요 →
                     </span>
                   ) : null}
@@ -303,7 +306,7 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
 <Link
           className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
             isSettingsActive
-              ? "bg-[#2a6ef5]/10 text-[#2a6ef5]"
+              ? "bg-brand/10 text-brand"
               : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           }`}
           href="/integrations"
@@ -311,7 +314,7 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
           <SidebarIcon name="settings" className="h-5 w-5" />
           <span className="text-sm font-medium whitespace-nowrap">연동</span>
         </Link>
-        <div className="mt-2 rounded-xl bg-slate-100 px-3 py-2.5 dark:bg-slate-800/50">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-slate-600 dark:text-slate-400">
           <UserProfileChip
             userName={session?.name ?? "Protected User"}
             userRole={session?.activeProject?.name ?? session?.role ?? "Project Scoped"}
