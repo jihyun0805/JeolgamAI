@@ -4,7 +4,7 @@ import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, u
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authFetch } from "@/lib/auth-fetch";
-import { clearSession } from "@/lib/jwt-store";
+import { clearSession, updateStoredWorkspace } from "@/lib/jwt-store";
 import { AppNotification } from "@/lib/types";
 
 function BellIcon() {
@@ -229,12 +229,21 @@ export default function PageTopBar({
       const payload = await response.json();
       if (!response.ok || !payload?.ok) return;
 
+      updateStoredWorkspace(projectId);
       setSession((prev) =>
         prev
           ? { ...prev, workspaceId: projectId, activeProject: payload.data?.project ?? prev.activeProject }
           : prev,
       );
-      router.refresh();
+      window.dispatchEvent(
+        new CustomEvent("app:workspace:changed", {
+          detail: {
+            workspaceId: projectId,
+            project: payload.data?.project ?? null,
+          },
+        }),
+      );
+      window.location.reload();
     } finally {
       setSwitchingProject(false);
     }

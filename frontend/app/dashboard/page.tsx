@@ -5,6 +5,7 @@ import Link from "next/link";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
+import { AnalysisInsights } from "@/lib/types";
 
 interface DashboardPayload {
   workspaceId: string;
@@ -50,6 +51,7 @@ interface DashboardPayload {
     riskLevel: string;
     rationale?: string | null;
   }>;
+  insights?: AnalysisInsights | null;
 }
 
 function formatKrw(value: number) {
@@ -88,6 +90,25 @@ function riskBadgeClass(riskLevel: string) {
     default:
       return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300";
   }
+}
+
+function signalToneClass(tone: string) {
+  switch (tone) {
+    case "attention":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
+    case "opportunity":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300";
+    case "stable":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400";
+  }
+}
+
+function formatDelta(value: number) {
+  if (value === 0) return "변동 없음";
+  if (value > 0) return `+${formatKrw(value)}`;
+  return `-${formatKrw(Math.abs(value))}`;
 }
 
 /** 첫 줄: "낭비되고 있습니다" + 다음 문장까지. 그 다음 문장부터는 줄바꿈 */
@@ -155,6 +176,17 @@ export default function DashboardPage() {
     loadDashboard().catch(() => {});
   }, []);
 
+  useEffect(() => {
+    function handleWorkspaceChanged() {
+      loadDashboard().catch(() => {});
+    }
+
+    window.addEventListener("app:workspace:changed", handleWorkspaceChanged);
+    return () => {
+      window.removeEventListener("app:workspace:changed", handleWorkspaceChanged);
+    };
+  }, []);
+
   async function onRunAnalysis() {
     setRunningAnalysis(true);
     setError("");
@@ -217,7 +249,7 @@ export default function DashboardPage() {
       barClass: "bg-[#b41a2a]",
     },
     {
-      label: "AI 점수",
+      label: "최적화 점수",
       value: data?.analysis ? `${data.analysis.score.totalScore}점` : "—",
       sub: data?.analysis
         ? `${data.analysis.score.grade} · 신뢰도 ${data.analysis.score.confidencePercent}%`
@@ -321,16 +353,133 @@ export default function DashboardPage() {
               ))}
             </section>
 
+            {data?.insights ? (
+              <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                        Current Signals
+                      </p>
+                      <h3 className="mt-1 text-lg font-bold">지금 먼저 확인할 상태</h3>
+                    </div>
+                    <span className="rounded-full border border-[#2a6ef5]/15 bg-[#2a6ef5]/8 px-3 py-1 text-xs font-semibold text-[#2a6ef5]">
+                      {data.insights.quantitativeScore}점 · {data.insights.quantitativeGrade}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {data.insights.decisionSignals.map((signal) => (
+                      <div key={signal.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{signal.label}</p>
+                            <p className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                              {signal.value}
+                            </p>
+                          </div>
+                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${signalToneClass(signal.tone)}`}>
+                            {signal.statusLabel}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                          {signal.detail}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
+                  <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                    Action Flow
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold">지금 어떤 순서로 봐야 하는가</h3>
+                  <div className="mt-4 rounded-2xl border border-[#2a6ef5]/20 bg-[#2a6ef5]/6 px-4 py-3 dark:bg-[#2a6ef5]/8">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {data.insights.priorityHeadline}
+                    </p>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {data.insights.actionGuide.map((step, index) => (
+                      <div key={step.id} className="flex gap-3 rounded-2xl border border-slate-200 px-4 py-4 dark:border-slate-800">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-white dark:text-slate-900">
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">{step.title}</p>
+                          <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{step.detail}</p>
+                          <p className="mt-2 text-xs font-semibold text-[#2a6ef5]">{step.nextAction}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </section>
+            ) : null}
+
             {/* AI Summary */}
             {data?.analysis?.executiveSummary ? (
               <section className="relative overflow-hidden rounded-2xl border border-[#2a6ef5]/30 bg-gradient-to-br from-[#2a6ef5]/25 via-[#2a6ef5]/12 to-[#2a6ef5]/5 backdrop-blur-xl px-5 py-4 shadow-[0_0_24px_-8px_rgba(42,110,245,0.25)] dark:shadow-[0_0_28px_-8px_rgba(42,110,245,0.2)] dark:border-[#2a6ef5]/25 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-b before:from-white/15 before:to-transparent before:content-[''] dark:before:from-white/5">
                 <div className="relative flex items-center gap-2 text-[#2a6ef5]">
                   <SparkleIcon />
-                  <p className="text-[10px] font-bold tracking-[0.22em] uppercase">AI Analysis Summary</p>
+                  <p className="text-[10px] font-bold tracking-[0.22em] uppercase">AI Commentary</p>
                 </div>
                 <p className="relative mt-2.5 whitespace-pre-line text-sm leading-7 text-slate-700 dark:text-slate-200">
                   {formatExecutiveSummaryWithBreaks(data.analysis.executiveSummary)}
                 </p>
+              </section>
+            ) : null}
+
+            {data?.insights?.scenarios?.length ? (
+              <section className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-[#1a2029]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                      What-if Simulation
+                    </p>
+                    <h3 className="mt-1 text-lg font-bold">운영 시나리오 비교</h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                    조건 변화에 따른 비용과 대응 방향
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                  {data.insights.scenarios.map((scenario) => (
+                    <div
+                      key={scenario.id}
+                      className="flex h-full flex-col rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{scenario.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                            {scenario.summary}
+                          </p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${riskBadgeClass(scenario.riskLevel)}`}>
+                          {scenario.riskLevel}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{scenario.actionLabel}</p>
+                          <p className="mt-1 text-sm font-semibold leading-6 text-slate-900 dark:text-white">
+                            {scenario.actionDetail}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-xs text-slate-400 dark:text-slate-500">예상 월 비용</p>
+                          <p className="mt-1 whitespace-nowrap text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                            {formatKrw(scenario.projectedMonthlyCost)}
+                          </p>
+                          <p className={`mt-1 text-xs font-semibold ${scenario.monthlyDelta <= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-300"}`}>
+                            {formatDelta(scenario.monthlyDelta)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </section>
             ) : null}
 
