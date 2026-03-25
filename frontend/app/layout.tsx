@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Noto_Sans_KR } from "next/font/google";
+import Script from "next/script";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -22,10 +24,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themeInit = `(function(){try{var t=localStorage.getItem('jeolgamai-theme');if(t==='dark'){document.documentElement.classList.add('dark');return;}if(t==='light'){document.documentElement.classList.remove('dark');return;}}catch(e){}var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);})();`;
+
   return (
-    <html lang="ko" className="dark">
+    <html lang="ko" suppressHydrationWarning>
       <body className={`${manrope.variable} ${notoSansKr.variable} antialiased`}>
-        {children}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {themeInit}
+        </Script>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

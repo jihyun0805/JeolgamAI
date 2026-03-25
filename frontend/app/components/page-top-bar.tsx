@@ -1,11 +1,12 @@
 "use client";
 
-import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { authFetch } from "@/lib/auth-fetch";
 import { clearSession, updateStoredWorkspace } from "@/lib/jwt-store";
 import { AppNotification } from "@/lib/types";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import ThemeToggle from "@/app/components/theme-toggle";
+import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 function BellIcon() {
   return (
@@ -106,7 +107,7 @@ function notificationToneClasses(severity: string) {
     case "critical":
       return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300";
     default:
-      return "border-[#2a6ef5]/20 bg-[#2a6ef5]/10 text-[#2a6ef5]";
+      return "border-brand/20 bg-brand/10 text-brand";
   }
 }
 
@@ -297,7 +298,7 @@ export default function PageTopBar({
           {/* project selector */}
           {session?.projects && session.projects.length > 0 ? (
             <select
-              className="hidden h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-0 text-xs font-semibold text-slate-700 transition focus:border-[#2a6ef5] focus:outline-none md:block dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-200"
+              className="hidden h-8 rounded-xl border border-slate-200 bg-slate-50 px-3 py-0 text-sm font-semibold text-slate-700 transition focus:border-brand focus:outline-none md:block dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-200"
               disabled={switchingProject}
               onChange={(e) => onSelectProject(e.target.value)}
               value={session.workspaceId}
@@ -313,7 +314,7 @@ export default function PageTopBar({
           {canCreateProject ? (
             <Link
               href="/projects/new"
-              className="hidden h-9 items-center gap-2 rounded-xl border border-[#2a6ef5]/20 bg-[#2a6ef5]/8 px-3 text-xs font-semibold text-[#2a6ef5] transition hover:border-[#2a6ef5]/35 hover:bg-[#2a6ef5]/12 md:inline-flex"
+              className="hidden h-8 items-center gap-2 rounded-xl border border-brand/20 bg-brand/8 px-2 py-0 text-sm font-bold text-brand transition hover:border-brand/35 hover:bg-brand/12 md:inline-flex"
             >
               <PlusIcon />
               프로젝트 생성
@@ -324,6 +325,8 @@ export default function PageTopBar({
           {actions ? (
             <div className="hidden items-center gap-2 xl:flex">{actions}</div>
           ) : null}
+
+          <ThemeToggle />
 
           {/* notification bell */}
           <div ref={notificationsRef} className="relative">
@@ -363,7 +366,7 @@ export default function PageTopBar({
                       onClick={() => {
                         markNotificationsRead().catch(() => {});
                       }}
-                      className="text-xs font-semibold text-[#2a6ef5] transition hover:underline"
+                      className="text-xs font-semibold text-brand transition hover:underline"
                     >
                       모두 읽음
                     </button>
@@ -406,7 +409,7 @@ export default function PageTopBar({
                             }
                             router.push(href);
                           }}
-                          className="block rounded-2xl border border-slate-200 px-3.5 py-3 transition hover:border-[#2a6ef5]/20 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-[#2a6ef5]/20 dark:hover:bg-[#131820]"
+                          className="block rounded-2xl border border-slate-200 px-3.5 py-3 transition hover:border-brand/20 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-brand/20 dark:hover:bg-[#131820]"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -415,7 +418,7 @@ export default function PageTopBar({
                                   {notification.severity.toUpperCase()}
                                 </span>
                                 {!notification.read ? (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-[#2a6ef5]" />
+                                  <span className="h-1.5 w-1.5 rounded-full bg-brand" />
                                 ) : null}
                               </div>
                               <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
@@ -459,7 +462,7 @@ export default function PageTopBar({
                   {profileRole}
                 </p>
               </div>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#2a6ef5]/30 bg-[#2a6ef5]/15 text-xs font-bold text-[#2a6ef5]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand/30 bg-brand/15 text-xs font-bold text-brand">
                 {getInitial(profileName)}
               </div>
             </button>

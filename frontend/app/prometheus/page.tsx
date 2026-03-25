@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
+import { useTheme } from "@/app/components/theme-provider";
 import { authFetch } from "@/lib/auth-fetch";
 
 type SeriesPoint = {
@@ -810,6 +811,8 @@ function MetricPanel({
 }
 
 export default function PrometheusPage() {
+  const { theme } = useTheme();
+  const brandHex = theme === "dark" ? "#2a6ef5" : "#ea580c";
   const defaultRange = buildPresetRange("24h");
   const [data, setData] = useState<PrometheusPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -942,7 +945,7 @@ export default function PrometheusPage() {
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <div>
-                    <p className="text-xs font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                    <p className="text-xs font-bold tracking-[0.22em] text-brand uppercase">
                       Active Project
                     </p>
                     <h2 className="mt-0.5 text-xl font-black tracking-tight">
@@ -966,7 +969,7 @@ export default function PrometheusPage() {
                           onClick={() => applyPresetRange(option.key)}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                             active
-                              ? "bg-[#2a6ef5] text-white shadow-sm"
+                              ? "bg-brand text-white shadow-sm"
                               : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
                           }`}
                         >
@@ -1005,7 +1008,7 @@ export default function PrometheusPage() {
                     <button
                       type="button"
                       onClick={applyCustomRange}
-                      className="shrink-0 rounded-xl bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#2563eb] dark:bg-[#2a6ef5] dark:hover:bg-[#2563eb]"
+                      className="shrink-0 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#2563eb] dark:bg-brand dark:hover:bg-[#2563eb]"
                     >
                       적용
                     </button>
@@ -1032,7 +1035,7 @@ export default function PrometheusPage() {
                 {
                   label: "CPU 평균",
                   value: `${data?.overview.summary.cpuUsagePercent ?? 0}%`,
-                  color: "#2a6ef5",
+                  color: brandHex,
                 },
                 {
                   label: "메모리 평균",
@@ -1079,7 +1082,7 @@ export default function PrometheusPage() {
               <MetricPanel
                 title="CPU 평균"
                 aiBandPoints={cpuAiBand}
-                color="#2a6ef5"
+                color={brandHex}
                 forecastPoints={cpuForecast}
                 points={data?.overview.series.cpuUsage ?? []}
                 rangeFrom={data?.overview.timeRange?.from}
@@ -1125,7 +1128,7 @@ export default function PrometheusPage() {
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <p className="text-[10px] font-bold tracking-[0.22em] text-[#2a6ef5] uppercase">
+                    <p className="text-[10px] font-bold tracking-[0.22em] text-brand uppercase">
                       Forecast Table
                     </p>
                     <h3 className="mt-1 text-lg font-bold">예상 메트릭 사용량</h3>
@@ -1161,30 +1164,30 @@ export default function PrometheusPage() {
                       {data.overview.forecast.metrics.map((metric) => {
                         const unit = metric.unit === "ms" ? "ms" : "percent";
                         return (
-                          <tr key={metric.key} className="align-middle">
-                            <td className="px-5 py-5">
+                          <tr key={metric.key} className="align-top">
+                            <td className="px-5 py-4">
                               <div className="max-w-[30rem]">
                                 <p className="text-[15px] font-semibold text-slate-900 dark:text-white">
                                   {metric.label}
                                 </p>
-                                <p className="mt-2 min-h-[3rem] break-keep text-sm leading-6 text-slate-500 dark:text-slate-400">
+                                <p className="mt-1.5 break-keep text-sm leading-6 text-slate-500 dark:text-slate-400">
                                   {metric.detail}
                                 </p>
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                            <td className="align-middle whitespace-nowrap px-4 py-4 text-right text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
                               {formatMetricValue(metric.currentValue, unit)}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
+                            <td className="align-middle whitespace-nowrap px-4 py-4 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
                               {formatMetricValue(metric.forecast1h, unit)}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
+                            <td className="align-middle whitespace-nowrap px-4 py-4 text-right text-[15px] tabular-nums text-slate-600 dark:text-slate-300">
                               {formatMetricValue(metric.forecast6h, unit)}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-5 text-right text-[15px] font-semibold tabular-nums text-[#2a6ef5]">
+                            <td className="align-middle whitespace-nowrap px-4 py-4 text-right text-[15px] font-semibold tabular-nums text-brand">
                               {formatMetricValue(metric.forecast24h, unit)}
                             </td>
-                            <td className="px-5 py-5 text-center">
+                            <td className="align-middle px-5 py-4 text-center">
                               <span className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${forecastToneClass(metric.statusLabel)}`}>
                                 {metric.statusLabel}
                               </span>

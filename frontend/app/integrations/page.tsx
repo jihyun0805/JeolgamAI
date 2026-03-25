@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useTheme } from "@/app/components/theme-provider";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
@@ -35,9 +37,9 @@ interface ApiEnvelope<T> {
 
 /* ─── shared input style ────────────────────────────────────────────────── */
 const inputCls =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#2a6ef5] dark:focus:bg-[#151b24]";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-brand focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:bg-[#151b24]";
 const textareaCls =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#2a6ef5] dark:focus:bg-[#151b24]";
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-brand focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:bg-[#151b24]";
 
 /* ─── field wrapper ─────────────────────────────────────────────────────── */
 function Field({
@@ -139,42 +141,27 @@ function StatusBadge({
 }
 
 /* ─── integration icon ──────────────────────────────────────────────────── */
-function IntegrationIcon({ type }: { type: "aws" | "k8s" | "prometheus" }) {
-  const baseProps = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className: "h-5 w-5",
-    "aria-hidden": true,
-  };
-
-  if (type === "aws") {
-    return (
-      <svg {...baseProps}>
-        <path d="M7 18.5h9.5a3.5 3.5 0 1 0-.5-7 5 5 0 0 0-9.7-1.3A3.8 3.8 0 0 0 7 18.5Z" />
-      </svg>
-    );
-  }
-  if (type === "k8s") {
-    return (
-      <svg {...baseProps}>
-        <path d="M12 4 5 8v8l7 4 7-4V8l-7-4Z" />
-        <path d="m5 8 7 4 7-4" />
-        <path d="M12 12v8" />
-      </svg>
-    );
-  }
+function IntegrationIcon({
+  type,
+  size = "md",
+}: {
+  type: "aws" | "k8s" | "prometheus";
+  size?: "sm" | "md";
+}) {
+  const { theme } = useTheme();
+  const src = theme === "light"
+    ? `/icons/sidebar/${type}.png`
+    : `/icons/sidebar/${type}_dark.png`;
+  const px = size === "sm" ? 20 : 24;
   return (
-    <svg {...baseProps}>
-      <path d="M4 18V6" />
-      <path d="M10 18v-7" />
-      <path d="M16 18v-4" />
-      <path d="M22 18V8" />
-      <path d="m4 12 6-3 6 2 6-4" />
-    </svg>
+    <Image
+      src={src}
+      alt=""
+      width={px}
+      height={px}
+      className={size === "sm" ? "h-5 w-5 object-contain" : "h-6 w-6 object-contain"}
+      unoptimized
+    />
   );
 }
 
@@ -231,7 +218,7 @@ function FormCard({
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl bg-[#2a6ef5] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "처리 중…" : submitLabel}
         </button>
@@ -379,7 +366,7 @@ export default function IntegrationsPage() {
             <button
               onClick={runAnalysis}
               disabled={runningAnalysis}
-              className="rounded-xl bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-xl bg-brand px-4 py-0 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {runningAnalysis ? "분석 중…" : "샘플 분석 실행"}
             </button>
@@ -387,10 +374,11 @@ export default function IntegrationsPage() {
         />
 
         <main className="content-area-subtle flex min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-10 md:px-8 md:pt-8 md:pb-14">
-          <div className="grid w-full grid-cols-1 gap-6 pb-10 md:pb-14 xl:grid-cols-[1fr_320px]">
-
+          <div className="w-full pb-10 md:pb-14">
+            {/* stretch 기본값: 두 칸 높이를 왼쪽(긴 쪽)에 맞춤 → 오른쪽 안쪽 sticky가 스크롤 구간 전체에서 동작 */}
+            <div className="grid w-full grid-cols-1 gap-6 xl:grid-cols-[1fr_320px] xl:gap-8">
             {/* ── left: forms ── */}
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
 
               {/* AWS */}
               <FormCard
@@ -399,7 +387,7 @@ export default function IntegrationsPage() {
                 tagline="Cost Explorer · EC2 · RDS · S3"
                 status={integrationsByType.get("aws")?.status}
                 backendRegistered={integrationsByType.get("aws")?.backendRegistered}
-                iconColor="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+                iconColor="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/22 dark:text-amber-200"
                 onSubmit={onSubmitAws}
                 loading={loading}
                 submitLabel="AWS 검증 및 저장"
@@ -479,7 +467,7 @@ export default function IntegrationsPage() {
                 tagline="nodes · pods · requests · limits"
                 status={integrationsByType.get("k8s")?.status}
                 backendRegistered={integrationsByType.get("k8s")?.backendRegistered}
-                iconColor="border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300"
+                iconColor="border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-500/35 dark:bg-violet-500/22 dark:text-violet-200"
                 onSubmit={onSubmitK8s}
                 loading={loading}
                 submitLabel="K8s 검증 및 저장"
@@ -540,7 +528,7 @@ export default function IntegrationsPage() {
                 tagline="CPU · Memory · Error rate · Latency"
                 status={integrationsByType.get("prometheus")?.status}
                 backendRegistered={integrationsByType.get("prometheus")?.backendRegistered}
-                iconColor="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300"
+                iconColor="border-orange-300 bg-orange-100 text-orange-700 dark:border-orange-500/35 dark:bg-orange-500/22 dark:text-orange-200"
                 onSubmit={onSubmitPrometheus}
                 loading={loading}
                 submitLabel="Prometheus 검증 및 저장"
@@ -633,9 +621,8 @@ export default function IntegrationsPage() {
               </FormCard>
             </div>
 
-            {/* ── right: sidebar ── */}
-            <aside>
-              <div className="space-y-4 xl:sticky xl:top-6">
+            <aside className="min-h-0 min-w-0 w-full">
+              <div className="w-full space-y-4 xl:sticky xl:top-0">
 
               {/* connection status */}
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
@@ -649,19 +636,19 @@ export default function IntegrationsPage() {
                         type: "aws" as const,
                         label: "AWS",
                         sub: "Cost Explorer · EC2 · RDS · S3",
-                        iconColor: "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
+                        iconColor: "border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/22 dark:text-amber-200",
                       },
                       {
                         type: "k8s" as const,
                         label: "Kubernetes",
                         sub: "nodes · pods · requests · limits",
-                        iconColor: "border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300",
+                        iconColor: "border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-500/35 dark:bg-violet-500/22 dark:text-violet-200",
                       },
                       {
                         type: "prometheus" as const,
                         label: "Prometheus",
                         sub: "CPU · Memory · Errors · Latency",
-                        iconColor: "border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300",
+                        iconColor: "border-orange-300 bg-orange-100 text-orange-700 dark:border-orange-500/35 dark:bg-orange-500/22 dark:text-orange-200",
                       },
                     ] as const
                   ).map((src) => {
@@ -674,7 +661,7 @@ export default function IntegrationsPage() {
                         <div
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${src.iconColor}`}
                         >
-                          <IntegrationIcon type={src.type} />
+                          <IntegrationIcon type={src.type} size="sm" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">{src.label}</p>
@@ -710,6 +697,7 @@ export default function IntegrationsPage() {
               ) : null}
               </div>
             </aside>
+            </div>
 
             <div aria-hidden className="h-10 md:h-14" />
           </div>

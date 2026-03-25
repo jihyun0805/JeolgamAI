@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
-import { ReportArtifact } from "@/lib/types";
 import { authFetch } from "@/lib/auth-fetch";
+import { ReportArtifact } from "@/lib/types";
+import Link from "next/link";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 interface AnalysisPayload {
   project?: {
@@ -96,6 +96,10 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [summaryClamped, setSummaryClamped] = useState(false);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const summaryRef = useRef<HTMLParagraphElement>(null);
   const selectedReportIdRef = useRef<string | null>(null);
   selectedReportIdRef.current = selectedReportId;
 
@@ -193,6 +197,8 @@ export default function ReportsPage() {
       const createdReport = payload.data as ReportArtifact;
       setMessage(`${templateLabel()}를 생성했습니다.`);
       window.dispatchEvent(new Event("app:notifications:refresh"));
+      setSummaryExpanded(false);
+      setExpandedSteps(new Set());
       await loadPageData(createdReport.id);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : String(generateError));
@@ -236,9 +242,28 @@ export default function ReportsPage() {
     }
   }
 
+  // Detect whether the summary paragraph is actually clamped
+  useLayoutEffect(() => {
+    const el = summaryRef.current;
+    if (!el) return;
+    setSummaryClamped(el.scrollHeight > el.clientHeight + 2);
+  }, [selectedReport?.payload?.executiveSummary, summaryExpanded]);
+
   function selectReport(reportId: string) {
     setSelectedReportId(reportId);
+    setSummaryExpanded(false);
+    setSummaryClamped(false);
+    setExpandedSteps(new Set());
     replaceReportQuery(reportId);
+  }
+
+  function toggleStep(id: string) {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   const projectName = reportsData?.project?.name ?? analysisData?.project?.name ?? "프로젝트 로딩 중";
@@ -261,7 +286,7 @@ export default function ReportsPage() {
               type="button"
               onClick={handleGenerateReport}
               disabled={generating || !analysisData?.analysis}
-              className="flex h-8 items-center rounded-xl bg-[#2a6ef5] px-4 py-0 text-sm font-bold text-white transition hover:bg-[#2262f0] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-8 items-center rounded-xl bg-brand px-2 py-0 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generating ? "리포트 생성 중..." : "통합 리포트 생성"}
             </button>
@@ -270,16 +295,14 @@ export default function ReportsPage() {
 
         <div className="content-area-subtle topology-viewport-scrollbar flex min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6 md:px-8 md:pt-8 md:pb-10">
           <div className="w-full space-y-6 pb-6 md:pb-10">
+            {/* scope + stats strip */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                  <p className="text-xs font-bold tracking-[0.24em] text-[#1c59f2] uppercase">
+                  <p className="text-xs font-bold tracking-[0.24em] text-brand uppercase">
                     Report Scope
                   </p>
                   <h2 className="mt-2 text-3xl font-black tracking-tight">{projectName}</h2>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    최신 분석 기준으로 경영 요약과 실행 리포트를 함께 생성합니다. 생성된 결과는 backend DB에 보관됩니다.
-                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -324,39 +347,8 @@ export default function ReportsPage() {
             ) : null}
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+              {/* left column: report history */}
               <div className="space-y-6">
-                <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
-                        Report Action
-                      </p>
-                      <h3 className="mt-1.5 whitespace-nowrap text-xl font-black">통합 리포트 생성</h3>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                      {analysisData?.analysis?.id ?? "none"}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-[#0F141C]">
-                    <p className="text-sm font-bold">경영 요약 + 실행 계획</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                      총 비용, 낭비 비용, 절감 효과, 주요 비용 드라이버와 함께 실행 순서, 명령어, 롤백 가이드까지 한 번에 묶어서 생성합니다.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-2">
-                    {!analysisData?.analysis ? (
-                      <Link
-                        href="/analysis/infrastructure"
-                        className="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-[#0F141C]"
-                      >
-                        먼저 분석 실행하기
-                      </Link>
-                    ) : null}
-                  </div>
-                </article>
-
                 <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -381,7 +373,7 @@ export default function ReportsPage() {
                             onClick={() => selectReport(report.id)}
                             className={`w-full rounded-2xl border p-4 text-left transition ${
                               active
-                                ? "border-[#1c59f2] bg-[#1c59f2]/8"
+                                ? "border-brand/30 bg-brand/8"
                                 : "border-slate-200 bg-slate-50/60 hover:border-slate-300 dark:border-slate-800 dark:bg-[#0F141C] dark:hover:border-slate-700"
                             }`}
                           >
@@ -394,9 +386,6 @@ export default function ReportsPage() {
                             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                               score {report.payload.totalScore} · saving {formatKrw(report.payload.monthlySaving)}
                             </p>
-                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                              {report.payload.topRecommendationTitles.join(" · ") || "추천 항목 없음"}
-                            </p>
                           </button>
                         );
                       })
@@ -406,13 +395,25 @@ export default function ReportsPage() {
                       </div>
                     )}
                   </div>
+
+                  {!analysisData?.analysis ? (
+                    <div className="mt-4">
+                      <Link
+                        href="/analysis/infrastructure"
+                        className="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-[#0F141C]"
+                      >
+                        먼저 분석 실행하기
+                      </Link>
+                    </div>
+                  ) : null}
                 </article>
               </div>
 
+              {/* right column: report detail */}
               <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#161B22]">
                 <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 dark:border-slate-800 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-xs font-bold tracking-[0.22em] text-[#1c59f2] uppercase">
+                    <p className="text-xs font-bold tracking-[0.22em] text-brand uppercase">
                       Report Preview
                     </p>
                     <h3 className="mt-2 text-2xl font-black">
@@ -441,6 +442,7 @@ export default function ReportsPage() {
                   </div>
                 ) : selectedReport && summary ? (
                   <div className="space-y-6 pt-6">
+                    {/* 4-stat strip */}
                     <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-[#0F141C]">
                         <p className="text-xs text-slate-500 dark:text-slate-400">등급</p>
@@ -462,15 +464,31 @@ export default function ReportsPage() {
                       </div>
                     </section>
 
+                    {/* executive summary – collapsible */}
                     <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-[#0F141C]">
                       <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
                         Executive Summary
                       </p>
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200">
+                      <p
+                        ref={summaryRef}
+                        className={`mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200 ${
+                          summaryExpanded ? "" : "line-clamp-3"
+                        }`}
+                      >
                         {summary.executiveSummary || "분석 요약이 아직 생성되지 않았습니다."}
                       </p>
+                      {summaryClamped || summaryExpanded ? (
+                        <button
+                          type="button"
+                          onClick={() => setSummaryExpanded((v) => !v)}
+                          className="mt-2 text-[11px] font-semibold text-brand hover:underline"
+                        >
+                          {summaryExpanded ? "접기" : "더보기"}
+                        </button>
+                      ) : null}
                     </section>
 
+                    {/* recommendations + cost drivers */}
                     <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-[#0F141C]">
                         <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
@@ -493,9 +511,6 @@ export default function ReportsPage() {
                               </p>
                               <p className="mt-2 text-sm text-emerald-500">
                                 예상 절감 {formatKrw(item.monthlySaving)}
-                              </p>
-                              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                {item.rationale || "상세 근거가 없습니다."}
                               </p>
                             </div>
                           ))}
@@ -533,6 +548,7 @@ export default function ReportsPage() {
                       </div>
                     </section>
 
+                    {/* execution plan – accordion */}
                     <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-[#0F141C]">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-xs font-bold tracking-[0.22em] text-slate-500 uppercase dark:text-slate-400">
@@ -543,51 +559,79 @@ export default function ReportsPage() {
                         </span>
                       </div>
 
-                      <div className="mt-4 space-y-4">
-                        {executionPlan.map((item, index) => (
-                          <article
-                            key={item.recommendationId}
-                            className="rounded-2xl border border-slate-200 bg-white/80 p-4 dark:border-slate-700 dark:bg-[#161B22]"
-                          >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                              <div>
-                                <p className="text-xs font-bold tracking-[0.18em] text-[#1c59f2] uppercase">
+                      <div className="mt-4 space-y-2">
+                        {executionPlan.map((item, index) => {
+                          const open = expandedSteps.has(item.recommendationId);
+                          return (
+                            <div
+                              key={item.recommendationId}
+                              className="rounded-2xl border border-slate-200 bg-white/80 dark:border-slate-700 dark:bg-[#161B22]"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleStep(item.recommendationId)}
+                                className="flex w-full items-start gap-4 p-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-2xl"
+                              >
+                                <span className="mt-0.5 shrink-0 text-xs font-bold tracking-[0.18em] text-brand uppercase">
                                   Step {index + 1}
-                                </p>
-                                <h4 className="mt-2 text-base font-black">{item.title}</h4>
-                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                  {item.targetResource} · risk {item.riskLevel} · saving {formatKrw(item.monthlySaving)}
-                                </p>
-                              </div>
-                              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskBadgeClass(item.riskLevel)}`}>
-                                {item.riskLevel}
-                              </span>
-                            </div>
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <h4 className="text-base font-black leading-snug">{item.title}</h4>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskBadgeClass(item.riskLevel)}`}>
+                                        {item.riskLevel}
+                                      </span>
+                                      <svg
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+                                        aria-hidden
+                                      >
+                                        <path d="M4 6l4 4 4-4" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    {item.targetResource} · saving {formatKrw(item.monthlySaving)}
+                                  </p>
+                                </div>
+                              </button>
 
-                            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                              {item.rationale || "실행 배경 설명이 없습니다."}
-                            </p>
-
-                            <div className="mt-4 grid grid-cols-1 gap-3">
-                              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-[#0F141C]">
-                                <p className="text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:text-slate-400">
-                                  Apply
-                                </p>
-                                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-slate-700 dark:text-slate-200">
-                                  {item.commandSnippet}
-                                </pre>
-                              </div>
-                              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-[#0F141C]">
-                                <p className="text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:text-slate-400">
-                                  Rollback
-                                </p>
-                                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-slate-700 dark:text-slate-200">
-                                  {item.rollbackSnippet}
-                                </pre>
-                              </div>
+                              {open ? (
+                                <div className="space-y-4 px-4 pt-1 pb-5">
+                                  {item.rationale ? (
+                                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                      {item.rationale}
+                                    </p>
+                                  ) : null}
+                                  <div className="flex flex-col gap-3">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-5 dark:border-slate-800 dark:bg-[#0F141C]">
+                                      <p className="text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:text-slate-400">
+                                        Apply
+                                      </p>
+                                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-slate-700 dark:text-slate-200">
+                                        {item.commandSnippet}
+                                      </pre>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-5 dark:border-slate-800 dark:bg-[#0F141C]">
+                                      <p className="text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:text-slate-400">
+                                        Rollback
+                                      </p>
+                                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-slate-700 dark:text-slate-200">
+                                        {item.rollbackSnippet}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
-                          </article>
-                        ))}
+                          );
+                        })}
                         {!executionPlan.length ? (
                           <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                             실행 계획이 포함된 통합 리포트를 새로 생성하면 이 영역에 실행 단계가 표시됩니다.

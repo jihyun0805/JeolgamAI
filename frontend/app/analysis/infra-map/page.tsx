@@ -220,7 +220,7 @@ function ViewModeTab({
       onClick={onClick}
       className={`rounded-md border px-2.5 py-1.5 text-[11px] font-bold transition ${
         active
-          ? "border-[#2a6ef5] bg-[#2a6ef5]/15 text-[#2a6ef5]"
+          ? "border-brand bg-brand/15 text-brand"
           : "border-slate-300 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
@@ -276,7 +276,7 @@ function ResourceTypeIcon({ kind }: { kind: ResourceKind }) {
 
 function getResourceToneClass(tone: ResourceTone, active: boolean): string {
   if (active) {
-    return "border-[#2a6ef5] bg-[#2a6ef5]/10";
+    return "border-brand bg-brand/10";
   }
 
   if (tone === "healthy") {
@@ -846,7 +846,7 @@ export default function InfrastructureMapPage() {
           actions={
             <button
               onClick={() => loadSnapshot().catch(() => undefined)}
-              className="rounded-lg bg-[#2a6ef5] px-4 py-2 text-sm font-bold text-white hover:bg-[#2a6ef5]/90"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand/90"
             >
               새로고침
             </button>
@@ -949,7 +949,7 @@ export default function InfrastructureMapPage() {
                             }
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "docker" && selected.name === container.name
-                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
+                                ? "border-brand bg-brand/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -975,7 +975,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "network", name: network.name })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "network" && selected.name === network.name
-                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
+                                ? "border-brand bg-brand/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -1003,7 +1003,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "volume", name: volume.name })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "volume" && selected.name === volume.name
-                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
+                                ? "border-brand bg-brand/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -1029,7 +1029,7 @@ export default function InfrastructureMapPage() {
                             onClick={() => handleSelect({ kind: "process", pid: processItem.pid })}
                             className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                               selected?.kind === "process" && selected.pid === processItem.pid
-                                ? "border-[#2a6ef5] bg-[#2a6ef5]/5"
+                                ? "border-brand bg-brand/5"
                                 : "border-slate-200 dark:border-slate-700"
                             }`}
                           >
@@ -1119,7 +1119,7 @@ export default function InfrastructureMapPage() {
                               key={namespace.name}
                               className={`rounded-xl border p-4 ${
                                 selectedNamespace === namespace.name
-                                  ? "border-[#2a6ef5]/50 bg-[#2a6ef5]/5"
+                                  ? "border-brand/50 bg-brand/5"
                                   : "border-slate-200 dark:border-slate-700"
                               }`}
                             >
@@ -1295,7 +1295,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "docker" &&
                                     selected.name === container.name
-                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
+                                      ? "border-brand bg-brand/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1327,7 +1327,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "network" &&
                                     selected.name === network.name
-                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
+                                      ? "border-brand bg-brand/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1357,7 +1357,7 @@ export default function InfrastructureMapPage() {
                                   }
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "volume" && selected.name === volume.name
-                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
+                                      ? "border-brand bg-brand/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1389,7 +1389,7 @@ export default function InfrastructureMapPage() {
                                   className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
                                     selected?.kind === "process" &&
                                     selected.pid === processItem.pid
-                                      ? "border-[#2a6ef5] bg-[#2a6ef5]/10"
+                                      ? "border-brand bg-brand/10"
                                       : "border-slate-200 dark:border-slate-700"
                                   }`}
                                 >
@@ -1535,7 +1535,7 @@ export default function InfrastructureMapPage() {
                         () => undefined,
                       )
                     }
-                    className="mt-2 w-full rounded-lg bg-[#2a6ef5] px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 w-full rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {executingAction === "restartDeployment"
                       ? "Rollout Restart 중..."
