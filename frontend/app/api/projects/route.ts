@@ -9,6 +9,7 @@ import {
 
 interface CreateProjectBody {
   name?: string;
+  awsRegion?: string;
 }
 
 export async function GET(request: Request) {
@@ -28,15 +29,21 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as CreateProjectBody;
   const name = body.name?.trim();
+  const awsRegion = body.awsRegion?.trim() || "ap-northeast-2";
 
   if (!name || name.length < 2) {
     return fail("VALIDATION_ERROR", "프로젝트 이름은 2자 이상이어야 합니다.", 400);
+  }
+
+  if (awsRegion.length > 50) {
+    return fail("VALIDATION_ERROR", "AWS 리전 형식이 올바르지 않습니다.", 400);
   }
 
   const project = createProject({
     userId: auth.session.userId,
     name,
     role: auth.session.role,
+    awsRegion,
   });
 
   addAuditEvent({
