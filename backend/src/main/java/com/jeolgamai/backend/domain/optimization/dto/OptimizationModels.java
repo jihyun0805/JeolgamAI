@@ -87,6 +87,47 @@ public final class OptimizationModels {
     ) {
     }
 
+    public record DecisionSignal(
+            String id,
+            String label,
+            String value,
+            String statusLabel,
+            String tone,
+            String detail
+    ) {
+    }
+
+    public record WhatIfScenario(
+            String id,
+            String title,
+            String summary,
+            String actionLabel,
+            String actionDetail,
+            String riskLevel,
+            long projectedMonthlyCost,
+            long monthlyDelta
+    ) {
+    }
+
+    public record ActionGuideStep(
+            String id,
+            String title,
+            String detail,
+            String nextAction
+    ) {
+    }
+
+    public record AnalysisInsights(
+            int quantitativeScore,
+            String quantitativeGrade,
+            String aiCommentary,
+            String priorityHeadline,
+            List<DecisionSignal> decisionSignals,
+            List<WhatIfScenario> scenarios,
+            List<ActionGuideStep> actionGuide
+    ) {
+    }
+
     public record InfrastructureResource(
             String id,
             String name,
@@ -274,7 +315,8 @@ public final class OptimizationModels {
             String workspaceId,
             ProjectSummary project,
             AnalysisSnapshot analysis,
-            List<Recommendation> recommendations
+            List<Recommendation> recommendations,
+            AnalysisInsights insights
     ) {
     }
 
