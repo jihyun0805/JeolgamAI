@@ -4,6 +4,7 @@ import com.jeolgamai.backend.domain.auth.dto.AuthResponse;
 import com.jeolgamai.backend.domain.auth.dto.CurrentUserResponse;
 import com.jeolgamai.backend.domain.auth.dto.LoginRequest;
 import com.jeolgamai.backend.domain.auth.dto.SignUpRequest;
+import com.jeolgamai.backend.domain.project.service.ProjectService;
 import com.jeolgamai.backend.domain.user.entity.UserAccount;
 import com.jeolgamai.backend.domain.user.repository.UserAccountRepository;
 import com.jeolgamai.backend.global.security.JwtTokenProvider;
@@ -23,6 +24,7 @@ public class AuthService {
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final ProjectService projectService;
 
     public AuthResponse signUp(SignUpRequest request) {
         String normalizedLoginId = normalizeLoginId(request.getLoginId());
@@ -42,6 +44,7 @@ public class AuthService {
                         request.getName().trim()
                 )
         );
+        projectService.ensureDefaultProject(saved.getId());
 
         String token = jwtTokenProvider.generateToken(saved.getId(), saved.getEmail(), saved.getLoginId());
         return new AuthResponse(saved.getId(), saved.getLoginId(), saved.getEmail(), saved.getName(), token, "Bearer");
@@ -56,6 +59,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid login ID or password");
         }
 
+        projectService.ensureDefaultProject(user.getId());
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail(), user.getLoginId());
         return new AuthResponse(user.getId(), user.getLoginId(), user.getEmail(), user.getName(), token, "Bearer");
     }

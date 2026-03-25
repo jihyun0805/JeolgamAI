@@ -44,6 +44,24 @@ function LogoutIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
 function getInitial(name: string) {
   const trimmed = name.trim();
   return trimmed.length > 0 ? trimmed[0].toUpperCase() : "U";
@@ -189,6 +207,8 @@ export default function PageTopBar({
   }, [notificationsOpen, userMenuOpen]);
 
   const profileName = session?.name ?? userName;
+  const canCreateProject =
+    session?.role === "company_admin" || session?.role === "system_admin";
   const profileRole = useMemo(() => {
     if (session?.activeProject?.name) {
       return `${session.role} · ${session.activeProject.name}`;
@@ -279,6 +299,16 @@ export default function PageTopBar({
                 </option>
               ))}
             </select>
+          ) : null}
+
+          {canCreateProject ? (
+            <Link
+              href="/projects/new"
+              className="hidden h-9 items-center gap-2 rounded-xl border border-[#2a6ef5]/20 bg-[#2a6ef5]/8 px-3 text-xs font-semibold text-[#2a6ef5] transition hover:border-[#2a6ef5]/35 hover:bg-[#2a6ef5]/12 md:inline-flex"
+            >
+              <PlusIcon />
+              프로젝트 생성
+            </Link>
           ) : null}
 
           {/* page-level action buttons */}
