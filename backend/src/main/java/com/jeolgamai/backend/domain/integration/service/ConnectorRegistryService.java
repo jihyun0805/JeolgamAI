@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jeolgamai.backend.domain.integration.entity.ConnectorType;
 import com.jeolgamai.backend.domain.integration.entity.IntegrationConnector;
 import com.jeolgamai.backend.domain.integration.repository.IntegrationConnectorRepository;
+import com.jeolgamai.backend.domain.project.entity.ProjectRecord;
+import com.jeolgamai.backend.domain.project.repository.ProjectRecordRepository;
+import com.jeolgamai.backend.domain.user.entity.UserAccount;
+import com.jeolgamai.backend.domain.user.repository.UserAccountRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +29,9 @@ import java.util.concurrent.ConcurrentMap;
 public class ConnectorRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ConnectorRegistryService.class);
+    private static final String LEGACY_TEST_WORKSPACE_ID = "ws-jeolgam-default";
+    private static final String TEST_USER_LOGIN_ID = "testuser";
+    private static final String DEFAULT_TEST_PROJECT_SUFFIX = " 서울 비용 프로젝트";
 
     private final ConcurrentMap<String, AwsConnectorConfig> awsConnectors = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, K8sConnectorConfig> k8sConnectors = new ConcurrentHashMap<>();
@@ -32,16 +39,22 @@ public class ConnectorRegistryService {
     private final ObjectMapper objectMapper;
     private final IntegrationConnectorRepository integrationConnectorRepository;
     private final ConnectorCryptoService connectorCryptoService;
+    private final ProjectRecordRepository projectRecordRepository;
+    private final UserAccountRepository userAccountRepository;
     private final Path legacyPersistencePath;
 
     public ConnectorRegistryService(
             ObjectMapper objectMapper,
             IntegrationConnectorRepository integrationConnectorRepository,
-            ConnectorCryptoService connectorCryptoService
+            ConnectorCryptoService connectorCryptoService,
+            ProjectRecordRepository projectRecordRepository,
+            UserAccountRepository userAccountRepository
     ) {
         this.objectMapper = objectMapper;
         this.integrationConnectorRepository = integrationConnectorRepository;
         this.connectorCryptoService = connectorCryptoService;
+        this.projectRecordRepository = projectRecordRepository;
+        this.userAccountRepository = userAccountRepository;
         this.legacyPersistencePath = Paths.get(System.getProperty("user.dir"), ".jeolgamai", "connectors.json");
     }
 
@@ -136,12 +149,27 @@ public class ConnectorRegistryService {
 
     private <T> Optional<T> loadConnector(String workspaceId, ConnectorType connectorType, Class<T> configType) {
         try {
-            return integrationConnectorRepository.findByWorkspaceIdAndConnectorType(workspaceId, connectorType)
-                    .map(connector -> deserializeConnector(connector, configType));
+            Optional<T> direct = loadConnectorDirect(workspaceId, connectorType, configType);
+            if (direct.isPresent()) {
+                return direct;
+            }
+
+            Optional<String> legacyWorkspaceId = resolveLegacyWorkspaceId(workspaceId, connectorType);
+            if (legacyWorkspaceId.isEmpty()) {
+                return Optional.empty();
+            }
+
+            return loadConnectorDirect(legacyWorkspaceId.get(), connectorType, configType)
+                    .map(config -> migrateLegacyConnector(workspaceId, connectorType, config));
         } catch (Exception exception) {
             log.warn("connector DB load 실패 (workspaceId={}, type={}): {}", workspaceId, connectorType, exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    private <T> Optional<T> loadConnectorDirect(String workspaceId, ConnectorType connectorType, Class<T> configType) {
+        return integrationConnectorRepository.findByWorkspaceIdAndConnectorType(workspaceId, connectorType)
+                .map(connector -> deserializeConnector(connector, configType));
     }
 
     private <T> T deserializeConnector(IntegrationConnector connector, Class<T> configType) {
@@ -177,6 +205,89 @@ public class ConnectorRegistryService {
                     exception.getMessage()
             );
         }
+    }
+
+    private Optional<String> resolveLegacyWorkspaceId(String workspaceId, ConnectorType connectorType) {
+        String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
+        if (LEGACY_TEST_WORKSPACE_ID.equals(normalizedWorkspaceId)) {
+            return Optional.empty();
+        }
+
+        ProjectRecord project = projectRecordRepository.findById(normalizedWorkspaceId).orElse(null);
+        if (project == null) {
+            return Optional.empty();
+        }
+
+        UserAccount owner = userAccountRepository.findById(project.getOwnerUserId()).orElse(null);
+        if (owner == null || !TEST_USER_LOGIN_ID.equalsIgnoreCase(owner.getLoginId())) {
+            return Optional.empty();
+        }
+
+        String expectedDefaultProjectName = owner.getName() + DEFAULT_TEST_PROJECT_SUFFIX;
+        if (!expectedDefaultProjectName.equals(project.getName())) {
+            return Optional.empty();
+        }
+
+        boolean hasLegacyConnector = integrationConnectorRepository
+                .findByWorkspaceIdAndConnectorType(LEGACY_TEST_WORKSPACE_ID, connectorType)
+                .isPresent();
+        return hasLegacyConnector ? Optional.of(LEGACY_TEST_WORKSPACE_ID) : Optional.empty();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T migrateLegacyConnector(String targetWorkspaceId, ConnectorType connectorType, T config) {
+        T migratedConfig = (T) switch (connectorType) {
+            case AWS -> remapAwsConnector((AwsConnectorConfig) config, targetWorkspaceId);
+            case K8S -> remapK8sConnector((K8sConnectorConfig) config, targetWorkspaceId);
+            case PROMETHEUS -> remapPrometheusConnector((PrometheusConnectorConfig) config, targetWorkspaceId);
+        };
+
+        persistConnector(targetWorkspaceId, connectorType, migratedConfig);
+        log.info(
+                "legacy connector migrated for workspaceId={}, type={}, sourceWorkspaceId={}",
+                targetWorkspaceId,
+                connectorType,
+                LEGACY_TEST_WORKSPACE_ID
+        );
+        return migratedConfig;
+    }
+
+    private AwsConnectorConfig remapAwsConnector(AwsConnectorConfig config, String workspaceId) {
+        return new AwsConnectorConfig(
+                workspaceId,
+                config.integrationName(),
+                config.authMode(),
+                config.region(),
+                config.roleArn(),
+                config.externalId(),
+                config.accessKeyId(),
+                config.secretAccessKey(),
+                config.accountId(),
+                config.callerArn(),
+                config.status(),
+                config.validatedAt()
+        );
+    }
+
+    private K8sConnectorConfig remapK8sConnector(K8sConnectorConfig config, String workspaceId) {
+        return new K8sConnectorConfig(
+                workspaceId,
+                config.apiServerUrl(),
+                config.token(),
+                config.clusterName(),
+                config.caCertPem()
+        );
+    }
+
+    private PrometheusConnectorConfig remapPrometheusConnector(PrometheusConnectorConfig config, String workspaceId) {
+        return new PrometheusConnectorConfig(
+                workspaceId,
+                config.baseUrl(),
+                config.authMode(),
+                config.username(),
+                config.password(),
+                config.token()
+        );
     }
 
     private void importLegacySnapshotIfPresent() {
