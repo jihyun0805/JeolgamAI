@@ -176,6 +176,17 @@ export default function DashboardPage() {
     loadDashboard().catch(() => {});
   }, []);
 
+  useEffect(() => {
+    function handleWorkspaceChanged() {
+      loadDashboard().catch(() => {});
+    }
+
+    window.addEventListener("app:workspace:changed", handleWorkspaceChanged);
+    return () => {
+      window.removeEventListener("app:workspace:changed", handleWorkspaceChanged);
+    };
+  }, []);
+
   async function onRunAnalysis() {
     setRunningAnalysis(true);
     setError("");

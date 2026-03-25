@@ -234,6 +234,14 @@ export default function PageTopBar({
           ? { ...prev, workspaceId: projectId, activeProject: payload.data?.project ?? prev.activeProject }
           : prev,
       );
+      window.dispatchEvent(
+        new CustomEvent("app:workspace:changed", {
+          detail: {
+            workspaceId: projectId,
+            project: payload.data?.project ?? null,
+          },
+        }),
+      );
       router.refresh();
     } finally {
       setSwitchingProject(false);

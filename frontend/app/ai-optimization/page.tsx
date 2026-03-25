@@ -184,6 +184,19 @@ export default function AiOptimizationPage() {
   }, []);
 
   useEffect(() => {
+    function handleWorkspaceChanged() {
+      setMessages([]);
+      setAnalysisId("");
+      loadWorkspaceOptimization().catch(() => {});
+    }
+
+    window.addEventListener("app:workspace:changed", handleWorkspaceChanged);
+    return () => {
+      window.removeEventListener("app:workspace:changed", handleWorkspaceChanged);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!analysisId) return;
     loadChat(analysisId).catch((chatError) => {
       setError(chatError instanceof Error ? chatError.message : String(chatError));
