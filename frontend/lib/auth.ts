@@ -70,6 +70,18 @@ function resolveWorkspaceForUser(userId: string, workspaceId: string): string | 
   return user?.defaultProjectId ?? accessibleProjects[0]?.id ?? null;
 }
 
+function resolveWorkspaceForSession(params: {
+  userId: string;
+  workspaceId: string;
+  backendAccessToken?: string;
+}): string | null {
+  if (params.backendAccessToken) {
+    return params.workspaceId;
+  }
+
+  return resolveWorkspaceForUser(params.userId, params.workspaceId);
+}
+
 function isSessionExpired(expiresAt: string | undefined): boolean {
   return Boolean(expiresAt && new Date(expiresAt).getTime() < Date.now());
 }
@@ -89,7 +101,11 @@ function buildSessionFromHeaders(
     return { session: null };
   }
 
-  const resolvedWorkspaceId = resolveWorkspaceForUser(userId, workspaceId);
+  const resolvedWorkspaceId = resolveWorkspaceForSession({
+    userId,
+    workspaceId,
+    backendAccessToken: token,
+  });
   if (!resolvedWorkspaceId) {
     return { session: null };
   }
@@ -119,7 +135,11 @@ function buildSessionFromCookie(
     return { session: null };
   }
 
-  const resolvedWorkspaceId = resolveWorkspaceForUser(payload.userId, payload.workspaceId);
+  const resolvedWorkspaceId = resolveWorkspaceForSession({
+    userId: payload.userId,
+    workspaceId: payload.workspaceId,
+    backendAccessToken: payload.backendAccessToken,
+  });
   if (!resolvedWorkspaceId) {
     return { session: null };
   }
