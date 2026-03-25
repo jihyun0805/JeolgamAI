@@ -5,7 +5,9 @@ import {
   selectSessionWorkspace,
 } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { addAuditEvent, getProjectForUser } from "@/lib/store";
+import { getBackendJson } from "@/lib/backend-client";
+import { addAuditEvent, getProjectForUser, syncProjectsForUser } from "@/lib/store";
+import { Project } from "@/lib/types";
 
 interface SelectProjectBody {
   projectId?: string;
@@ -20,6 +22,22 @@ export async function POST(request: Request) {
 
   if (!projectId) {
     return fail("VALIDATION_ERROR", "projectId는 필수입니다.", 400);
+  }
+
+  if (auth.session.backendAccessToken) {
+    try {
+      const backendProjects = await getBackendJson<Project[]>("/api/projects", {
+        accessToken: auth.session.backendAccessToken,
+      });
+      syncProjectsForUser({
+        userId: auth.session.userId,
+        role: auth.session.role,
+        projects: backendProjects,
+        defaultProjectId: auth.session.workspaceId,
+      });
+    } catch {
+      // backend 조회 실패 시 현재 로컬 미러 기준으로 검증한다.
+    }
   }
 
   const project = getProjectForUser(auth.session.userId, projectId);
