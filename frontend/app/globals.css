@@ -2,17 +2,60 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  /* 라이트: 흰·크림 베이스 + 주황 포인트 */
+  --brand: #ea580c;
+  --brand-hover: #c2410c;
+  --brand-foreground: #ffffff;
+  --brand-muted: color-mix(in srgb, var(--brand) 14%, transparent);
+  --brand-border: color-mix(in srgb, var(--brand) 35%, transparent);
+  --surface-elevated: #ffffff;
+  --surface-muted: #f5f5f4;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #050a1f;
+  --foreground: #e2e8f0;
+  --brand: #2a6ef5;
+  --brand-hover: #2262f0;
+  --brand-foreground: #ffffff;
+  --brand-muted: color-mix(in srgb, var(--brand) 14%, transparent);
+  --brand-border: color-mix(in srgb, var(--brand) 35%, transparent);
+  --surface-elevated: #1a2029;
+  --surface-muted: #0f1218;
+}
+
+/*
+ * 전역 UI를 약 90%로 축소 (Ctrl–와 유사).
+ * font-size만 줄이는 방식과 달리 px·border·고정 크기까지 함께 스케일됨.
+ * zoom 미지원 브라우저는 rem만 줄이는 font-size로 대체.
+ */
+html {
+  zoom: 0.9;
+  min-height: 100dvh;
+}
+
+@supports not (zoom: 1) {
+  html {
+    zoom: normal;
+    font-size: 90%;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
   --font-sans: var(--font-manrope);
 }
 
 body {
+  min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-manrope), var(--font-noto-sans-kr), sans-serif;
@@ -84,9 +127,9 @@ body {
 
 .content-area-subtle {
   background: radial-gradient(
-    ellipse 100% 60% at 50% 0%,
-    rgba(0, 0, 0, 0.025) 0%,
-    transparent 55%
+    ellipse 100% 55% at 50% 0%,
+    color-mix(in srgb, var(--brand) 8%, transparent) 0%,
+    transparent 58%
   );
 }
 .dark .content-area-subtle {

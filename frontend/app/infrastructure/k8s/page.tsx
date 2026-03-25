@@ -5,6 +5,7 @@ import Image from "next/image";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
+import { useTheme } from "@/app/components/theme-provider";
 
 type HealthTone = "healthy" | "progressing" | "degraded" | "neutral";
 type GraphNodeKind =
@@ -453,16 +454,37 @@ function ResourceMapNode({
   chips?: NodeChip[];
   onClick?: () => void;
 }) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const isInfoCard = !onClick;
+
   return (
     <article
-      className={`relative mx-auto h-[176px] w-full max-w-[320px] overflow-hidden rounded-[24px] border bg-white px-6 py-5 shadow-sm dark:bg-[#1a2029] ${
-        onClick
-          ? "cursor-pointer border-slate-200 transition-all hover:border-[#2a6ef5]/40 hover:shadow-md dark:border-slate-800 dark:hover:border-[#2a6ef5]/40"
+      className={`group relative mx-auto w-full max-w-[320px] rounded-[24px] border bg-white px-6 py-5 shadow-sm dark:bg-[#1a2029] ${
+        infoOpen ? "z-20 overflow-visible" : "h-[176px] overflow-hidden"
+      } ${
+        onClick || isInfoCard
+          ? "cursor-pointer border-slate-200 transition-all hover:border-brand/40 hover:shadow-md dark:border-slate-800 dark:hover:border-brand/40"
           : "border-slate-200 dark:border-slate-800"
       }`}
-      onClick={onClick}
+      onClick={onClick ?? (isInfoCard ? () => setInfoOpen((v) => !v) : undefined)}
     >
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${cardAccentClass(tone)} opacity-70`} />
+      <div className={`pointer-events-none absolute inset-0 rounded-[24px] bg-gradient-to-br ${cardAccentClass(tone)} opacity-70`} />
+      {onClick && (
+        <div className="absolute right-4 bottom-4 flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-400 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 dark:border-slate-700 dark:bg-[#1a2029]/80 dark:text-slate-500">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5" aria-hidden>
+            <path d="M2 6h8M6 2l4 4-4 4" />
+          </svg>
+          자세히
+        </div>
+      )}
+      {isInfoCard && !infoOpen && (
+        <div className="absolute right-4 bottom-4 flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-400 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 dark:border-slate-700 dark:bg-[#1a2029]/80 dark:text-slate-500">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5" aria-hidden>
+            <path d="M6 1v10M1 6h10" />
+          </svg>
+          더보기
+        </div>
+      )}
       <div className="relative flex h-full items-start gap-5">
         <div className={`flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] border ${toneClass(tone)}`}>
           <GraphIcon kind={kind} />
@@ -492,15 +514,15 @@ function ResourceMapNode({
           </div>
           {meta ? (
             <p
-              className="mt-3 truncate text-sm leading-6 text-slate-500 dark:text-slate-400"
-              title={meta}
+              className={`mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400 ${infoOpen ? "whitespace-normal break-words" : "truncate"}`}
+              title={infoOpen ? undefined : meta}
             >
               {meta}
             </p>
           ) : null}
           {chips?.length ? (
-            <div className="mt-auto flex min-w-0 items-center gap-2 overflow-hidden pt-4">
-              {chips.slice(0, 2).map((chip) => (
+            <div className={`mt-auto flex min-w-0 gap-2 pt-4 ${infoOpen ? "flex-wrap" : "items-center overflow-hidden"}`}>
+              {(infoOpen ? chips : chips.slice(0, 2)).map((chip) => (
                 <span
                   key={`${title}-${chip.title ?? chip.label}`}
                   title={chip.title ?? chip.label}
@@ -509,13 +531,22 @@ function ResourceMapNode({
                   <span className="truncate">{chip.label}</span>
                 </span>
               ))}
-              {chips.length > 2 ? (
+              {!infoOpen && chips.length > 2 ? (
                 <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-400">
                   +{chips.length - 2}
                 </span>
               ) : null}
             </div>
           ) : null}
+          {infoOpen && isInfoCard && (
+            <button
+              type="button"
+              className="mt-3 text-[10px] font-semibold text-brand hover:underline"
+              onClick={(e) => { e.stopPropagation(); setInfoOpen(false); }}
+            >
+              접기
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -585,6 +616,13 @@ function BranchConnector({
   label: string;
   className?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const lineStroke = isDark ? "rgba(71, 85, 105, 0.75)" : "rgba(249, 115, 22, 0.7)";
+  const arrowStroke = isDark ? "rgba(100, 116, 139, 0.95)" : "rgba(234, 88, 12, 0.95)";
+  const dotFill = isDark ? "#11161D" : "#fff7ed";
+  const dotStroke = isDark ? "rgba(100, 116, 139, 0.85)" : "rgba(249, 115, 22, 0.8)";
+
   const width = 156;
   const sourceX = 12;
   const trunkX = 74;
@@ -618,7 +656,7 @@ function BranchConnector({
                 y1={sourceCenterY}
                 x2={trunkX}
                 y2={sourceCenterY}
-                stroke="rgba(71, 85, 105, 0.75)"
+                stroke={lineStroke}
                 strokeWidth="2"
                 strokeDasharray="4 6"
               />
@@ -627,7 +665,7 @@ function BranchConnector({
                 y1={sourceCenterY}
                 x2={trunkX}
                 y2={targetCenterY}
-                stroke="rgba(71, 85, 105, 0.75)"
+                stroke={lineStroke}
                 strokeWidth="2"
                 strokeDasharray="4 6"
               />
@@ -636,7 +674,7 @@ function BranchConnector({
                 y1={targetCenterY}
                 x2={targetX}
                 y2={targetCenterY}
-                stroke="rgba(71, 85, 105, 0.75)"
+                stroke={lineStroke}
                 strokeWidth="2"
                 strokeDasharray="4 6"
               />
@@ -646,13 +684,13 @@ function BranchConnector({
                 width="8"
                 height="8"
                 rx="1.5"
-                fill="#11161D"
-                stroke="rgba(100, 116, 139, 0.85)"
+                fill={dotFill}
+                stroke={dotStroke}
               />
               <path
                 d={`M ${targetX - 10} ${targetCenterY - 7} L ${targetX} ${targetCenterY} L ${targetX - 10} ${targetCenterY + 7}`}
                 fill="none"
-                stroke="rgba(100, 116, 139, 0.95)"
+                stroke={arrowStroke}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -757,7 +795,7 @@ function ResourceDetailSidebar({
           <span
             className={`absolute left-1/2 top-1/2 flex h-16 w-4 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-full border shadow-lg backdrop-blur-sm transition ${
               isResizing
-                ? "border-[#2a6ef5]/40 bg-[#2a6ef5]/16 shadow-[0_12px_40px_rgba(28,89,242,0.18)]"
+                ? "border-brand/40 bg-brand/16 shadow-[0_12px_40px_rgba(28,89,242,0.18)]"
                 : "border-slate-200/80 bg-white/88 opacity-0 group-hover:opacity-100 dark:border-slate-700/80 dark:bg-[#1a2029]/88"
             }`}
           >
@@ -1055,7 +1093,7 @@ export default function K8sInfrastructurePage() {
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <div>
                 <div>
-                  <p className="text-xs font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
+                  <p className="text-xs font-bold tracking-[0.24em] text-brand uppercase">
                     Live Cluster Canvas
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1127,7 +1165,7 @@ export default function K8sInfrastructurePage() {
                   value={namespaceSearch}
                   onChange={(event) => setNamespaceSearch(event.target.value)}
                   placeholder="검색"
-                  className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a6ef5] focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="h-8 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
                 <div className="flex flex-wrap items-center gap-1.5">
                   {visibleNamespaces.map((namespace) => {
@@ -1148,7 +1186,7 @@ export default function K8sInfrastructurePage() {
                         onClick={() => setSelectedNamespace(namespace.name)}
                         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                           isActive
-                            ? "border-[#2a6ef5]/30 bg-[#2a6ef5]/10 text-[#2a6ef5]"
+                            ? "border-brand/30 bg-brand/10 text-brand"
                             : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-[#141b24]"
                         }`}
                       >
@@ -1210,7 +1248,7 @@ export default function K8sInfrastructurePage() {
                   value={workloadSearch}
                   onChange={(event) => setWorkloadSearch(event.target.value)}
                   placeholder="service, deployment, pod 검색"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#2a6ef5] focus:bg-white focus:outline-none xl:w-72 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none xl:w-72 dark:border-slate-700 dark:bg-[#0f1218] dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
 

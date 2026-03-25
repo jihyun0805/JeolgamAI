@@ -81,7 +81,7 @@ export default function AwsInfrastructurePage() {
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
-              <p className="text-xs font-bold tracking-[0.24em] text-[#2a6ef5] uppercase">
+              <p className="text-xs font-bold tracking-[0.24em] text-brand uppercase">
                 AWS Seoul
               </p>
               <h2 className="mt-2 text-3xl font-black tracking-tight">

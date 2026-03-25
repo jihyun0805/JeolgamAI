@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/app/components/theme-toggle";
 import { FormEvent, useState } from "react";
 
 type SignupField = "name" | "loginId" | "password" | "passwordConfirm";
@@ -130,10 +131,13 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#050a1f] px-5 py-10 text-white">
-      <div className="mx-auto w-full max-w-md rounded-2xl border border-blue-400/20 bg-[#101f4f]/70 p-7 shadow-[0_20px_80px_rgba(11,72,200,0.3)] backdrop-blur-xl">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-5 py-10 text-foreground">
+      <div className="absolute right-4 top-4 z-10 md:right-8 md:top-8">
+        <ThemeToggle />
+      </div>
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 p-7 shadow-[0_20px_80px_color-mix(in_srgb,var(--brand)_16%,transparent)] backdrop-blur-xl dark:border-blue-400/20 dark:bg-[#101f4f]/70 dark:shadow-[0_20px_80px_rgba(11,72,200,0.3)]">
         <h1 className="text-2xl font-extrabold">회원가입</h1>
-        <p className="mt-2 text-sm text-blue-100/70">
+        <p className="mt-2 text-sm text-slate-600 dark:text-blue-100/70">
           새 계정을 만들고 JeolgamAI를 시작하세요.
         </p>
 
@@ -141,14 +145,14 @@ export default function SignupPage() {
           {error ? (
             <div
               role="alert"
-              className="rounded-xl border border-red-400/60 bg-red-950/60 px-4 py-3 text-sm font-medium text-red-100 shadow-sm"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 shadow-sm dark:border-red-400/60 dark:bg-red-950/60 dark:text-red-100"
             >
               {error}
             </div>
           ) : null}
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">이름</span>
+            <span className="text-slate-600 dark:text-blue-100/80">이름</span>
             <input
               value={name}
               onChange={(event) => {
@@ -160,16 +164,16 @@ export default function SignupPage() {
                 setTouched((t) => ({ ...t, name: true }));
                 patchFieldError("name", validateNameField(name));
               }}
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="이름 입력"
             />
             {touched.name && fieldErrors.name ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.name}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.name}</p>
             ) : null}
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">아이디</span>
+            <span className="text-slate-600 dark:text-blue-100/80">아이디</span>
             <input
               value={loginId}
               onChange={(event) => {
@@ -181,16 +185,16 @@ export default function SignupPage() {
                 setTouched((t) => ({ ...t, loginId: true }));
                 patchFieldError("loginId", validateLoginIdField(loginId));
               }}
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="아이디 입력"
             />
             {touched.loginId && fieldErrors.loginId ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.loginId}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.loginId}</p>
             ) : null}
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">비밀번호</span>
+            <span className="text-slate-600 dark:text-blue-100/80">비밀번호</span>
             <input
               type="password"
               value={password}
@@ -217,19 +221,19 @@ export default function SignupPage() {
                 }
               }}
               autoComplete="new-password"
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="8자 이상, 영문·숫자 포함"
             />
-            <p className="text-xs text-blue-100/50">
+            <p className="text-xs text-slate-500 dark:text-blue-100/50">
               8자 이상, 영문과 숫자를 모두 포함해야 합니다.
             </p>
             {touched.password && fieldErrors.password ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.password}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.password}</p>
             ) : null}
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">비밀번호 확인</span>
+            <span className="text-slate-600 dark:text-blue-100/80">비밀번호 확인</span>
             <input
               type="password"
               value={passwordConfirm}
@@ -250,26 +254,29 @@ export default function SignupPage() {
                 );
               }}
               autoComplete="new-password"
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="비밀번호 다시 입력"
             />
             {touched.passwordConfirm && fieldErrors.passwordConfirm ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.passwordConfirm}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.passwordConfirm}</p>
             ) : null}
           </label>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
+            className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-brand-foreground transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
           >
             {loading ? "가입 중..." : "회원가입"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-blue-100/70">
+        <p className="mt-6 text-center text-sm text-slate-600 dark:text-blue-100/70">
           이미 계정이 있나요?{" "}
-          <Link className="font-semibold text-blue-300 hover:text-blue-200" href="/login">
+          <Link
+            className="font-semibold text-brand hover:text-brand-hover dark:text-blue-300 dark:hover:text-blue-200"
+            href="/login"
+          >
             로그인
           </Link>
         </p>

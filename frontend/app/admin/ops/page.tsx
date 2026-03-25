@@ -211,7 +211,7 @@ export default function OpsPage() {
                             {/* actor */}
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2.5">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2a6ef5]/10 text-[10px] font-bold text-[#2a6ef5] dark:bg-[#2a6ef5]/15">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand dark:bg-brand/15">
                                   {getInitials(event.actor)}
                                 </span>
                                 <div className="min-w-0">

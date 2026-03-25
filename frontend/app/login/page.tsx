@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import ThemeToggle from "@/app/components/theme-toggle";
 import { storeSession } from "@/lib/jwt-store";
 import { TEST_ACCOUNT } from "@/lib/test-users";
 
@@ -62,10 +63,13 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#050a1f] px-5 py-10 text-white">
-      <div className="mx-auto w-full max-w-md rounded-2xl border border-blue-400/20 bg-[#101f4f]/70 p-7 shadow-[0_20px_80px_rgba(11,72,200,0.3)] backdrop-blur-xl">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-5 py-10 text-foreground">
+      <div className="absolute right-4 top-4 z-10 md:right-8 md:top-8">
+        <ThemeToggle />
+      </div>
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 p-7 shadow-[0_20px_80px_color-mix(in_srgb,var(--brand)_16%,transparent)] backdrop-blur-xl dark:border-blue-400/20 dark:bg-[#101f4f]/70 dark:shadow-[0_20px_80px_rgba(11,72,200,0.3)]">
         <h1 className="text-2xl font-extrabold">로그인</h1>
-        <p className="mt-2 text-sm text-blue-100/70">
+        <p className="mt-2 text-sm text-slate-600 dark:text-blue-100/70">
           계정으로 로그인하고 대시보드로 이동하세요.
         </p>
 
@@ -73,14 +77,14 @@ function LoginPageContent() {
           {error ? (
             <div
               role="alert"
-              className="rounded-xl border border-red-400/60 bg-red-950/60 px-4 py-3 text-sm font-medium text-red-100 shadow-sm"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 shadow-sm dark:border-red-400/60 dark:bg-red-950/60 dark:text-red-100"
             >
               {error}
             </div>
           ) : null}
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">아이디</span>
+            <span className="text-slate-600 dark:text-blue-100/80">아이디</span>
             <input
               value={loginId}
               onChange={(event) => {
@@ -104,16 +108,16 @@ function LoginPageContent() {
                   return next;
                 });
               }}
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="아이디 입력"
             />
             {touched.loginId && fieldErrors.loginId ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.loginId}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.loginId}</p>
             ) : null}
           </label>
 
           <label className="block space-y-2 text-sm">
-            <span className="text-blue-100/80">비밀번호</span>
+            <span className="text-slate-600 dark:text-blue-100/80">비밀번호</span>
             <input
               type="password"
               value={password}
@@ -137,11 +141,11 @@ function LoginPageContent() {
                   return next;
                 });
               }}
-              className="w-full rounded-xl border border-blue-300/30 bg-[#0a153c] px-4 py-3 outline-none ring-blue-400 transition focus:ring-2"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-foreground outline-none ring-brand/40 transition focus:border-brand focus:ring-2 dark:border-blue-300/30 dark:bg-[#0a153c] dark:ring-blue-400"
               placeholder="비밀번호 입력"
             />
             {touched.password && fieldErrors.password ? (
-              <p className="text-xs font-medium text-red-300">{fieldErrors.password}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-300">{fieldErrors.password}</p>
             ) : null}
           </label>
 
@@ -154,15 +158,18 @@ function LoginPageContent() {
           </button>
         </form>
 
-        <div className="mt-5 rounded-xl border border-blue-300/20 bg-[#0a163f] px-4 py-3 text-xs text-blue-100/80">
-          <p className="font-semibold text-blue-100">테스트 계정</p>
+        <div className="mt-5 rounded-xl border border-brand/25 bg-brand-muted px-4 py-3 text-xs text-slate-700 dark:border-blue-300/20 dark:bg-[#0a163f] dark:text-blue-100/80">
+          <p className="font-semibold text-brand dark:text-blue-100">테스트 계정</p>
           <p className="mt-1">아이디: {TEST_ACCOUNT.loginId}</p>
           <p>비밀번호: {TEST_ACCOUNT.password}</p>
         </div>
 
-        <p className="mt-6 text-center text-sm text-blue-100/70">
+        <p className="mt-6 text-center text-sm text-slate-600 dark:text-blue-100/70">
           계정이 없나요?{" "}
-          <Link className="font-semibold text-blue-300 hover:text-blue-200" href="/signup">
+          <Link
+            className="font-semibold text-brand hover:text-brand-hover dark:text-blue-300 dark:hover:text-blue-200"
+            href="/signup"
+          >
             회원가입
           </Link>
         </p>
@@ -175,7 +182,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#050a1f]" />
+        <div className="flex min-h-screen items-center justify-center bg-background" />
       }
     >
       <LoginPageContent />
