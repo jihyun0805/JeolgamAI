@@ -233,7 +233,8 @@ public class OptimizationPersistenceService {
                         record.getProjectCreatedAt()
                 ),
                 analysis,
-                recommendations
+                recommendations,
+                null
         );
     }
 

@@ -140,6 +140,43 @@ export interface ScoreBreakdown {
   pillars: PillarScore[];
 }
 
+export interface DecisionSignal {
+  id: string;
+  label: string;
+  value: string;
+  statusLabel: string;
+  tone: "stable" | "attention" | "opportunity" | "muted" | string;
+  detail: string;
+}
+
+export interface WhatIfScenario {
+  id: string;
+  title: string;
+  summary: string;
+  actionLabel: string;
+  actionDetail: string;
+  riskLevel: RiskLevel | string;
+  projectedMonthlyCost: number;
+  monthlyDelta: number;
+}
+
+export interface ActionGuideStep {
+  id: string;
+  title: string;
+  detail: string;
+  nextAction: string;
+}
+
+export interface AnalysisInsights {
+  quantitativeScore: number;
+  quantitativeGrade: string;
+  aiCommentary?: string | null;
+  priorityHeadline: string;
+  decisionSignals: DecisionSignal[];
+  scenarios: WhatIfScenario[];
+  actionGuide: ActionGuideStep[];
+}
+
 export interface AnalysisSnapshot {
   id: string;
   workspaceId: string;

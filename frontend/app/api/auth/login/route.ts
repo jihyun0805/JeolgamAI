@@ -17,7 +17,9 @@ import {
   createSession,
   getAuthUserByLoginId,
   getProjectsForUser,
+  syncProjectsForUser,
 } from "@/lib/store";
+import { getBackendJson } from "@/lib/backend-client";
 import { UserRole } from "@/lib/types";
 
 const ALLOWED_ROLES: UserRole[] = [
@@ -98,6 +100,14 @@ interface BackendAuthResponse {
   name: string;
   accessToken: string;
   tokenType: string;
+}
+
+interface BackendProject {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  awsRegion: string;
+  createdAt: string;
 }
 
 export async function POST(request: Request) {
@@ -200,10 +210,25 @@ export async function POST(request: Request) {
     email: backendUser.email,
   });
 
+  let projects = getProjectsForUser(user.userId);
+  try {
+    const backendProjects = await getBackendJson<BackendProject[]>("/api/projects", {
+      accessToken: backendUser.accessToken,
+    });
+    projects = syncProjectsForUser({
+      userId: user.userId,
+      role: user.role,
+      projects: backendProjects,
+    });
+  } catch {
+    projects = getProjectsForUser(user.userId);
+  }
+
   const session = createSession({
     userId: user.userId,
     name: user.name,
     role: user.role,
+    workspaceId: projects[0]?.id,
     backendUserId: String(backendUser.userId),
     backendLoginId: backendUser.loginId,
     backendEmail: backendUser.email,
@@ -224,7 +249,6 @@ export async function POST(request: Request) {
     },
   });
 
-  const projects = getProjectsForUser(user.userId);
   const response = NextResponse.json({
     ok: true,
     data: {

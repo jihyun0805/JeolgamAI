@@ -197,7 +197,7 @@ interface CoveragePayload {
 
 let coverageCache: CoveragePayload | null = null;
 
-export default function MainSidebar({ active }: { active: SidebarKey }) {
+export default function MainSidebar({ active }: { active?: SidebarKey }) {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [coverage, setCoverage] = useState<CoveragePayload>(
     coverageCache ?? { aws: false, k8s: false, prometheus: false },

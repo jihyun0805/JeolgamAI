@@ -4,7 +4,7 @@ import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useMemo, useRef, u
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authFetch } from "@/lib/auth-fetch";
-import { clearSession } from "@/lib/jwt-store";
+import { clearSession, updateStoredWorkspace } from "@/lib/jwt-store";
 import { AppNotification } from "@/lib/types";
 
 function BellIcon() {
@@ -40,6 +40,24 @@ function LogoutIcon() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   );
 }
@@ -189,6 +207,8 @@ export default function PageTopBar({
   }, [notificationsOpen, userMenuOpen]);
 
   const profileName = session?.name ?? userName;
+  const canCreateProject =
+    session?.role === "company_admin" || session?.role === "system_admin";
   const profileRole = useMemo(() => {
     if (session?.activeProject?.name) {
       return `${session.role} · ${session.activeProject.name}`;
@@ -209,12 +229,21 @@ export default function PageTopBar({
       const payload = await response.json();
       if (!response.ok || !payload?.ok) return;
 
+      updateStoredWorkspace(projectId);
       setSession((prev) =>
         prev
           ? { ...prev, workspaceId: projectId, activeProject: payload.data?.project ?? prev.activeProject }
           : prev,
       );
-      router.refresh();
+      window.dispatchEvent(
+        new CustomEvent("app:workspace:changed", {
+          detail: {
+            workspaceId: projectId,
+            project: payload.data?.project ?? null,
+          },
+        }),
+      );
+      window.location.reload();
     } finally {
       setSwitchingProject(false);
     }
@@ -279,6 +308,16 @@ export default function PageTopBar({
                 </option>
               ))}
             </select>
+          ) : null}
+
+          {canCreateProject ? (
+            <Link
+              href="/projects/new"
+              className="hidden h-9 items-center gap-2 rounded-xl border border-[#2a6ef5]/20 bg-[#2a6ef5]/8 px-3 text-xs font-semibold text-[#2a6ef5] transition hover:border-[#2a6ef5]/35 hover:bg-[#2a6ef5]/12 md:inline-flex"
+            >
+              <PlusIcon />
+              프로젝트 생성
+            </Link>
           ) : null}
 
           {/* page-level action buttons */}

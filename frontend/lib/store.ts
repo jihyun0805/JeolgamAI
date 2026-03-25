@@ -375,6 +375,59 @@ export function createProject(params: {
   return project;
 }
 
+export function syncProjectsForUser(params: {
+  userId: string;
+  role: UserRole;
+  projects: Project[];
+  defaultProjectId?: string;
+}): Project[] {
+  const store = getStore();
+  const existingMemberships = new Map(
+    store.projectMemberships
+      .filter((membership) => membership.userId === params.userId)
+      .map((membership) => [membership.projectId, membership] as const),
+  );
+
+  const incomingIds = new Set(params.projects.map((project) => project.id));
+  store.projects = [
+    ...params.projects,
+    ...store.projects.filter((project) => !incomingIds.has(project.id)),
+  ];
+
+  const syncedMemberships = params.projects.map((project) => {
+    const existing = existingMemberships.get(project.id);
+    if (existing) {
+      return { ...existing, role: params.role };
+    }
+    return createMembershipRecord({
+      projectId: project.id,
+      userId: params.userId,
+      role: params.role,
+    });
+  });
+
+  store.projectMemberships = [
+    ...syncedMemberships,
+    ...store.projectMemberships.filter((membership) => membership.userId !== params.userId),
+  ];
+
+  const user = store.authUsers.find((item) => item.userId === params.userId);
+  if (user) {
+    const resolvedDefault =
+      (params.defaultProjectId && incomingIds.has(params.defaultProjectId)
+        ? params.defaultProjectId
+        : undefined) ??
+      (user.defaultProjectId && incomingIds.has(user.defaultProjectId)
+        ? user.defaultProjectId
+        : undefined) ??
+      params.projects[0]?.id;
+    user.defaultProjectId = resolvedDefault;
+  }
+
+  persistStore();
+  return params.projects;
+}
+
 export function upsertIntegration(config: IntegrationConfig): IntegrationConfig {
   const store = getStore();
   store.integrations = [

@@ -107,13 +107,15 @@ public class OptimizationService {
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
         return optimizationPersistenceService.findLatestAnalysisBundle(normalizedWorkspaceId)
+                .map(this::decorateBundle)
                 .orElseGet(() -> {
                     OptimizationModels.ProjectSummary project = ensureProject(normalizedWorkspaceId, projectName, awsRegion);
                     return new OptimizationModels.AnalysisBundle(
                             normalizedWorkspaceId,
                             project,
                             null,
-                            List.of()
+                            List.of(),
+                            null
                     );
                 });
     }
@@ -126,6 +128,7 @@ public class OptimizationService {
     ) {
         String normalizedWorkspaceId = requireWorkspaceId(workspaceId);
         return optimizationPersistenceService.findAnalysisBundle(normalizedWorkspaceId, analysisId)
+                .map(this::decorateBundle)
                 .orElseThrow(() -> new IllegalArgumentException("analysisId=" + analysisId + "를 찾을 수 없습니다."));
     }
 
@@ -662,8 +665,212 @@ public class OptimizationService {
                 workspaceId,
                 sources.project(),
                 enrichedAnalysis,
-                enrichedRecommendations
+                enrichedRecommendations,
+                buildAnalysisInsights(enrichedAnalysis, enrichedRecommendations)
         );
+    }
+
+    private OptimizationModels.AnalysisBundle decorateBundle(OptimizationModels.AnalysisBundle bundle) {
+        return new OptimizationModels.AnalysisBundle(
+                bundle.workspaceId(),
+                bundle.project(),
+                bundle.analysis(),
+                bundle.recommendations(),
+                buildAnalysisInsights(bundle.analysis(), bundle.recommendations())
+        );
+    }
+
+    private OptimizationModels.AnalysisInsights buildAnalysisInsights(
+            OptimizationModels.AnalysisSnapshot analysis,
+            List<OptimizationModels.Recommendation> recommendations
+    ) {
+        if (analysis == null) {
+            return null;
+        }
+
+        double avgCpu = averageUsage(analysis.resources(), true);
+        double avgMemory = averageUsage(analysis.resources(), false);
+        double wasteRatio = analysis.totalMonthlyCost() <= 0
+                ? 0
+                : (double) analysis.wasteCost() / analysis.totalMonthlyCost() * 100;
+        OptimizationModels.Recommendation primaryRecommendation = recommendations.stream().findFirst().orElse(null);
+
+        List<OptimizationModels.DecisionSignal> signals = List.of(
+                buildDecisionSignal(
+                        "cpu-efficiency",
+                        "CPU 평균 사용률",
+                        percentLabel(avgCpu),
+                        usageStatusLabel(avgCpu, 30, 75),
+                        usageTone(avgCpu, 30, 75),
+                        avgCpu < 30
+                                ? "현재 CPU 여유가 커서 과다 스펙 또는 유휴 리소스 가능성이 있습니다."
+                                : avgCpu > 75
+                                ? "피크 대응 여유가 적어 scale-out 또는 limit 재조정이 필요할 수 있습니다."
+                                : "현재 부하 대비 안정적인 구간으로 보입니다."
+                ),
+                buildDecisionSignal(
+                        "memory-efficiency",
+                        "메모리 평균 사용률",
+                        percentLabel(avgMemory),
+                        usageStatusLabel(avgMemory, 40, 80),
+                        usageTone(avgMemory, 40, 80),
+                        avgMemory < 40
+                                ? "메모리 사용률이 낮아 requests/limits 조정 여지가 있습니다."
+                                : avgMemory > 80
+                                ? "메모리 헤드룸이 작아 OOM 방지 관점 점검이 필요합니다."
+                                : "메모리 사용량은 비교적 균형적으로 유지되고 있습니다."
+                ),
+                buildDecisionSignal(
+                        "cost-efficiency",
+                        "비용 대비 낭비",
+                        percentLabel(wasteRatio),
+                        wasteRatio > 24 ? "최적화 가능" : "관리 가능",
+                        wasteRatio > 24 ? "opportunity" : "stable",
+                        wasteRatio > 24
+                                ? "유휴 비용과 과할당 추정 비중이 커서 우선 절감 후보를 검토할 가치가 큽니다."
+                                : "낭비 비용 비중이 과도하지는 않지만 지속적인 점검은 필요합니다."
+                ),
+                buildDecisionSignal(
+                        "stability",
+                        "안정성 신호",
+                        analysis.score().confidencePercent() + "%",
+                        analysis.warnings().isEmpty() ? "신뢰 가능" : "주의 필요",
+                        analysis.warnings().isEmpty() ? "stable" : "attention",
+                        analysis.warnings().isEmpty()
+                                ? "수집된 데이터 기준으로 분석 신뢰도가 안정적으로 유지되고 있습니다."
+                                : analysis.warnings().get(0)
+                )
+        );
+
+        List<OptimizationModels.WhatIfScenario> scenarios = List.of(
+                new OptimizationModels.WhatIfScenario(
+                        "baseline",
+                        "현재 패턴 유지",
+                        "현재 부하 패턴이 유지되면 월 비용은 큰 변동 없이 이어질 가능성이 높습니다.",
+                        "우선 확인",
+                        primaryRecommendation == null
+                                ? "추가 연동을 통해 절감 후보를 확보하세요."
+                                : primaryRecommendation.title() + "부터 검토해 즉시 절감 효과를 확인하세요.",
+                        "low",
+                        analysis.totalMonthlyCost(),
+                        0
+                ),
+                new OptimizationModels.WhatIfScenario(
+                        "traffic-plus-30",
+                        "트래픽 30% 증가",
+                        "현재 패턴 대비 요청이 30% 증가했을 때의 비용과 대응 여유를 비교하는 운영 시나리오입니다.",
+                        "사전 준비",
+                        avgCpu > 70 || avgMemory > 75
+                                ? "오토스케일링 또는 requests/limits 재조정 계획을 먼저 점검하세요."
+                                : "현재 여유가 있지만 HPA 및 비용 상한을 함께 검토하세요.",
+                        avgCpu > 70 || avgMemory > 75 ? "high" : "medium",
+                        Math.round(analysis.totalMonthlyCost() * 1.18),
+                        Math.round(analysis.totalMonthlyCost() * 0.18)
+                ),
+                new OptimizationModels.WhatIfScenario(
+                        "optimize-primary",
+                        "대표 권고 우선 적용",
+                        primaryRecommendation == null
+                                ? "아직 바로 적용할 대표 권고가 없습니다."
+                                : "상위 권고 1건을 우선 적용했을 때의 절감 효과를 가정한 시나리오입니다.",
+                        "실행 가이드",
+                        primaryRecommendation == null
+                                ? "AWS, Kubernetes, Prometheus를 더 연동해 권고 후보를 늘리세요."
+                                : primaryRecommendation.title() + " 적용 후 1일간 메트릭을 비교해 검증하세요.",
+                        primaryRecommendation == null ? "medium" : primaryRecommendation.riskLevel(),
+                        Math.max(0, analysis.totalMonthlyCost() - (primaryRecommendation == null ? 0 : primaryRecommendation.estMonthlySaving())),
+                        primaryRecommendation == null ? 0 : -primaryRecommendation.estMonthlySaving()
+                )
+        );
+
+        List<OptimizationModels.ActionGuideStep> actionGuide = List.of(
+                new OptimizationModels.ActionGuideStep(
+                        "understand-state",
+                        "현재 상태 확인",
+                        "CPU, 메모리, 낭비 비중, 신뢰도 신호를 먼저 읽고 어떤 리소스가 과다/주의 상태인지 확인합니다.",
+                        "신호 카드에서 '최적화 가능' 또는 '주의 필요' 항목을 먼저 봅니다."
+                ),
+                new OptimizationModels.ActionGuideStep(
+                        "pick-primary",
+                        "대표 권고 우선 검토",
+                        primaryRecommendation == null
+                                ? "대표 권고가 없어 추가 데이터 연동이 필요합니다."
+                                : primaryRecommendation.title() + " 권고를 먼저 검토하면 가장 큰 절감 효과를 빠르게 확인할 수 있습니다.",
+                        primaryRecommendation == null
+                                ? "Prometheus/K8s/AWS 연동을 보강합니다."
+                                : primaryRecommendation.targetResource() + " 대상과 리스크를 먼저 확인합니다."
+                ),
+                new OptimizationModels.ActionGuideStep(
+                        "simulate-impact",
+                        "시뮬레이션으로 영향 검증",
+                        "실시간 예측 대신 what-if 시나리오로 비용과 안정성 변화를 미리 설명합니다.",
+                        "트래픽 증가/대표 권고 적용 시나리오를 비교해 다음 액션을 정합니다."
+                )
+        );
+
+        String priorityHeadline = primaryRecommendation == null
+                ? "지금은 연동 범위를 늘려 더 신뢰도 높은 권고를 확보하는 것이 우선입니다."
+                : "지금은 " + primaryRecommendation.title() + " 권고를 먼저 검토하는 것이 가장 큰 절감 효과를 기대할 수 있습니다.";
+
+        return new OptimizationModels.AnalysisInsights(
+                analysis.score().totalScore(),
+                analysis.score().grade(),
+                analysis.executiveSummary(),
+                priorityHeadline,
+                signals,
+                scenarios,
+                actionGuide
+        );
+    }
+
+    private OptimizationModels.DecisionSignal buildDecisionSignal(
+            String id,
+            String label,
+            String value,
+            String statusLabel,
+            String tone,
+            String detail
+    ) {
+        return new OptimizationModels.DecisionSignal(id, label, value, statusLabel, tone, detail);
+    }
+
+    private double averageUsage(List<OptimizationModels.InfrastructureResource> resources, boolean cpu) {
+        return resources.stream()
+                .map(cpu ? OptimizationModels.InfrastructureResource::cpuUsagePercent : OptimizationModels.InfrastructureResource::memoryUsagePercent)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0);
+    }
+
+    private String percentLabel(double value) {
+        return trimNumeric(value) + "%";
+    }
+
+    private String usageStatusLabel(double value, double lowerBound, double upperBound) {
+        if (value <= 0) {
+            return "데이터 부족";
+        }
+        if (value < lowerBound) {
+            return "최적화 가능";
+        }
+        if (value > upperBound) {
+            return "주의 필요";
+        }
+        return "안정적";
+    }
+
+    private String usageTone(double value, double lowerBound, double upperBound) {
+        if (value <= 0) {
+            return "muted";
+        }
+        if (value < lowerBound) {
+            return "opportunity";
+        }
+        if (value > upperBound) {
+            return "attention";
+        }
+        return "stable";
     }
 
     private List<OptimizationModels.InfrastructureResource> buildInfrastructureResources(SourceSnapshot sources) {
