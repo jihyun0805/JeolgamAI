@@ -24,7 +24,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const themeInit = `(function(){try{var t=localStorage.getItem('jeolgamai-theme');if(t==='dark'){document.documentElement.classList.add('dark');return;}if(t==='light'){document.documentElement.classList.remove('dark');return;}}catch(e){}var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);})();`;
+  const themeInit = `(function(){try{var t=localStorage.getItem('jeolgamai-theme');if(t==='dark'){document.documentElement.classList.add('dark');return;}if(t==='light'){document.documentElement.classList.remove('dark');return;}}catch(e){}document.documentElement.classList.remove('dark');})();`;
 
   return (
     <html lang="ko" suppressHydrationWarning>
