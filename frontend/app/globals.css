@@ -32,16 +32,38 @@
  * 전역 UI를 약 90%로 축소 (Ctrl–와 유사).
  * font-size만 줄이는 방식과 달리 px·border·고정 크기까지 함께 스케일됨.
  * zoom 미지원 브라우저는 rem만 줄이는 font-size로 대체.
+ *
+ * zoom: 0.9 보정: 자식이 100vh/dvh를 쓰면 시각적으로 90%만 채워져 하단 여백이 생김.
+ * h-screen, min-h-screen, min-h-dvh를 1/0.9로 오버라이드해 zoom 후에도 뷰포트를 꽉 채움.
  */
 html {
   zoom: 0.9;
-  min-height: 100dvh;
+  height: calc(100dvh / 0.9);
+}
+
+/* zoom 보정: h-screen, min-h-screen이 시각적으로 100% 뷰포트를 채우도록 */
+.h-screen,
+.min-h-screen,
+.min-h-dvh {
+  min-height: calc(100dvh / 0.9) !important;
+}
+.h-screen {
+  height: calc(100dvh / 0.9) !important;
 }
 
 @supports not (zoom: 1) {
   html {
     zoom: normal;
     font-size: 90%;
+    height: 100dvh;
+  }
+  .h-screen,
+  .min-h-screen,
+  .min-h-dvh {
+    min-height: 100dvh !important;
+  }
+  .h-screen {
+    height: 100dvh !important;
   }
 }
 
@@ -55,7 +77,7 @@ html {
 }
 
 body {
-  min-height: 100dvh;
+  min-height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-manrope), var(--font-noto-sans-kr), sans-serif;

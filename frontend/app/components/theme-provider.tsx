@@ -51,12 +51,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    const prefersDark =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-    const initial: ThemeMode = prefersDark ? "dark" : "light";
-    setThemeState(initial);
-    applyDomTheme(initial);
+    setThemeState("light");
+    applyDomTheme("light");
   }, []);
 
   const toggleTheme = useCallback(() => {
