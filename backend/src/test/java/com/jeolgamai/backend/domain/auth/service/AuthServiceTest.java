@@ -3,6 +3,7 @@ package com.jeolgamai.backend.domain.auth.service;
 import com.jeolgamai.backend.domain.auth.dto.AuthResponse;
 import com.jeolgamai.backend.domain.auth.dto.LoginRequest;
 import com.jeolgamai.backend.domain.auth.dto.SignUpRequest;
+import com.jeolgamai.backend.domain.project.service.ProjectService;
 import com.jeolgamai.backend.domain.user.entity.UserAccount;
 import com.jeolgamai.backend.domain.user.repository.UserAccountRepository;
 import com.jeolgamai.backend.global.security.JwtTokenProvider;
@@ -37,11 +38,14 @@ class AuthServiceTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
 
+    @Mock
+    private ProjectService projectService;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userAccountRepository, passwordEncoder, jwtTokenProvider);
+        authService = new AuthService(userAccountRepository, passwordEncoder, jwtTokenProvider, projectService);
     }
 
     @Test
