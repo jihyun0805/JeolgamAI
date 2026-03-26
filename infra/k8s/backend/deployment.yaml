@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/backend:2026-03-26-02-22-e39bd6a5
+          image: asia-northeast3-docker.pkg.dev/project-4f97da53-2e5a-4ef8-b6b/jeolgamai/backend:2026-03-26-04-27-23a92b78
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
