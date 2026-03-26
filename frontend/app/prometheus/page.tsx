@@ -737,60 +737,68 @@ function MetricPanel({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {aiBandPoints?.length ? (
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{
-                borderColor: hexToRgba(aiRangeColor, 0.42),
-                backgroundColor: hexToRgba(aiRangeColor, 0.18),
-                color: aiRangeColor,
-              }}
-            >
-              AI 범위
-            </span>
+        <div className="flex flex-col items-end gap-1.5">
+          {/* AI 예측 뱃지 (상단 고정) */}
+          {(aiBandPoints?.length || aiBaseText || aiRangeText) ? (
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {aiBandPoints?.length ? (
+                <span
+                  className="rounded-full border px-3 py-1 text-xs font-semibold"
+                  style={{
+                    borderColor: hexToRgba(aiRangeColor, 0.42),
+                    backgroundColor: hexToRgba(aiRangeColor, 0.18),
+                    color: aiRangeColor,
+                  }}
+                >
+                  AI 범위
+                </span>
+              ) : null}
+              {aiBaseText ? (
+                <span
+                  className="rounded-full border px-3 py-1 text-xs font-semibold"
+                  style={{
+                    borderColor: hexToRgba(aiRangeColor, 0.28),
+                    backgroundColor: hexToRgba(aiRangeColor, 0.1),
+                    color: aiRangeColor,
+                  }}
+                >
+                  {aiBaseText}
+                </span>
+              ) : null}
+              {aiRangeText ? (
+                <span
+                  className="rounded-full border px-3 py-1 text-xs font-semibold"
+                  style={{
+                    borderColor: hexToRgba(aiRangeColor, 0.24),
+                    backgroundColor: hexToRgba(aiRangeColor, 0.08),
+                    color: hexToRgba(aiRangeColor, 0.96),
+                  }}
+                >
+                  {aiRangeText}
+                </span>
+              ) : null}
+            </div>
           ) : null}
-          {aiBaseText ? (
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{
-                borderColor: hexToRgba(aiRangeColor, 0.28),
-                backgroundColor: hexToRgba(aiRangeColor, 0.1),
-                color: aiRangeColor,
-              }}
-            >
-              {aiBaseText}
-            </span>
-          ) : null}
-          {aiRangeText ? (
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{
-                borderColor: hexToRgba(aiRangeColor, 0.24),
-                backgroundColor: hexToRgba(aiRangeColor, 0.08),
-                color: hexToRgba(aiRangeColor, 0.96),
-              }}
-            >
-              {aiRangeText}
-            </span>
-          ) : null}
-          {forecastPoints?.length ? (
-            <span
-              className="rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{
-                borderColor: hexToRgba(projectedColor, 0.28),
-                backgroundColor: hexToRgba(projectedColor, 0.1),
-                color: projectedColor,
-              }}
-            >
-              산술선
-            </span>
-          ) : null}
-          {points.length > 0 ? (
-            <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              latest {formatMetricValue(points[points.length - 1].value, unit)}
-            </span>
-          ) : null}
+          {/* 산술선 + latest (하단 고정) */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {forecastPoints?.length ? (
+              <span
+                className="rounded-full border px-3 py-1 text-xs font-semibold"
+                style={{
+                  borderColor: hexToRgba(projectedColor, 0.28),
+                  backgroundColor: hexToRgba(projectedColor, 0.1),
+                  color: projectedColor,
+                }}
+              >
+                산술선
+              </span>
+            ) : null}
+            {points.length > 0 ? (
+              <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                latest {formatMetricValue(points[points.length - 1].value, unit)}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="mt-5">
