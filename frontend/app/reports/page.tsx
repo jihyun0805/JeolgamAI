@@ -165,6 +165,18 @@ export default function ReportsPage() {
     loadPageData(reportId).catch(() => {});
   }, [loadPageData]);
 
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => setMessage(""), 5000);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(""), 7000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const selectedReport = useMemo(
     () => reportsData?.reports.find((report) => report.id === selectedReportId) ?? null,
     [reportsData, selectedReportId],
@@ -286,7 +298,7 @@ export default function ReportsPage() {
               type="button"
               onClick={handleGenerateReport}
               disabled={generating || !analysisData?.analysis}
-              className="flex h-8 items-center rounded-xl bg-brand px-2 py-0 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generating ? "리포트 생성 중..." : "통합 리포트 생성"}
             </button>

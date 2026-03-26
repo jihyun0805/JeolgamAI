@@ -113,11 +113,18 @@ function SparkleIcon() {
   );
 }
 
+interface IntegrationCoverage {
+  aws: boolean;
+  k8s: boolean;
+  prometheus: boolean;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [runningAnalysis, setRunningAnalysis] = useState(false);
+  const [integrationCoverage, setIntegrationCoverage] = useState<IntegrationCoverage | null>(null);
 
   async function loadDashboard() {
     setLoading(true);
@@ -138,6 +145,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboard().catch(() => {});
+    authFetch("/api/integrations", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((p) => { if (p?.ok && p?.data?.coverage) setIntegrationCoverage(p.data.coverage); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -180,11 +191,10 @@ export default function DashboardPage() {
     [data],
   );
 
-  const coverage = data?.analysis?.sourceCoverage;
   const sources = [
-    { label: "AWS", enabled: Boolean(coverage?.aws) },
-    { label: "K8s", enabled: Boolean(coverage?.k8s) },
-    { label: "Prometheus", enabled: Boolean(coverage?.prometheus) },
+    { label: "AWS", enabled: Boolean(integrationCoverage?.aws ?? data?.analysis?.sourceCoverage?.aws) },
+    { label: "K8s", enabled: Boolean(integrationCoverage?.k8s ?? data?.analysis?.sourceCoverage?.k8s) },
+    { label: "Prometheus", enabled: Boolean(integrationCoverage?.prometheus ?? data?.analysis?.sourceCoverage?.prometheus) },
   ];
   const analysisTime = formatCompactDateTime(data?.analysis?.createdAt);
 
@@ -198,7 +208,7 @@ export default function DashboardPage() {
           description="프로젝트 비용과 권고를 한눈에 확인합니다."
           actions={
             <button
-              className="flex h-8 items-center rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-hover disabled:opacity-60"
+              className="h-8 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               disabled={runningAnalysis || loading}
               onClick={onRunAnalysis}
             >

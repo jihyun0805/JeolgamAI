@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "@/app/components/theme-provider";
 import UserProfileChip from "@/app/components/user-profile-chip";
 import { authFetch } from "@/lib/auth-fetch";
+import { coverageEvents } from "@/lib/coverage-events";
 
 type SidebarIconName =
   | "query_stats"
@@ -197,11 +198,12 @@ interface CoveragePayload {
 }
 
 let coverageCache: CoveragePayload | null = null;
+let sessionCache: SessionPayload | null = null;
 
 export default function MainSidebar({ active }: { active?: SidebarKey }) {
   const { theme } = useTheme();
   const logoSrc = theme === "light" ? "/gammeongi.png" : "/logo.png";
-  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [session, setSession] = useState<SessionPayload | null>(sessionCache);
   const [coverage, setCoverage] = useState<CoveragePayload>(
     coverageCache ?? { aws: false, k8s: false, prometheus: false },
   );
@@ -220,7 +222,8 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
       if (sessionResponse.ok) {
         const payload = await sessionResponse.json();
         if (payload?.ok && payload?.data && !cancelled) {
-          setSession(payload.data as SessionPayload);
+          sessionCache = payload.data as SessionPayload;
+          setSession(sessionCache);
         }
       }
 
@@ -236,8 +239,12 @@ export default function MainSidebar({ active }: { active?: SidebarKey }) {
     }
 
     loadSession().catch(() => {});
+
+    const unsubscribe = coverageEvents.subscribe(() => { loadSession().catch(() => {}); });
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
