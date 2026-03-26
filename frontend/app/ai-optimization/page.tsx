@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
@@ -258,6 +259,7 @@ export default function AiOptimizationPage() {
   }
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const REC_LIMIT = 3;
   const [scorePart, gradePart] = scoreLabel.split("·").map((s) => s.trim());
   const selectedRecommendation =
     recommendations.find((r) => r.id === selectedRecommendationId) ?? recommendations[0];
@@ -274,7 +276,7 @@ export default function AiOptimizationPage() {
 
         <div className="flex min-h-0 flex-1 gap-5 overflow-hidden p-4 md:p-6">
           {/* Left panel */}
-          <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto xl:w-80">
+          <aside className="flex w-72 shrink-0 flex-col gap-4 xl:w-80">
             {/* Analysis score */}
             <article className="shrink-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#1a2029]">
               <p className="text-[10px] font-bold tracking-[0.24em] text-brand uppercase">
@@ -311,7 +313,7 @@ export default function AiOptimizationPage() {
               <div className="shrink-0 border-b border-slate-200 px-4 py-3.5 dark:border-slate-800">
                 <h3 className="text-sm font-bold">권고 목록</h3>
               </div>
-              <div className="flex-1 space-y-1.5 overflow-y-auto p-2.5">
+              <div className="space-y-1.5 p-2.5">
                 {loading ? (
                   <div className="space-y-1.5">
                     {[1, 2, 3].map((i) => (
@@ -321,38 +323,59 @@ export default function AiOptimizationPage() {
                 ) : recommendations.length === 0 ? (
                   <p className="py-8 text-center text-sm text-slate-400">권고 없음</p>
                 ) : (
-                  recommendations.map((rec) => (
-                    <button
-                      key={rec.id}
-                      type="button"
-                      onClick={() => setSelectedRecommendationId(rec.id)}
-                      className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
-                        rec.id === selectedRecommendationId
-                          ? "border-brand/30 bg-brand/6 dark:bg-brand/8"
-                          : "border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <span
-                          className={`mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${riskBadgeClass(rec.riskLevel)}`}
-                        >
-                          {rec.riskLevel}
-                        </span>
-                        <p className="text-sm font-semibold leading-snug">{rec.title}</p>
+                  <>
+                    {recommendations.slice(0, REC_LIMIT).map((rec) => (
+                      <button
+                        key={rec.id}
+                        type="button"
+                        onClick={() => setSelectedRecommendationId(rec.id)}
+                        className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
+                          rec.id === selectedRecommendationId
+                            ? "border-brand/30 bg-brand/6 dark:bg-brand/8"
+                            : "border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={`mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${riskBadgeClass(rec.riskLevel)}`}
+                          >
+                            {rec.riskLevel}
+                          </span>
+                          <p className="text-sm font-semibold leading-snug">{rec.title}</p>
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between gap-2 pl-0.5">
+                          <span className="truncate text-[11px] text-slate-400 dark:text-slate-500">
+                            {rec.targetResource}
+                          </span>
+                          <span className="shrink-0 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                            ↓ {formatKrw(rec.estMonthlySaving)}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                    {recommendations.length > REC_LIMIT && (
+                      <div className="w-full rounded-xl border border-dashed border-slate-200 py-2 text-center text-xs font-semibold text-slate-400 dark:border-slate-700">
+                        +{recommendations.length - REC_LIMIT}개 더보기
                       </div>
-                      <div className="mt-1.5 flex items-center justify-between gap-2 pl-0.5">
-                        <span className="truncate text-[11px] text-slate-400 dark:text-slate-500">
-                          {rec.targetResource}
-                        </span>
-                        <span className="shrink-0 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                          ↓ {formatKrw(rec.estMonthlySaving)}
-                        </span>
-                      </div>
-                    </button>
-                  ))
+                    )}
+                  </>
                 )}
               </div>
             </article>
+
+            {/* Jeolnyangi mascot */}
+            <div className="relative mt-auto shrink-0 h-48 px-1">
+              <div className="absolute top-0 -left-1 max-w-[58%] rounded-2xl rounded-br-none border border-brand/25 bg-brand/8 px-2 py-2.5 text-xs leading-relaxed text-slate-600 dark:bg-brand/10 dark:text-slate-300">
+                권고를 선택하면 AI가 근거와<br />실행 방법을 상세히 알려드려요!
+              </div>
+              <Image
+                src="/jeolnyangi.png"
+                alt="절냥이"
+                width={170}
+                height={170}
+                className="absolute -bottom-[13px] right-0 drop-shadow-sm"
+              />
+            </div>
           </aside>
 
           {/* Chat panel */}
