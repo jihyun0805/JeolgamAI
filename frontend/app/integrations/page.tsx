@@ -6,6 +6,7 @@ import { useTheme } from "@/app/components/theme-provider";
 import MainSidebar from "@/app/components/main-sidebar";
 import PageTopBar from "@/app/components/page-top-bar";
 import { authFetch } from "@/lib/auth-fetch";
+import { coverageEvents } from "@/lib/coverage-events";
 
 type IntegrationStatus = "active" | "partial" | "failed";
 type IntegrationType = "aws" | "k8s" | "prometheus";
@@ -281,6 +282,12 @@ export default function IntegrationsPage() {
     loadIntegrations().catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(""), 5000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   async function submitForm(endpoint: string, body: object, successMessage: string) {
     setLoading(true);
     setError("");
@@ -297,6 +304,7 @@ export default function IntegrationsPage() {
       }
       setMessage(successMessage);
       await loadIntegrations();
+      coverageEvents.emit();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -366,7 +374,7 @@ export default function IntegrationsPage() {
             <button
               onClick={runAnalysis}
               disabled={runningAnalysis}
-              className="h-8 rounded-xl bg-brand px-4 py-0 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {runningAnalysis ? "분석 중…" : "샘플 분석 실행"}
             </button>

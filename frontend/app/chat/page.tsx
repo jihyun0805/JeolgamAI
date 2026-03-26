@@ -161,6 +161,18 @@ export default function ReportsPage() {
     loadPageData(reportId).catch(() => {});
   }, [loadPageData]);
 
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => setMessage(""), 5000);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(""), 7000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const selectedReport = useMemo(
     () => reportsData?.reports.find((report) => report.id === selectedReportId) ?? null,
     [reportsData, selectedReportId],

@@ -169,7 +169,7 @@ export default function InfrastructureAnalysisPage() {
           description="AWS 서울 리전 비용을 기준으로 현재 프로젝트의 사용량과 권고를 분석합니다."
           actions={
             <button
-              className="h-8 rounded-xl bg-brand px-4 py-0 text-sm font-bold text-white transition hover:bg-brand-hover disabled:opacity-60"
+              className="h-8 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               disabled={runningAnalysis}
               onClick={onRunAnalysis}
             >

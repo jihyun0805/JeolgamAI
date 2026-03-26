@@ -684,6 +684,18 @@ export default function InfrastructureMapPage() {
     loadSnapshot().catch(() => undefined);
   }, [loadSnapshot]);
 
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => setMessage(""), 5000);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(""), 7000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const filteredNamespaces = useMemo(() => {
     if (!snapshot) return [];
     const namespaces = snapshot.deploymentSignals.kubernetes.namespaces;
@@ -846,7 +858,7 @@ export default function InfrastructureMapPage() {
           actions={
             <button
               onClick={() => loadSnapshot().catch(() => undefined)}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand/90"
+              className="h-8 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-hover"
             >
               새로고침
             </button>

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
 import ThemeToggle from "@/app/components/theme-toggle";
 import { storeSession } from "@/lib/jwt-store";
-import { TEST_ACCOUNT } from "@/lib/test-users";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -152,17 +151,11 @@ function LoginPageContent() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
+            className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
           >
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
-
-        <div className="mt-5 rounded-xl border border-brand/25 bg-brand-muted px-4 py-3 text-xs text-slate-700 dark:border-blue-300/20 dark:bg-[#0a163f] dark:text-blue-100/80">
-          <p className="font-semibold text-brand dark:text-blue-100">테스트 계정</p>
-          <p className="mt-1">아이디: {TEST_ACCOUNT.loginId}</p>
-          <p>비밀번호: {TEST_ACCOUNT.password}</p>
-        </div>
 
         <p className="mt-6 text-center text-sm text-slate-600 dark:text-blue-100/70">
           계정이 없나요?{" "}
