@@ -6,16 +6,16 @@ import Link from "next/link";
 import { useRef } from "react";
 
 const featureCards = [
-  { title: "비용 절감 분석", desc: "클라우드 리소스 사용량을 분석해 \n 불필요한 지출을 빠르게 찾아냅니다.", metric: "예상 절감률 분석" },
-  { title: "실시간 모니터링", desc: "AWS, Kubernetes, Prometheus \n 데이터를 통합해 성능과 비용을 \n 한 화면에서 확인합니다.", metric: "통합 비용·성능 모니터링" },
-  { title: "리스크 탐지", desc: "운영, 보안, 신뢰성 기준으로 \n 리스크 항목을 자동 분류해 우선순위를 제시합니다.", metric: "위험 리소스 자동 식별" },
-  { title: "실행 가이드", desc: "권장 액션과 롤백 명령까지 함께 제공해 운영팀이 바로 적용할 수 있습니다.", metric: "명령 템플릿 즉시 복사" },
+  { title: "비용 분석", desc: "AWS Cost Explorer 데이터를 서비스·리전별로 분석해 낭비 항목과 절감 가능 금액을 산출합니다.", metric: "AWS Cost Explorer 연동" },
+  { title: "인프라 모니터링", desc: "AWS EC2·RDS·S3, Kubernetes 클러스터, Prometheus 메트릭을 \n 통합 대시보드에서 관리합니다.", metric: "AWS · K8s · Prometheus" },
+  { title: "AI 최적화 권고", desc: "AI가 리스크 수준별로 최적화 권고를 제시하고, 채팅으로 상세 근거와 \n 실행 방법을 설명합니다.", metric: "AI 채팅 Q&A" },
+  { title: "통합 리포트", desc: "실행 계획, 롤백 커맨드, 비용 예측이 담긴 리포트를 생성해 팀과 공유할 수 있습니다.", metric: "PDF 내보내기" },
 ];
 
 const processSteps = [
-  { title: "Collect", desc: "AWS/Prometheus 데이터를 배치로 수집하고 \n 최신성을 관리합니다." },
-  { title: "Detect", desc: "Idle/Over-provision을 규칙 기반으로 탐지하고 리스크를 분류합니다." },
-  { title: "Decide", desc: "절감액·리스크·노력도를 비교하고 실행 커맨드를 제공합니다." },
+  { step: "01", title: "Connect", desc: "AWS, Kubernetes, Prometheus 연동을 설정하고 \n 인프라 데이터 수집을 시작합니다." },
+  { step: "02", title: "Analyze", desc: "수집된 데이터를 분석해 낭비 비용과 리스크 항목을 자동으로 탐지하고 점수화합니다." },
+  { step: "03", title: "Optimize", desc: "AI 권고에 따라 커맨드를 실행하고, 통합 리포트로 팀에 공유합니다." },
 ];
 
 const easeOut = [0.16, 1, 0.3, 1] as const;
@@ -48,13 +48,12 @@ function useMotionPreset() {
 function MotionButton({ href, variant, children }: { href: string; variant: "primary" | "secondary"; children: React.ReactNode }) {
   const { reduce } = useMotionPreset();
   const common = variant === "primary"
-    ? "group relative inline-flex overflow-hidden rounded-full bg-blue-500 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
-    : "group relative inline-flex overflow-hidden rounded-full border border-blue-300/40 px-8 py-3 text-sm font-bold text-blue-100 transition-colors hover:bg-blue-400/10";
+    ? "group relative inline-flex overflow-hidden rounded-full bg-orange-500 px-8 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-orange-600"
+    : "group relative inline-flex overflow-hidden rounded-full border border-orange-300 bg-white px-8 py-3 text-sm font-bold text-orange-600 transition-colors hover:bg-orange-50";
   return (
     <motion.div whileHover={reduce ? undefined : { y: -2, scale: 1.01 }} whileTap={reduce ? undefined : { scale: 0.985 }} transition={{ duration: 0.22, ease: easeOut }}>
       <Link href={href} className={common}>
         <span className="relative z-10">{children}</span>
-        <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       </Link>
     </motion.div>
   );
@@ -66,12 +65,11 @@ function DashboardBeamOverlay() {
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]">
       <motion.div
         aria-hidden
-        className="absolute inset-x-0 top-0 h-32"
-        style={{ background: "linear-gradient(180deg, rgba(120,170,255,0.18) 0%, rgba(100,150,255,0.06) 60%, transparent 100%)", filter: "blur(12px)" }}
-        animate={reduce ? undefined : { opacity: [0.4, 0.8, 0.4] }}
+        className="absolute inset-x-0 top-0 h-24"
+        style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%)", filter: "blur(8px)" }}
+        animate={reduce ? undefined : { opacity: [0.5, 0.9, 0.5] }}
         transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut", delay: 1.6 }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-[#040b20]/10" />
     </div>
   );
 }
@@ -84,45 +82,44 @@ export default function Home() {
   const previewCardY = useTransform(scrollYProgress, [0, 1], reduce ? [0, 0] : [10, -10]);
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#040b20] text-white">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#fffbf5] text-gray-900">
+      {/* Soft background tints */}
       <motion.div variants={fadeIn} initial="hidden" animate="show"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,103,255,0.2),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(40,95,225,0.28),transparent_40%)]" />
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,140,0,0.10),transparent_45%),radial-gradient(circle_at_85%_5%,rgba(255,180,50,0.12),transparent_40%)]" />
 
-      <motion.div aria-hidden className="pointer-events-none absolute inset-0 opacity-80"
-        animate={reduce ? undefined : { scale: [1, 1.05, 1], x: [0, 18, -10, 0], y: [0, -14, 8, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-        style={{ background: "radial-gradient(circle at 18% 18%, rgba(56,103,255,0.16), transparent 30%), radial-gradient(circle at 80% 8%, rgba(72,122,255,0.16), transparent 28%), radial-gradient(circle at 50% 65%, rgba(0,170,255,0.08), transparent 35%)", filter: "blur(36px)" }}
-      />
-
+      {/* Header */}
       <motion.header
         initial={reduce ? false : { opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduce ? 0.01 : 0.45, ease: easeOut }}
-        className="relative z-10 w-full shrink-0 border-b border-blue-300/20 bg-[#0a153a]/70 py-4 backdrop-blur-lg"
+        className="relative z-10 w-full shrink-0 border-b border-orange-100 bg-white/80 py-4 backdrop-blur-lg"
       >
         <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between px-5">
           <div className="flex min-w-0 shrink-0 items-center gap-2">
             <motion.div whileHover={reduce ? undefined : { y: -2 }} transition={{ duration: 0.2, ease: easeOut }} className="flex h-9 w-9 shrink-0 items-center justify-center">
-              <Image src="/logo.png" alt="JeolgamAI" width={40} height={40} className="h-9 w-9 object-contain" />
+              <Image src="/gammeongi.png" alt="JeolgamAI" width={40} height={40} className="h-9 w-9 object-contain" />
             </motion.div>
-            <span className="text-xl font-extrabold tracking-tight text-white md:text-2xl">JeolgamAI</span>
+            <span className="text-xl font-extrabold tracking-tight text-gray-900 md:text-2xl">JeolgamAI</span>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            <Link href="/login" className="rounded-full border border-blue-300/40 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-400/10">로그인</Link>
-            <Link href="/signup" className="rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-400">회원가입</Link>
+            <Link href="/login" className="rounded-full border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-600 transition-colors hover:bg-orange-50">로그인</Link>
+            <Link href="/signup" className="rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600">회원가입</Link>
           </div>
         </div>
       </motion.header>
 
+      {/* Hero */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col justify-center">
         <div className="mx-auto w-full max-w-[1200px] px-5 py-12">
           <motion.main variants={container} initial="hidden" animate="show" className="pt-4 text-center md:pt-8">
-            <motion.span variants={fadeUp} className="inline-flex rounded-full border border-blue-300/30 bg-blue-500/15 px-5 py-2 text-sm text-blue-100">
+            <motion.span variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-100 px-5 py-2 text-sm font-medium text-orange-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
               Cloud Cost Intelligence
             </motion.span>
-            <motion.h1 variants={fadeUp} className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold leading-tight md:text-6xl">
-              클라우드 비용을 줄이고<br />팀 생산성을 높이세요
+            <motion.h1 variants={fadeUp} className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold leading-tight text-gray-900 md:text-6xl">
+              클라우드 비용을 줄이고<br />
+              <span className="bg-gradient-to-r from-orange-500 to-amber-400 bg-clip-text text-transparent">팀 생산성을 높이세요</span>
             </motion.h1>
-            <motion.p variants={fadeUp} className="mx-auto mt-5 max-w-2xl text-sm text-blue-100/80 md:text-base">
+            <motion.p variants={fadeUp} className="mx-auto mt-5 max-w-2xl text-sm text-gray-500 md:text-base">
               JeolgamAI는 인프라 비용, 리스크, 실행 가이드를 한 번에 제공합니다.<br />
               로그인 후 대시보드에서 최적화 현황을 확인하고, 리포트 메뉴에서 상세 리포트를 생성할 수 있습니다.
             </motion.p>
@@ -131,6 +128,7 @@ export default function Home() {
               <MotionButton href="/signup" variant="secondary">무료 회원가입</MotionButton>
             </motion.div>
 
+            {/* Dashboard preview */}
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: reduce ? 0 : 60, filter: reduce ? "blur(0px)" : "blur(12px)" },
@@ -139,26 +137,26 @@ export default function Home() {
               className="relative mx-auto mt-14 max-w-6xl"
               style={{ zIndex: 1 }}
             >
-              <div className="relative overflow-hidden rounded-[32px] border border-blue-300/20 bg-[#0a153a]/60 p-3 shadow-[0_24px_90px_rgba(7,23,80,0.5)] backdrop-blur-xl">
-                <div className="relative overflow-hidden rounded-[28px] border border-blue-300/10 bg-[#09122f]">
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent" />
-                  <Image src="/dashboard-preview.png" alt="JeolgamAI dashboard preview" width={1400} height={860} priority className="h-auto w-full object-cover" />
+              <div className="relative overflow-hidden rounded-[32px] border border-orange-200/70 bg-white/60 p-3 shadow-[0_24px_80px_rgba(200,100,0,0.12)] backdrop-blur-xl">
+                <div className="relative overflow-hidden rounded-[28px] border border-orange-100">
+                  <Image src="/dashboard_mockup.png" alt="JeolgamAI dashboard preview" width={1400} height={860} priority className="h-auto w-full object-cover" />
                   <DashboardBeamOverlay />
                 </div>
               </div>
             </motion.div>
           </motion.main>
 
+          {/* Feature Cards */}
           <motion.section variants={grid} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {featureCards.map((c) => (
               <motion.article key={c.title} variants={card}
-                whileHover={reduce ? undefined : { y: -4, scale: 1.01, boxShadow: "0 20px 60px rgba(20,80,255,0.18)" }}
+                whileHover={reduce ? undefined : { y: -4, scale: 1.01, boxShadow: "0 16px_48px_rgba(200,80,0,0.10)" }}
                 transition={{ duration: 0.22, ease: easeOut }}
-                className="flex flex-col rounded-2xl border border-blue-300/20 bg-[#15245b]/90 p-6 text-left shadow-[0_12px_40px_rgba(7,23,80,0.5)]"
+                className="flex flex-col rounded-2xl border border-orange-100 bg-white p-6 text-left shadow-sm"
               >
-                <h2 className="text-xl font-bold text-blue-50">{c.title}</h2>
-                <p className="mt-3 mb-10 flex-1 min-h-0 whitespace-pre-line text-sm leading-relaxed text-blue-100/75">{c.desc}</p>
-                <div className="mt-auto flex w-fit shrink-0 items-center rounded-full bg-blue-500/20 px-4 pt-2 pb-2.5 text-sm font-semibold leading-none text-blue-200">{c.metric}</div>
+                <h2 className="text-xl font-bold text-gray-900">{c.title}</h2>
+                <p className="mt-3 mb-10 flex-1 min-h-0 whitespace-pre-line text-sm leading-relaxed text-gray-500">{c.desc}</p>
+                <div className="mt-auto flex w-fit shrink-0 items-center rounded-full bg-orange-100 px-4 pt-2 pb-2.5 text-sm font-semibold leading-none text-orange-700">{c.metric}</div>
               </motion.article>
             ))}
           </motion.section>
@@ -166,41 +164,54 @@ export default function Home() {
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-[1200px] px-5 pb-20">
+        {/* Decision UI Section */}
         <motion.section ref={previewRef} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.25 }} className="mt-24">
           <motion.div variants={fadeUp} className="mx-auto max-w-3xl text-center">
-            <h3 className="text-2xl font-extrabold text-white md:text-3xl">권고를 &quot;결정&quot;으로 바꾸는 UI</h3>
-            <p className="mt-3 text-sm text-blue-100/75 md:text-base">절감액과 리스크를 한 화면에서 비교하고, 실행 커맨드까지 바로 확인하세요.</p>
+            <h3 className="text-2xl font-extrabold text-gray-900 md:text-3xl">권고를 &quot;결정&quot;으로 바꾸는 UI</h3>
+            <p className="mt-3 text-sm text-gray-500 md:text-base">절감액과 리스크를 한 화면에서 비교하고, 실행 커맨드까지 바로 확인하세요.</p>
           </motion.div>
-          <div className="relative mx-auto mt-8 max-w-5xl">
-            <motion.div style={{ y: previewGlowY }} className="absolute inset-0 rounded-[32px] bg-blue-500/10 blur-3xl" />
+          <div className="relative mt-8">
+            <motion.div style={{ y: previewGlowY }} className="absolute inset-0 rounded-[32px] bg-orange-300/20 blur-3xl" />
             <motion.div style={{ y: previewCardY }} className="relative">
-              <motion.div variants={fadeUp} className="rounded-3xl border border-blue-300/20 bg-[#0a153a]/60 p-5 shadow-[0_18px_60px_rgba(7,23,80,0.55)] backdrop-blur">
+              <motion.div variants={fadeUp} className="rounded-3xl border border-orange-100 bg-white p-5 shadow-[0_12px_48px_rgba(200,80,0,0.08)]">
+                {/* Stats Grid */}
                 <div className="grid gap-3 md:grid-cols-3">
-                  {["Total Cost", "Estimated Savings", "Risk Items"].map((t) => (
-                    <div key={t} className="rounded-2xl border border-blue-300/15 bg-[#15245b]/70 p-4">
-                      <div className="text-xs text-blue-100/70">{t}</div>
-                      <div className="mt-2 h-6 w-32 rounded bg-blue-500/20" />
-                      <div className="mt-3 h-2 w-full rounded bg-blue-500/10" />
+                  {[
+                    { label: "Total Cost", value: "$4,820/mo", bar: "w-3/4", color: "bg-orange-400" },
+                    { label: "Estimated Savings", value: "$1,340/mo", bar: "w-1/2", color: "bg-green-400" },
+                    { label: "Risk Items", value: "7 detected", bar: "w-1/3", color: "bg-red-400" },
+                  ].map((t) => (
+                    <div key={t.label} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                      <div className="text-xs font-medium text-gray-400">{t.label}</div>
+                      <div className="mt-2 text-lg font-bold text-gray-900">{t.value}</div>
+                      <div className="mt-3 h-1.5 w-full rounded-full bg-gray-200">
+                        <div className={`h-full rounded-full ${t.color} ${t.bar}`} />
+                      </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 rounded-2xl border border-blue-300/15 bg-[#15245b]/70 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-blue-100/70">Recommendation</div>
-                    <div className="h-6 w-24 rounded-full bg-blue-500/15" />
+                {/* Recommendation List */}
+                <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recommendations</div>
+                    <div className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">3 actions</div>
                   </div>
-                  <div className="mt-3 grid gap-2">
-                    {[1, 2, 3].map((i) => (
+                  <div className="grid gap-2">
+                    {[
+                      { label: "EC2 t3.large → t3.medium 다운사이징", save: "-$320", risk: "Low", effort: "Easy" },
+                      { label: "미사용 EBS 볼륨 3개 삭제 권고", save: "-$84", risk: "Med", effort: "Easy" },
+                      { label: "RDS Multi-AZ 단일 가용 영역 전환", save: "-$210", risk: "High", effort: "Hard" },
+                    ].map((item, i) => (
                       <motion.div key={i}
                         initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                         transition={{ duration: reduce ? 0.01 : 0.45, delay: reduce ? 0 : i * 0.08, ease: easeOut }}
-                        className="flex items-center justify-between rounded-xl bg-[#0a153a]/50 p-3"
+                        className="flex items-center justify-between rounded-xl bg-white p-3 shadow-sm border border-gray-100"
                       >
-                        <div className="h-3 w-40 rounded bg-blue-500/20" />
-                        <div className="flex gap-2">
-                          <div className="h-6 w-16 rounded-full bg-green-500/15" />
-                          <div className="h-6 w-16 rounded-full bg-red-500/15" />
-                          <div className="h-6 w-16 rounded-full bg-blue-500/15" />
+                        <div className="text-sm text-gray-700 truncate mr-4">{item.label}</div>
+                        <div className="flex shrink-0 gap-2">
+                          <div className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">{item.save}</div>
+                          <div className={`rounded-full px-3 py-1 text-xs font-semibold ${item.risk === "Low" ? "bg-green-100 text-green-700" : item.risk === "Med" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{item.risk}</div>
+                          <div className={`rounded-full px-3 py-1 text-xs font-semibold ${item.effort === "Easy" ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"}`}>{item.effort}</div>
                         </div>
                       </motion.div>
                     ))}
@@ -211,36 +222,50 @@ export default function Home() {
           </div>
         </motion.section>
 
-        <motion.section initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.25 }} className="mt-14">
+        {/* Process Steps Section */}
+        <motion.section initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.25 }} className="mt-20">
           <motion.div variants={fadeUp} className="mx-auto max-w-4xl text-center">
-            <h3 className="text-2xl font-extrabold text-white md:text-3xl">3단계로 끝나는 최적화</h3>
-            <p className="mt-3 text-sm text-blue-100/75 md:text-base">수집 → 탐지 → 권고/실행가이드까지, 운영팀이 바로 움직일 수 있도록.</p>
+            <h3 className="text-2xl font-extrabold text-gray-900 md:text-3xl">3단계로 끝나는 최적화</h3>
+            <p className="mt-3 text-sm text-gray-500 md:text-base">연동 → 분석 → AI 권고·리포트까지, 운영팀이 바로 움직일 수 있도록.</p>
           </motion.div>
-          <div className="mx-auto mt-8 grid max-w-5xl gap-4 whitespace-pre-line md:grid-cols-3">
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
             {processSteps.map((s, idx) => (
               <motion.div key={s.title} variants={card} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }}
-                transition={{ delay: reduce ? 0 : idx * 0.08 }}
-                whileHover={reduce ? undefined : { y: -4 }}
-                className="rounded-2xl border border-blue-300/20 bg-[#15245b]/70 p-6"
+                transition={{ delay: reduce ? 0 : idx * 0.1 }}
+                whileHover={reduce ? undefined : { y: -5, boxShadow: "0 16px 48px rgba(200,80,0,0.10)" }}
+                className="relative rounded-2xl border border-orange-100 bg-white p-6 shadow-sm"
               >
-                <div className="text-sm font-extrabold text-blue-100">{s.title}</div>
-                <div className="mt-2 text-sm leading-relaxed text-blue-100/70">{s.desc}</div>
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-sm font-extrabold text-white shadow-sm">
+                  {s.step}
+                </div>
+                <div className="text-lg font-extrabold text-gray-900">{s.title}</div>
+                <div className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-500">{s.desc}</div>
               </motion.div>
             ))}
           </div>
         </motion.section>
 
+        {/* CTA Section */}
         <motion.section initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="mt-16">
           <motion.div variants={fadeUp}
-            className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-6 rounded-3xl border border-blue-300/20 bg-[#0a153a]/60 p-8 text-center backdrop-blur md:flex-row md:text-left"
+            className="relative overflow-hidden flex flex-col items-center justify-between gap-6 rounded-3xl bg-gradient-to-br from-orange-500 to-amber-400 p-8 text-center shadow-[0_16px_48px_rgba(220,80,0,0.25)] md:flex-row md:text-left"
           >
-            <div>
-              <div className="text-2xl font-extrabold">지금 바로 JeolgamAI로 시작하세요</div>
-              <div className="mt-2 text-sm text-blue-100/70">연결 → 분석 → 권고 확인까지 3분이면 충분합니다.</div>
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.12),transparent_55%)]" />
+            <div className="relative">
+              <div className="text-2xl font-extrabold text-white">지금 바로 JeolgamAI로 시작하세요</div>
+              <div className="mt-2 text-sm text-orange-100">연결 → 분석 → 권고 확인까지 3분이면 충분합니다.</div>
             </div>
-            <div className="flex gap-3">
-              <MotionButton href="/signup" variant="primary">무료로 시작하기</MotionButton>
-              <MotionButton href="/login" variant="secondary">대시보드 보기</MotionButton>
+            <div className="relative flex gap-3 shrink-0">
+              <motion.div whileHover={reduce ? undefined : { y: -2, scale: 1.01 }} whileTap={reduce ? undefined : { scale: 0.985 }} transition={{ duration: 0.22, ease: easeOut }}>
+                <Link href="/signup" className="inline-flex rounded-full bg-white px-8 py-3 text-sm font-bold text-orange-600 shadow-sm transition-colors hover:bg-orange-50">
+                  무료로 시작하기
+                </Link>
+              </motion.div>
+              <motion.div whileHover={reduce ? undefined : { y: -2, scale: 1.01 }} whileTap={reduce ? undefined : { scale: 0.985 }} transition={{ duration: 0.22, ease: easeOut }}>
+                <Link href="/login" className="inline-flex rounded-full border border-white/50 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10">
+                  대시보드 보기
+                </Link>
+              </motion.div>
             </div>
           </motion.div>
         </motion.section>
