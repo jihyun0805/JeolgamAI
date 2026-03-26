@@ -111,22 +111,20 @@ function notificationToneClasses(severity: string) {
   }
 }
 
+let _sessionCache: SessionPayload | null = null;
+
 export default function PageTopBar({
   title,
   description,
-  userName = "김철수 팀장",
-  userRole = "재무 전략 파트",
   actions,
 }: {
   title: string;
   description: string;
-  userName?: string;
-  userRole?: string;
   actions?: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [session, setSession] = useState<SessionPayload | null>(_sessionCache);
   const [switchingProject, setSwitchingProject] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -164,7 +162,8 @@ export default function PageTopBar({
       if (!response.ok) return;
       const payload = await response.json();
       if (!payload?.ok || !payload?.data || cancelled) return;
-      setSession(payload.data as SessionPayload);
+      _sessionCache = payload.data as SessionPayload;
+      setSession(_sessionCache);
     }
 
     loadSession().catch(() => {});
@@ -207,15 +206,15 @@ export default function PageTopBar({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [notificationsOpen, userMenuOpen]);
 
-  const profileName = session?.name ?? userName;
+  const profileName = session?.name ?? "";
   const canCreateProject =
     session?.role === "company_admin" || session?.role === "system_admin";
   const profileRole = useMemo(() => {
     if (session?.activeProject?.name) {
       return `${session.role} · ${session.activeProject.name}`;
     }
-    return userRole;
-  }, [session, userRole]);
+    return session?.role ?? "";
+  }, [session]);
 
   async function onSelectProject(projectId: string) {
     if (!projectId || projectId === session?.workspaceId) return;
@@ -286,14 +285,14 @@ export default function PageTopBar({
 
         {/* left: title + description */}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-bold tracking-tight md:text-xl">{title}</h2>
+          <h2 className="truncate text-xl font-bold tracking-tight">{title}</h2>
           <p className="hidden truncate text-sm text-slate-500 dark:text-slate-400 md:block">
             {description}
           </p>
         </div>
 
         {/* right: project + actions + bell + user */}
-        <div className="flex shrink-0 items-center gap-2 md:gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
 
           {/* project selector */}
           {session?.projects && session.projects.length > 0 ? (
@@ -454,16 +453,8 @@ export default function PageTopBar({
               aria-expanded={userMenuOpen}
               aria-haspopup="menu"
             >
-              <div className="hidden text-right lg:block">
-                <p className="max-w-[120px] truncate text-xs font-bold text-slate-900 dark:text-white">
-                  {profileName}
-                </p>
-                <p className="max-w-[120px] truncate text-[10px] text-slate-400 dark:text-slate-500">
-                  {profileRole}
-                </p>
-              </div>
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand/30 bg-brand/15 text-xs font-bold text-brand">
-                {getInitial(profileName)}
+                {profileName ? getInitial(profileName) : null}
               </div>
             </button>
 
