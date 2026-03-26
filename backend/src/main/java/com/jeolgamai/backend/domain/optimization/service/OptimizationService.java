@@ -551,7 +551,11 @@ public class OptimizationService {
 
         if (!hasAws) {
             if (hasPrometheus && prometheusCapacity != null && prometheusCapacity.nodeCount() > 0) {
-                warnings.add("AWS 연동이 없어 Prometheus capacity 기반 AWS 서울 리전 추정 비용을 사용합니다.");
+                if (hasK8s) {
+                    warnings.add("AWS 연동이 없어 Prometheus/Kubernetes capacity 기반 AWS 서울 리전 추정 비용을 사용합니다.");
+                } else {
+                    warnings.add("AWS 연동이 없어 Prometheus node capacity 기반 EC2 추정 비용을 사용합니다.");
+                }
             } else {
                 warnings.add("AWS 연동이 없어 프로젝트 비용 분석이 제한됩니다.");
             }
@@ -940,7 +944,7 @@ public class OptimizationService {
         }
 
         PrometheusCapacitySnapshot capacity = sources.prometheusCapacity();
-        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity);
+        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity, sources.coverage().k8s());
         Double cpuUsage = sources.prometheus() == null ? null : sources.prometheus().summary().cpuUsagePercent();
         Double memoryUsage = sources.prometheus() == null ? null : sources.prometheus().summary().memoryUsagePercent();
 
@@ -956,17 +960,19 @@ public class OptimizationService {
                 estimate.ec2MonthlyCost(),
                 inferRiskLevel("estimated", "EC2", cpuUsage)
         ));
-        resources.add(new OptimizationModels.InfrastructureResource(
-                "estimated-eks-control-plane",
-                "Prometheus 추정 EKS Control Plane",
-                "EKS",
-                sources.project().awsRegion(),
-                "estimated",
-                null,
-                null,
-                estimate.eksMonthlyCost(),
-                "low"
-        ));
+        if (estimate.eksMonthlyCost() > 0) {
+            resources.add(new OptimizationModels.InfrastructureResource(
+                    "estimated-eks-control-plane",
+                    "Prometheus 추정 EKS Control Plane",
+                    "EKS",
+                    sources.project().awsRegion(),
+                    "estimated",
+                    null,
+                    null,
+                    estimate.eksMonthlyCost(),
+                    "low"
+            ));
+        }
         if (estimate.ebsMonthlyCost() > 0) {
             resources.add(new OptimizationModels.InfrastructureResource(
                     "estimated-persistent-storage",
@@ -992,7 +998,7 @@ public class OptimizationService {
         }
 
         PrometheusCapacitySnapshot capacity = sources.prometheusCapacity();
-        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity);
+        PrometheusCostEstimate estimate = estimatePrometheusAwsSeoulCost(capacity, sources.coverage().k8s());
         List<OptimizationModels.CostBreakdownItem> items = new ArrayList<>();
         items.add(new OptimizationModels.CostBreakdownItem(
                 "Amazon Elastic Compute Cloud",
@@ -1001,13 +1007,15 @@ public class OptimizationService {
                 sources.project().awsRegion(),
                 Math.max(capacity.nodeCount(), 1)
         ));
-        items.add(new OptimizationModels.CostBreakdownItem(
-                "Amazon Elastic Kubernetes Service",
-                "Estimated Control Plane",
-                estimate.eksMonthlyCost(),
-                sources.project().awsRegion(),
-                1
-        ));
+        if (estimate.eksMonthlyCost() > 0) {
+            items.add(new OptimizationModels.CostBreakdownItem(
+                    "Amazon Elastic Kubernetes Service",
+                    "Estimated Control Plane",
+                    estimate.eksMonthlyCost(),
+                    sources.project().awsRegion(),
+                    1
+            ));
+        }
         if (estimate.ebsMonthlyCost() > 0) {
             items.add(new OptimizationModels.CostBreakdownItem(
                     "Amazon Elastic Block Store",
@@ -1023,7 +1031,10 @@ public class OptimizationService {
                 .toList();
     }
 
-    private PrometheusCostEstimate estimatePrometheusAwsSeoulCost(PrometheusCapacitySnapshot capacity) {
+    private PrometheusCostEstimate estimatePrometheusAwsSeoulCost(
+            PrometheusCapacitySnapshot capacity,
+            boolean includeEksControlPlane
+    ) {
         double memoryGiB = bytesToGiB(capacity.totalMemoryBytes());
         double storageGiB = bytesToGiB(capacity.pvcStorageBytes());
 
@@ -1035,7 +1046,7 @@ public class OptimizationService {
 
         return new PrometheusCostEstimate(
                 Math.max(ec2MonthlyCost, 0),
-                ESTIMATED_EKS_CONTROL_PLANE_MONTHLY_KRW,
+                includeEksControlPlane ? ESTIMATED_EKS_CONTROL_PLANE_MONTHLY_KRW : 0,
                 Math.max(ebsMonthlyCost, 0)
         );
     }
