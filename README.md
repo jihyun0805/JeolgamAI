@@ -113,7 +113,6 @@ AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석
 # 👨‍💻 담당 역할
 
 ### CI/CD 및 인프라 구축
-- Jenkins 기반 CI/CD 파이프라인 구축 및 자동화 흐름 설계
 - 가상화 환경을 위한 Docker 이미지 빌드 및 운영 서버 배포 자동화
 - Prometheus, Grafana 기반 인프라 메트릭 수집 및 모니터링 대시보드 환경 구성
 
