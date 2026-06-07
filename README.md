@@ -125,7 +125,7 @@ AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석
 
 ---
 
-# 📈 프로젝트 성성과
+# 📈 프로젝트 성과
 
 <div align="center">
 
