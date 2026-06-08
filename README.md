@@ -5,7 +5,7 @@
 ### 클라우드 비용을 줄이고, 팀 생산성을 높이는 FinOps 플랫폼
 
 JeolgamAI는 클라우드 비용, 인프라 리스크, 최적화 권고, 실행 리포트를 한 번에 제공하는 서비스입니다.  
-AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석하고, 최적화 가이드를 제공합니다.
+AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석하고, 운영팀이 바로 실행할 수 있는 최적화 가이드를 제공합니다.
 
 <img width="2846" height="1440" alt="image (17)" src="https://github.com/user-attachments/assets/d8441c8f-19f3-48a0-b2b3-63bb03a18c4a" />
 <img width="2833" height="1443" alt="image (18)" src="https://github.com/user-attachments/assets/8b89cb7a-f1eb-4c97-bb78-500764800d42" />
