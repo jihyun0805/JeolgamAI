@@ -121,7 +121,6 @@ AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석
 - Prometheus 메트릭 연동을 통한 클라우드 모니터링 화면 구현
 - AI 비용 최적화 권고 가이드 및 요약 화면 구현
 - 운영 효율 검토를 위한 통합 리포트 결과 화면 구현
-- REST API 연동 및 다양한 차트 라이브러리를 활용한 데이터 시각화
 
 ---
 
@@ -158,7 +157,6 @@ AWS·Kubernetes·Prometheus 데이터를 기반으로 낭비 리소스를 분석
 - [ ] Kubernetes 리소스 최적화 권고 가이드 실시간 자동 적용 기능 추가
 - [ ] 임계치 초과 및 비용 이상 현상 탐지 알림 기능(Slack, 이메일 등) 추가
 - [ ] 부서별/팀별 비용 리포트 정기 자동 발송 기능 추가
-- [ ] 기간별 절감 추이 및 히스토리 추적을 위한 대시보드 고도화
 
 <div align="center">
 <img width="1772" height="996" alt="image (16)" src="https://github.com/user-attachments/assets/c340b715-7e54-451d-a3fc-afdd18c2da69" />
